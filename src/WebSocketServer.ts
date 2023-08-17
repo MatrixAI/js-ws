@@ -1,4 +1,3 @@
-import type { TLSConfig } from '../network/types';
 import type { IncomingMessage, ServerResponse } from 'http';
 import type tls from 'tls';
 import https from 'https';
@@ -9,6 +8,7 @@ import WebSocketStream from './WebSocketStream';
 import * as webSocketErrors from './errors';
 import * as webSocketEvents from './events';
 import { never, promise } from './utils';
+import { TLSConfig } from './types';
 
 type ConnectionCallback = (streamPair: WebSocketStream) => void;
 

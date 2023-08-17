@@ -1,6 +1,5 @@
-import type { TLSSocket } from 'tls';
+import type { DetailedPeerCertificate, TLSSocket } from 'tls';
 import type { ContextTimed } from '@matrixai/contexts';
-import type { NodeId, NodeIdEncoded } from '../ids';
 import { createDestroy } from '@matrixai/async-init';
 import Logger from '@matrixai/logger';
 import WebSocket from 'ws';
@@ -10,7 +9,6 @@ import WebSocketStream from './WebSocketStream';
 import * as webSocketUtils from './utils';
 import * as webSocketErrors from './errors';
 import { promise } from './utils';
-import * as nodesUtils from '../nodes/utils';
 
 interface WebSocketClient extends createDestroy.CreateDestroy {}
 @createDestroy.CreateDestroy()
@@ -32,29 +30,29 @@ class WebSocketClient {
   static async createWebSocketClient({
     host,
     port,
-    expectedNodeIds,
     connectionTimeoutTime = Infinity,
     pingIntervalTime = 1_000,
     pingTimeoutTimeTime = 10_000,
     logger = new Logger(this.name),
+    verifyCallback
   }: {
     host: string;
     port: number;
-    expectedNodeIds: Array<NodeId>;
     connectionTimeoutTime?: number;
     pingIntervalTime?: number;
     pingTimeoutTimeTime?: number;
     logger?: Logger;
+    verifyCallback?: () => Promise<void>;
   }): Promise<WebSocketClient> {
     logger.info(`Creating ${this.name}`);
     const clientClient = new this(
       logger,
       host,
       port,
-      expectedNodeIds,
       connectionTimeoutTime,
       pingIntervalTime,
       pingTimeoutTimeTime,
+      verifyCallback
     );
     logger.info(`Created ${this.name}`);
     return clientClient;
@@ -67,10 +65,10 @@ class WebSocketClient {
     protected logger: Logger,
     host: string,
     protected port: number,
-    protected expectedNodeIds: Array<NodeId>,
     protected connectionTimeoutTime: number,
     protected pingIntervalTime: number,
     protected pingTimeoutTimeTime: number,
+    protected verifyCallback?: (peerCert: DetailedPeerCertificate) => Promise<void>
   ) {
     if (Validator.isValidIPv4String(host)[0]) {
       this.host = host;
@@ -151,14 +149,15 @@ class WebSocketClient {
     this.logger.info(`Connecting to ${address}`);
     const connectProm = promise<void>();
     const authenticateProm = promise<{
-      nodeId: NodeIdEncoded;
       localHost: string;
       localPort: number;
       remoteHost: string;
       remotePort: number;
+      peerCert: DetailedPeerCertificate;
     }>();
+    // Let ws handle authentication if no custom verify callback is provided.
     const ws = new WebSocket(address, {
-      rejectUnauthorized: false,
+      rejectUnauthorized: this.verifyCallback != null,
     });
     // Handle connection failure
     const openErrorHandler = (e) => {
@@ -169,21 +168,20 @@ class WebSocketClient {
       );
     };
     ws.once('error', openErrorHandler);
-    // Authenticate server's certificates
+    // Authenticate server's certificate (this will be automatically done)
     ws.once('upgrade', async (request) => {
       const tlsSocket = request.socket as TLSSocket;
       const peerCert = tlsSocket.getPeerCertificate(true);
       try {
-        const nodeId = await webSocketUtils.verifyServerCertificateChain(
-          this.expectedNodeIds,
-          webSocketUtils.detailedToCertChain(peerCert),
-        );
+        if (this.verifyCallback != null) {
+          await this.verifyCallback(peerCert);
+        }
         authenticateProm.resolveP({
-          nodeId: nodesUtils.encodeNodeId(nodeId),
           localHost: request.connection.localAddress ?? '',
           localPort: request.connection.localPort ?? 0,
           remoteHost: request.connection.remoteAddress ?? '',
           remotePort: request.connection.remotePort ?? 0,
+          peerCert
         });
       } catch (e) {
         authenticateProm.rejectP(e);

@@ -5,7 +5,6 @@ import type {
 } from 'stream/web';
 import type * as ws from 'ws';
 import type Logger from '@matrixai/logger';
-import type { NodeIdEncoded } from './ids/types';
 import { WritableStream, ReadableStream } from 'stream/web';
 import * as webSocketErrors from './errors';
 import * as utilsErrors from './utils/errors';
@@ -33,7 +32,6 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     pingInterval: number,
     pingTimeoutTime: number,
     protected metadata: {
-      nodeId?: NodeIdEncoded;
       localHost: string;
       localPort: number;
       remoteHost: string;

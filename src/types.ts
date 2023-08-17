@@ -8,10 +8,11 @@
 };
 
 type TLSConfig = {
-  keyPrivatePem: PrivateKeyPEM;
-  certChainPem: CertificatePEMChain;
+  keyPrivatePem: string;
+  certChainPem: string;
 };
 
 export type {
-  PromiseDeconstructed
+  PromiseDeconstructed,
+  TLSConfig
 }

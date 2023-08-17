@@ -1,6 +1,4 @@
 import type { ReadableWritablePair } from 'stream/web';
-import type { TLSConfig } from '@/network/types';
-import type { KeyPair } from '@/keys/types';
 import type { NodeId } from '@/ids/types';
 import type http from 'http';
 import fs from 'fs';
@@ -14,10 +12,7 @@ import { status } from '@matrixai/async-init';
 import WebSocketServer from '@/WebSocketServer';
 import WebSocketClient from '@/WebSocketClient';
 import { promise } from '@/utils';
-import * as keysUtils from '@/keys/utils';
 import * as webSocketErrors from '@/errors';
-import * as nodesUtils from '@/nodes/utils';
-import * as testNodeUtils from '../nodes/utils';
 import * as testsUtils from './utils';
 
 // This file tests both the client and server together. They're too interlinked
