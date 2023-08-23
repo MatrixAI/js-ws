@@ -1,12 +1,12 @@
-import { WebSocketServer } from "@";
-import fs from 'fs';
+import WebSocketServer from "@/WebSocketServer";
+import * as testsUtils from './utils';
 
 describe('test', () => {
-  test('test', () => {
+  test('test', async () => {
+    const tlsConfigServer = await testsUtils.generateConfig('RSA');
     const server = new WebSocketServer({
       config: {
-        cert: fs.readFileSync('./cert/cert.pem').toString(),
-        key: fs.readFileSync('./cert/key.pem').toString(),
+        ...tlsConfigServer
       }
     });
     server.start({
