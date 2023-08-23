@@ -115,6 +115,8 @@ class WebSocketConnection extends EventTarget {
       );
       return;
     }
+    const message: Uint8Array = data instanceof ArrayBuffer ? new Uint8Array(data) : data;
+    message[0];
   }
 
   public static createWebSocketConnection(

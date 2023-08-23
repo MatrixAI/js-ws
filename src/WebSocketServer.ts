@@ -63,6 +63,7 @@ class WebSocketServer extends EventTarget {
     config: Partial<WebSocketConfig> & {
       key: string,
       cert: string,
+      ca?: string,
     };
     logger?: Logger,
   }) {
@@ -85,7 +86,8 @@ class WebSocketServer extends EventTarget {
     this.logger.info(`Starting ${this.constructor.name}`);
     this.server = https.createServer({
       ...this.config,
-      requestTimeout: this.config.connectTimeoutTime
+      requestTimeout: this.config.connectTimeoutTime,
+
     });
     this.webSocketServer = new ws.WebSocketServer({
       server: this.server,
@@ -172,13 +174,15 @@ class WebSocketServer extends EventTarget {
 
   @startStop.ready(new errors.ErrorWebSocketServerNotRunning())
   public updateConfig(config: Partial<WebSocketConfig> & {
-    key: string,
-    cert: string,
+    key?: string,
+    cert?: string,
+    ca?: string,
   }): void {
     const tlsServer = this.server as tls.Server;
     tlsServer.setSecureContext({
       key: config.key,
       cert: config.cert,
+      ca: config.ca,
     });
     const wsConfig = {
       ...this.config,

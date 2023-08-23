@@ -26,7 +26,10 @@ type PromiseDeconstructed<T> = {
 
 type ConnectionId = Opaque<'ConnectionId', number>;
 
-type StreamId = Opaque<'StreamId', number>;
+/**
+ * StreamId is a 62 bit unsigned integer
+ */
+type StreamId = Opaque<'StreamId', bigint>;
 
 /**
  * Host is always an IP address
