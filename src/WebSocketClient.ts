@@ -6,9 +6,10 @@ import WebSocket from 'ws';
 import { Validator } from 'ip-num';
 import { Timer } from '@matrixai/timer';
 import WebSocketStream from './WebSocketStream';
-import * as webSocketUtils from './utils';
 import * as webSocketErrors from './errors';
 import { promise } from './utils';
+import { VerifyCallback } from './types';
+import WebSocketConnection from './WebSocketConnection';
 
 interface WebSocketClient extends createDestroy.CreateDestroy {}
 @createDestroy.CreateDestroy()
@@ -42,7 +43,7 @@ class WebSocketClient {
     pingIntervalTime?: number;
     pingTimeoutTimeTime?: number;
     logger?: Logger;
-    verifyCallback?: () => Promise<void>;
+    verifyCallback?: VerifyCallback;
   }): Promise<WebSocketClient> {
     logger.info(`Creating ${this.name}`);
     const clientClient = new this(
@@ -68,7 +69,7 @@ class WebSocketClient {
     protected connectionTimeoutTime: number,
     protected pingIntervalTime: number,
     protected pingTimeoutTimeTime: number,
-    protected verifyCallback?: (peerCert: DetailedPeerCertificate) => Promise<void>
+    protected verifyCallback?: VerifyCallback
   ) {
     if (Validator.isValidIPv4String(host)[0]) {
       this.host = host;
@@ -224,7 +225,7 @@ class WebSocketClient {
 
     // Constructing the `ReadableWritablePair`, the lifecycle is handed off to
     //  the webSocketStream at this point.
-    const webSocketStreamClient = new WebSocketStream(
+    const webSocketStreamClient = WebSocketConnection.createWebSocketConnection(
       ws,
       this.pingIntervalTime,
       this.pingTimeoutTimeTime,

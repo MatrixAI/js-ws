@@ -4,13 +4,14 @@ import https from 'https';
 import { startStop, status } from '@matrixai/async-init';
 import Logger from '@matrixai/logger';
 import * as ws from 'ws';
-import WebSocketStream from './WebSocketStream';
-import * as webSocketErrors from './errors';
+import * as errors from './errors';
 import * as webSocketEvents from './events';
 import { never, promise } from './utils';
-import { TLSConfig } from './types';
-
-type ConnectionCallback = (streamPair: WebSocketStream) => void;
+import { Host, Port, WebSocketConfig } from './types';
+import WebSocketConnection from './WebSocketConnection';
+import Counter from 'resource-counter';
+import { serverDefault } from './config';
+import * as utils from './utils';
 
 /**
  * Events:
@@ -21,104 +22,70 @@ type ConnectionCallback = (streamPair: WebSocketStream) => void;
 interface WebSocketServer extends startStop.StartStop {}
 @startStop.StartStop()
 class WebSocketServer extends EventTarget {
-  /**
-   * @param obj
-   * @param obj.connectionCallback -
-   * @param obj.tlsConfig - TLSConfig containing the private key and cert chain used for TLS.
-   * @param obj.host - Listen address to bind to.
-   * @param obj.port - Listen port to bind to.
-   * @param obj.maxIdleTimeout - Timeout time for when the connection is cleaned up after no activity.
-   * Default is 120 seconds.
-   * @param obj.pingIntervalTime - Time between pings for checking connection health and keep alive.
-   * Default is 1,000 milliseconds.
-   * @param obj.pingTimeoutTimeTime - Time before connection is cleaned up after no ping responses.
-   * Default is 10,000 milliseconds.
-   * @param obj.logger
-   */
-  static async createWebSocketServer({
-    connectionCallback,
-    tlsConfig,
-    host,
-    port,
-    maxIdleTimeout = 120,
-    pingIntervalTime = 1_000,
-    pingTimeoutTimeTime = 10_000,
-    logger = new Logger(this.name),
-  }: {
-    connectionCallback: ConnectionCallback;
-    tlsConfig: TLSConfig;
-    host?: string;
-    port?: number;
-    maxIdleTimeout?: number;
-    pingIntervalTime?: number;
-    pingTimeoutTimeTime?: number;
-    logger?: Logger;
-  }) {
-    logger.info(`Creating ${this.name}`);
-    const wsServer = new this(
-      logger,
-      maxIdleTimeout,
-      pingIntervalTime,
-      pingTimeoutTimeTime,
-    );
-    await wsServer.start({
-      connectionCallback,
-      tlsConfig,
-      host,
-      port,
-    });
-    logger.info(`Created ${this.name}`);
-    return wsServer;
-  }
-
+  protected logger: Logger;
+  protected config: WebSocketConfig;
   protected server: https.Server;
   protected webSocketServer: ws.WebSocketServer;
   protected _port: number;
   protected _host: string;
-  protected connectionEventHandler: (
-    event: webSocketEvents.ConnectionEvent,
-  ) => void;
-  protected activeSockets: Set<WebSocketStream> = new Set();
+  public readonly connectionIdCounter = new Counter(0);
+  public readonly connectionMap: Map<number, WebSocketConnection> = new Map();
+
+  protected handleWebSocketConnectionEvents = (
+    event: webSocketEvents.WebSocketConnectionEvent,
+  ) => {
+    if (event instanceof webSocketEvents.WebSocketConnectionErrorEvent) {
+      this.dispatchEvent(
+        new webSocketEvents.WebSocketConnectionErrorEvent({
+          detail: event.detail,
+        }),
+      );
+    } else if (event instanceof webSocketEvents.WebSocketConnectionStopEvent) {
+      this.dispatchEvent(new webSocketEvents.WebSocketConnectionStopEvent());
+    } else if (event instanceof webSocketEvents.WebSocketConnectionStreamEvent) {
+      this.dispatchEvent(
+        new webSocketEvents.WebSocketConnectionStreamEvent({ detail: event.detail }),
+      );
+    } else {
+      utils.never();
+    }
+  };
 
   /**
    *
    * @param logger
-   * @param maxIdleTimeout
-   * @param pingIntervalTime
-   * @param pingTimeoutTimeTime
+   * @param config
    */
-  constructor(
-    protected logger: Logger,
-    protected maxIdleTimeout: number | undefined,
-    protected pingIntervalTime: number,
-    protected pingTimeoutTimeTime: number,
-  ) {
+  constructor({
+    config,
+    logger,
+  }: {
+    config: Partial<WebSocketConfig> & {
+      key: string,
+      cert: string,
+    };
+    logger?: Logger,
+  }) {
     super();
+    const wsConfig = {
+      ...serverDefault,
+      ...config,
+    };
+    this.logger = logger ?? new Logger(this.constructor.name);
+    this.config = wsConfig;
   }
 
   public async start({
-    tlsConfig,
     host,
     port = 0,
-    connectionCallback,
   }: {
-    tlsConfig: TLSConfig;
     host?: string;
     port?: number;
-    connectionCallback?: ConnectionCallback;
-  }): Promise<void> {
+  } = {}): Promise<void> {
     this.logger.info(`Starting ${this.constructor.name}`);
-    if (connectionCallback != null) {
-      this.connectionEventHandler = (
-        event: webSocketEvents.ConnectionEvent,
-      ) => {
-        connectionCallback(event.detail.webSocketStream);
-      };
-      this.addEventListener('connection', this.connectionEventHandler);
-    }
     this.server = https.createServer({
-      key: tlsConfig.keyPrivatePem,
-      cert: tlsConfig.certChainPem,
+      ...this.config,
+      requestTimeout: this.config.connectTimeoutTime
     });
     this.webSocketServer = new ws.WebSocketServer({
       server: this.server,
@@ -132,7 +99,7 @@ class WebSocketServer extends EventTarget {
     this.server.on('request', this.requestHandler);
 
     const listenProm = promise<void>();
-    this.server.listen(port ?? 0, host, listenProm.resolveP);
+    this.server.listen(port, host, listenProm.resolveP);
     await listenProm.p;
     const address = this.server.address();
     if (address == null || typeof address === 'string') never();
@@ -140,29 +107,28 @@ class WebSocketServer extends EventTarget {
     this.logger.debug(`Listening on port ${this._port}`);
     this._host = address.address ?? '127.0.0.1';
     this.dispatchEvent(
-      new webSocketEvents.StartEvent({
-        detail: {
-          host: this._host,
-          port: this._port,
-        },
-      }),
+      new webSocketEvents.WebSocketServerStartEvent(),
     );
     this.logger.info(`Started ${this.constructor.name}`);
   }
 
-  public async stop(force: boolean = false): Promise<void> {
+  public async stop({
+    force = false,
+  }: {
+    force?: boolean;
+  }): Promise<void> {
     this.logger.info(`Stopping ${this.constructor.name}`);
-    // Shutting down active websockets
-    if (force) {
-      for (const webSocketStream of this.activeSockets) {
-        webSocketStream.cancel();
-      }
+    const destroyProms: Array<Promise<void>> = [];
+    for (const webSocketConnection of this.connectionMap.values()) {
+      destroyProms.push(
+        webSocketConnection.stop({
+          force
+        })
+      );
     }
-    // Wait for all active websockets to close
-    for (const webSocketStream of this.activeSockets) {
-      // Ignore errors, we only care that it finished
-      webSocketStream.endedProm.catch(() => {});
-    }
+    this.logger.debug('Awaiting connections to destroy');
+    await Promise.all(destroyProms);
+    this.logger.debug('All connections destroyed');
     // Close the server by closing the underlying socket
     const wssCloseProm = promise<void>();
     this.webSocketServer.close((e) => {
@@ -182,10 +148,6 @@ class WebSocketServer extends EventTarget {
       }
     });
     await serverCloseProm.p;
-    // Removing handlers
-    if (this.connectionEventHandler != null) {
-      this.removeEventListener('connection', this.connectionEventHandler);
-    }
 
     this.webSocketServer.off('connection', this.connectionHandler);
     this.webSocketServer.off('close', this.closeHandler);
@@ -194,66 +156,98 @@ class WebSocketServer extends EventTarget {
     this.server.off('error', this.errorHandler);
     this.server.on('request', this.requestHandler);
 
-    this.dispatchEvent(new webSocketEvents.StopEvent());
+    this.dispatchEvent(new webSocketEvents.WebSocketServerStopEvent());
     this.logger.info(`Stopped ${this.constructor.name}`);
   }
 
-  @startStop.ready(new webSocketErrors.ErrorWebSocketServerNotRunning())
+  @startStop.ready(new errors.ErrorWebSocketServerNotRunning())
   public getPort(): number {
     return this._port;
   }
 
-  @startStop.ready(new webSocketErrors.ErrorWebSocketServerNotRunning())
+  @startStop.ready(new errors.ErrorWebSocketServerNotRunning())
   public getHost(): string {
     return this._host;
   }
 
-  @startStop.ready(new webSocketErrors.ErrorWebSocketServerNotRunning())
-  public setTlsConfig(tlsConfig: TLSConfig): void {
+  @startStop.ready(new errors.ErrorWebSocketServerNotRunning())
+  public updateConfig(config: Partial<WebSocketConfig> & {
+    key: string,
+    cert: string,
+  }): void {
     const tlsServer = this.server as tls.Server;
     tlsServer.setSecureContext({
-      key: tlsConfig.keyPrivatePem,
-      cert: tlsConfig.certChainPem,
+      key: config.key,
+      cert: config.cert,
     });
+    const wsConfig = {
+      ...this.config,
+      ...config,
+    };
+    this.config = wsConfig;
   }
 
   /**
    * Handles the creation of the `ReadableWritablePair` and provides it to the
    * StreamPair handler.
    */
-  protected connectionHandler = (
+  protected connectionHandler = async (
     webSocket: ws.WebSocket,
     request: IncomingMessage,
   ) => {
-    const connection = request.connection;
-    const webSocketStream = new WebSocketStream(
-      webSocket,
-      this.pingIntervalTime,
-      this.pingTimeoutTimeTime,
-      {
-        localHost: connection.localAddress ?? '',
-        localPort: connection.localPort ?? 0,
-        remoteHost: connection.remoteAddress ?? '',
-        remotePort: connection.remotePort ?? 0,
+    const httpSocket = request.connection;
+    const connectionId = this.connectionIdCounter.allocate();
+    const connection = await WebSocketConnection.createWebSocketConnection({
+      type: 'server',
+      connectionId: connectionId,
+      remoteInfo: {
+        host: (httpSocket.remoteAddress ?? '') as Host,
+        port: (httpSocket.remotePort ?? 0) as Port,
       },
-      this.logger.getChild(WebSocketStream.name),
-    );
-    // Adding socket to the active sockets map
-    this.activeSockets.add(webSocketStream);
-    void webSocketStream.endedProm
-      // Ignore errors, we only care that it finished
-      .catch(() => {})
-      .finally(() => {
-        this.activeSockets.delete(webSocketStream);
-      });
+      config: this.config,
+      socket: webSocket,
+      logger: this.logger.getChild(
+        `${WebSocketConnection.name} ${connectionId}`
+      ),
+      server: this,
+    });
 
-    // There is not nodeId or certs for the client, and we can't get the remote
-    //  port from the `uWebsocket` library.
+    // Handling connection events
+    connection.addEventListener(
+      'connectionError',
+      this.handleWebSocketConnectionEvents,
+    );
+    connection.addEventListener(
+      'connectionStream',
+      this.handleWebSocketConnectionEvents,
+    );
+    connection.addEventListener(
+      'streamDestroy',
+      this.handleWebSocketConnectionEvents,
+    );
+    connection.addEventListener(
+      'connectionStop',
+      (event) => {
+        connection.removeEventListener(
+          'connectionError',
+          this.handleWebSocketConnectionEvents,
+        );
+        connection.removeEventListener(
+          'connectionStream',
+          this.handleWebSocketConnectionEvents,
+        );
+        connection.removeEventListener(
+          'streamDestroy',
+          this.handleWebSocketConnectionEvents,
+        );
+        this.handleWebSocketConnectionEvents(event);
+      },
+      { once: true },
+    );
+
     this.dispatchEvent(
-      new webSocketEvents.ConnectionEvent({
-        detail: {
-          webSocketStream,
-        },
+      new webSocketEvents.WebSocketServerConnectionEvent({
+        detail: connection
       }),
     );
   };
@@ -267,7 +261,7 @@ class WebSocketServer extends EventTarget {
       return;
     }
     this.logger.debug('close event, forcing stop');
-    await this.stop(true);
+    await this.stop({ force: true });
   };
 
   /**

@@ -1,43 +1,79 @@
+import WebSocketConnection from './WebSocketConnection';
 import type WebSocketStream from './WebSocketStream';
 
-class StartEvent extends Event {
-  public detail: {
-    host: string;
-    port: number;
-  };
+// Server events
+
+abstract class WebSocketServerEvent extends Event {}
+
+class WebSocketServerConnectionEvent extends Event {
+  public detail: WebSocketConnection;
   constructor(
     options: EventInit & {
-      detail: {
-        host: string;
-        port: number;
-      };
+      detail: WebSocketConnection;
     },
   ) {
-    super('start', options);
+    super('serverConnection', options);
     this.detail = options.detail;
   }
 }
 
-class StopEvent extends Event {
+class WebSocketServerStartEvent extends Event {
   constructor(options?: EventInit) {
-    super('stop', options);
+    super('serverStart', options);
   }
 }
 
-class ConnectionEvent extends Event {
-  public detail: {
-    webSocketStream: WebSocketStream;
-  };
+class WebSocketServerStopEvent extends Event {
+  constructor(options?: EventInit) {
+    super('serverStop', options);
+  }
+}
+
+class WebSocketServerErrorEvent extends Event {
+  public detail: Error;
   constructor(
     options: EventInit & {
-      detail: {
-        webSocketStream: WebSocketStream;
-      };
+      detail: Error;
     },
   ) {
-    super('connection', options);
+    super('serverError', options);
     this.detail = options.detail;
   }
 }
 
-export { StartEvent, StopEvent, ConnectionEvent };
+// Connection events
+
+abstract class WebSocketConnectionEvent extends Event {}
+
+class WebSocketConnectionStreamEvent extends WebSocketConnectionEvent {
+  public detail: WebSocketStream;
+  constructor(
+    options: EventInit & {
+      detail: WebSocketStream;
+    },
+  ) {
+    super('connectionStream', options);
+    this.detail = options.detail;
+  }
+}
+
+class WebSocketConnectionStopEvent extends WebSocketConnectionEvent {
+  constructor(options?: EventInit) {
+    super('connectionStop', options);
+  }
+}
+
+class WebSocketConnectionErrorEvent extends WebSocketConnectionEvent {
+  public detail: Error;
+  constructor(
+    options: EventInit & {
+      detail: Error;
+    },
+  ) {
+    super('connectionError', options);
+    this.detail = options.detail;
+  }
+}
+
+export {
+  WebSocketServerEvent, WebSocketServerConnectionEvent, WebSocketServerStartEvent, WebSocketServerStopEvent, WebSocketConnectionEvent, WebSocketConnectionStreamEvent, WebSocketConnectionStopEvent, WebSocketConnectionErrorEvent };

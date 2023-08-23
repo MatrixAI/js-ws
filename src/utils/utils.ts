@@ -1,11 +1,11 @@
 import type {
   PromiseDeconstructed,
-} from '../types';
-import * as utilsErrors from './errors';
+} from './types';
+import * as errors from '../errors';
 
 
 function never(): never {
-  throw new utilsErrors.ErrorUtilsUndefinedBehaviour();
+  throw new errors.ErrorWebSocketUndefinedBehaviour();
 }
 
 /**
