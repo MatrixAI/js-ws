@@ -9,9 +9,8 @@ import { Host, RemoteInfo, StreamId, VerifyCallback, WebSocketConfig } from './t
 import WebSocketClient from './WebSocketClient';
 import WebSocketServer from './WebSocketServer';
 import WebSocketStream from './WebSocketStream';
-import Counter from 'resource-counter';
 import * as errors from './errors';
-import { promise } from './utils';
+import { fromStreamId, promise, toStreamId } from './utils';
 import { Timer } from '@matrixai/timer';
 import * as events from './events';
 import { ready } from '@matrixai/async-init/dist/CreateDestroyStartStop';
@@ -98,6 +97,13 @@ class WebSocketConnection extends EventTarget {
   protected _remoteHost: Host;
 
   /**
+   * Bubble up stream destroy event
+   */
+  protected handleWebSocketStreamDestroyEvent = () => {
+    this.dispatchEvent(new events.WebSocketStreamDestroyEvent());
+  };
+
+  /**
    * Connection closed promise.
    * This can resolve or reject.
    */
@@ -106,7 +112,8 @@ class WebSocketConnection extends EventTarget {
   protected resolveClosedP: () => void;
   protected rejectClosedP: (reason?: any) => void;
 
-  protected messageHandler = (data: ws.RawData, isBinary: boolean) => {
+  protected messageHandler = async (data: ws.RawData, isBinary: boolean) => {
+    console.log(isBinary);
     if (!isBinary || data instanceof Array) {
       this.dispatchEvent(
         new events.WebSocketConnectionErrorEvent({
@@ -115,8 +122,39 @@ class WebSocketConnection extends EventTarget {
       );
       return;
     }
-    const message: Uint8Array = data instanceof ArrayBuffer ? new Uint8Array(data) : data;
-    message[0];
+    let message: Uint8Array = data instanceof ArrayBuffer ? new Uint8Array(data) : data;
+
+    const { data: streamId, remainder } = toStreamId(message);
+    message = remainder;
+
+    let stream = this.streamMap.get(streamId);
+    if (stream == null) {
+      stream = await WebSocketStream.createWebSocketStream({
+        connection: this,
+        streamId,
+        logger: this.logger.getChild(`${WebSocketStream.name} ${streamId!}`),
+      });
+      stream.addEventListener(
+        'streamDestroy',
+        this.handleWebSocketStreamDestroyEvent,
+        { once: true }
+      );
+      this.dispatchEvent(
+        new events.WebSocketConnectionStreamEvent({
+          detail: stream,
+        })
+      );
+    }
+
+    stream!.streamRecv(message);
+  }
+
+  protected pingHandler = () => {
+    this.socket.pong();
+  }
+
+  protected pongHandler = () => {
+    this.setKeepAliveTimeoutTimer();
   }
 
   public static createWebSocketConnection(
@@ -283,13 +321,10 @@ class WebSocketConnection extends EventTarget {
         void this.stop({ force: true });
       }
     });
-    this.socket.on('ping', () => {
-      this.socket.pong();
-    });
-    this.socket.on('pong', () => {
-      this.setKeepAliveTimeoutTimer();
-    });
+
     this.socket.on('message', this.messageHandler);
+    this.socket.on('ping', this.pingHandler);
+    this.socket.on('pong', this.pongHandler);
 
     this.logger.info(`Started ${this.constructor.name}`);
   }
@@ -303,19 +338,44 @@ class WebSocketConnection extends EventTarget {
       } else if (this.type === 'server' && streamType === 'bidi') {
         streamId = this.streamIdServerBidi;
       }
-      const wsStream = await WebSocketStream.createWebSocketStream({
+      const stream = await WebSocketStream.createWebSocketStream({
         streamId: streamId!,
         connection: this,
         logger: this.logger.getChild(`${WebSocketStream.name} ${streamId!}`),
       });
+      stream.addEventListener(
+        'streamDestroy',
+        this.handleWebSocketStreamDestroyEvent,
+        { once: true }
+      );
       // Ok the stream is opened and working
       if (this.type === 'client' && streamType === 'bidi') {
-        this.streamIdClientBidi = (this.streamIdClientBidi + 4) as StreamId;
+        this.streamIdClientBidi = (this.streamIdClientBidi + 4n) as StreamId;
       } else if (this.type === 'server' && streamType === 'bidi') {
-        this.streamIdServerBidi = (this.streamIdServerBidi + 4) as StreamId;
+        this.streamIdServerBidi = (this.streamIdServerBidi + 4n) as StreamId;
       }
-      return wsStream;
+      return stream;
     });
+  }
+
+  public async streamSend(streamId: StreamId, data: Uint8Array)
+  {
+    const sendProm = promise<void>();
+
+    const encodedStreamId = fromStreamId(streamId);
+    const array = new Uint8Array(encodedStreamId.length + data.length);
+    array.set(encodedStreamId, 0);
+    array.set(data, encodedStreamId.length);
+    if (data != null) {
+      array.set(data, encodedStreamId.length);
+    }
+
+    this.socket.send(array,  (err) => {
+      if (err == null) sendProm.resolveP();
+      else sendProm.rejectP(err);
+    });
+
+    await sendProm.p;
   }
 
   public async stop({
@@ -331,6 +391,7 @@ class WebSocketConnection extends EventTarget {
     this.logger.debug('streams destroyed');
     this.stopKeepAliveIntervalTimer();
 
+    // Socket Cleanup
     if (this.socket.readyState === ws.CLOSED) {
       this.resolveClosedP();
     }
@@ -339,6 +400,9 @@ class WebSocketConnection extends EventTarget {
     }
     await this.closedP;
     this.logger.debug('closedP');
+    this.socket.off('message', this.messageHandler);
+    this.socket.off('ping', this.pingHandler);
+    this.socket.off('pong', this.pongHandler);
     this.keepAliveTimeOutTimer?.cancel(timerCleanupReasonSymbol);
 
     if (this.type === 'server') {
@@ -366,7 +430,7 @@ class WebSocketConnection extends EventTarget {
       this.keepAliveTimeOutTimer != null &&
       this.keepAliveTimeOutTimer.status === null
     ) {
-      logger.debug(`resetting timer with ${timeout} delay`);
+      // logger.debug(`resetting timer with ${timeout} delay`);
       this.keepAliveTimeOutTimer.reset(timeout);
     } else {
       logger.debug(`timeout created with delay ${timeout}`);

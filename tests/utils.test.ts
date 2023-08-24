@@ -10,7 +10,7 @@ describe('utils', () => {
     [fc.bigUint().filter((n) => n <= MAX_62_BIT_UINT)],
     (input) => {
       const array = utils.fromStreamId(input as StreamId);
-      const id = utils.toStreamId(array);
+      const { data: id } = utils.toStreamId(array);
       expect(id).toBe(input);
     }
   );

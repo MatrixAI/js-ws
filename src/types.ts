@@ -89,6 +89,11 @@ type WebSocketConfig = {
   keepAliveIntervalTime: number,
 };
 
+interface Parsed<T> {
+  data: T;
+  remainder: Uint8Array;
+}
+
 export type {
   Opaque,
   Callback,
@@ -104,5 +109,6 @@ export type {
   StreamCodeToReason,
   ConnectionMetadata,
   VerifyCallback,
-  WebSocketConfig
+  WebSocketConfig,
+  Parsed
 };

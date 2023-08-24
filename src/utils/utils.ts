@@ -2,7 +2,7 @@ import type {
   PromiseDeconstructed,
 } from './types';
 import * as errors from '../errors';
-import { StreamId } from '@/types';
+import { Parsed, StreamId } from '@/types';
 
 
 function never(): never {
@@ -25,7 +25,7 @@ function promise<T = void>(): PromiseDeconstructed<T> {
   };
 }
 
-function toStreamId(array: Uint8Array): StreamId {
+function toStreamId(array: Uint8Array): Parsed<StreamId> {
   let streamId: bigint;
 
   // get header and prefix
@@ -39,21 +39,29 @@ function toStreamId(array: Uint8Array): StreamId {
 
   const dv = new DataView(arrayCopy.buffer, arrayCopy.byteOffset);
 
+  let readBytes = 0;
+
   switch (prefix) {
     case 0b00:
-      console.log(dv.getUint8(0));
+      readBytes = 1;
       streamId = BigInt(dv.getUint8(0));
       break;
     case 0b01:
+      readBytes = 2;
       streamId = BigInt(dv.getUint16(0, false));
       break;
     case 0b10:
+      readBytes = 4;
       streamId = BigInt(dv.getUint32(0, false));
     case 0b11:
+      readBytes = 8;
       streamId = dv.getBigUint64(0, false);
       break;
   }
-  return streamId! as StreamId;
+  return {
+    data: streamId! as StreamId,
+    remainder: array.subarray(readBytes)
+  };
 }
 
 function fromStreamId(streamId: StreamId): Uint8Array {
@@ -94,9 +102,17 @@ function fromStreamId(streamId: StreamId): Uint8Array {
   return array;
 }
 
+enum StreamCode {
+  DATA = 0,
+  ACK = 1,
+  ERROR = 2,
+  CLOSE = 3,
+}
+
 export {
   never,
   promise,
   toStreamId,
   fromStreamId,
+  StreamCode
 };

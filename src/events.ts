@@ -75,5 +75,15 @@ class WebSocketConnectionErrorEvent extends WebSocketConnectionEvent {
   }
 }
 
+// Stream events
+
+abstract class WebSocketStreamEvent extends Event {}
+
+class WebSocketStreamDestroyEvent extends WebSocketStreamEvent {
+  constructor(options?: EventInit) {
+    super('streamDestroy', options);
+  }
+}
+
 export {
-  WebSocketServerEvent, WebSocketServerConnectionEvent, WebSocketServerStartEvent, WebSocketServerStopEvent, WebSocketConnectionEvent, WebSocketConnectionStreamEvent, WebSocketConnectionStopEvent, WebSocketConnectionErrorEvent };
+  WebSocketServerEvent, WebSocketServerConnectionEvent, WebSocketServerStartEvent, WebSocketServerStopEvent, WebSocketConnectionEvent, WebSocketConnectionStreamEvent, WebSocketConnectionStopEvent, WebSocketConnectionErrorEvent, WebSocketStreamEvent, WebSocketStreamDestroyEvent, };
