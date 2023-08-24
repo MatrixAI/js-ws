@@ -26,52 +26,69 @@ function promise<T = void>(): PromiseDeconstructed<T> {
 }
 
 function toStreamId(array: Uint8Array): bigint {
+  let streamId: bigint;
+
+  // get header and prefix
   const header = array[0];
   const prefix = header >> 6;
-  const dv = new DataView(array.buffer, array.byteOffset, array.byteLength);
 
-  let streamId: bigint;
+  // copy bytearray and remove prefix
+  const arrayCopy = array.slice();
+  arrayCopy[0] &= 0b00111111;
+
+  const dv = new DataView(arrayCopy.buffer);
 
   switch (prefix) {
     case 0b00:
       streamId = BigInt(dv.getUint8(0));
+      break;
     case 0b01:
       streamId = BigInt(dv.getUint16(0, false));
+      break;
     case 0b10:
       streamId = BigInt(dv.getUint32(0, false));
     case 0b11:
       streamId = dv.getBigUint64(0, false);
+      break;
   }
   return streamId!;
 }
 
 function fromStreamId(streamId: StreamId): Uint8Array {
   const id = streamId as bigint;
-  let prefix: number;
-  if (id <= 0xFF) {
-    prefix = 0b00;
+
+  let array: Uint8Array;
+  let dv: DataView;
+  let prefixMask = 0;
+
+  if (id < 0x40) {
+    array = new Uint8Array(1);
+    dv = new DataView(array.buffer);
+    dv.setUint8(0, Number(id));
   }
-  else if (id <= 0xFFFF) {
-    prefix = 0b01;
+  else if (id < 0x4000) {
+    array = new Uint8Array(2);
+    dv = new DataView(array.buffer);
+    dv.setUint16(0, Number(id));
+    prefixMask = 0b01_000000;
   }
-  else if (id <= 0xFFFFFFFF) {
-    prefix = 0b10;
+  else if (id < 0x40000000) {
+    array = new Uint8Array(4);
+    dv = new DataView(array.buffer);
+    dv.setUint32(0, Number(id));
+    prefixMask = 0b10_000000;
   }
   else {
-    prefix = 0b11;
+    array = new Uint8Array(8);
+    dv = new DataView(array.buffer);
+    dv.setBigUint64(0, id);
+    prefixMask = 0b11_000000;
   }
-  const array = new Uint8Array(1 << prefix);
-  const dv = new DataView(array.buffer, array.byteOffset, array.byteLength);
-  switch (prefix) {
-    case 0b00:
-      dv.setUint8(0, Number(id));
-    case 0b01:
-      dv.setUint16(0, Number(id), false)
-    case 0b10:
-      dv.setUint32(0, Number(id), false);
-    case 0b11:
-      dv.setBigUint64(0, id, false);
-  }
+
+  let header = dv.getUint8(0);
+  header |= prefixMask;
+  dv.setUint8(0, header);
+
   return array;
 }
 

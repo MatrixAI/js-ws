@@ -67,27 +67,27 @@ class WebSocketConnection extends EventTarget {
     * Client initiated bidirectional stream starts at 0.
     * Increment by 4 to get the next ID.
     */
-  protected streamIdClientBidi: StreamId = 0b00 as StreamId;
+  protected streamIdClientBidi: StreamId = 0b00n as StreamId;
 
    /**
     * Server initiated bidirectional stream starts at 1.
     * Increment by 4 to get the next ID.
     */
-  protected streamIdServerBidi: StreamId = 0b01 as StreamId;
+  protected streamIdServerBidi: StreamId = 0b01n as StreamId;
 
    /**
     * Client initiated unidirectional stream starts at 2.
     * Increment by 4 to get the next ID.
     * Currently unsupported.
     */
-  protected _streamIdClientUni: StreamId = 0b10 as StreamId;
+  protected _streamIdClientUni: StreamId = 0b10n as StreamId;
 
    /**
     * Server initiated unidirectional stream starts at 3.
     * Increment by 4 to get the next ID.
     * Currently unsupported.
     */
-  protected _streamIdServerUni: StreamId = 0b11 as StreamId;
+  protected _streamIdServerUni: StreamId = 0b11n as StreamId;
 
   protected keepAliveTimeOutTimer?: Timer;
   protected keepAliveIntervalTimer?: Timer;
