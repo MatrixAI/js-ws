@@ -25,7 +25,7 @@ function promise<T = void>(): PromiseDeconstructed<T> {
   };
 }
 
-function toStreamId(array: Uint8Array): bigint {
+function toStreamId(array: Uint8Array): StreamId {
   let streamId: bigint;
 
   // get header and prefix
@@ -33,13 +33,15 @@ function toStreamId(array: Uint8Array): bigint {
   const prefix = header >> 6;
 
   // copy bytearray and remove prefix
-  const arrayCopy = array.slice();
+  const arrayCopy = new Uint8Array(array.length);
+  arrayCopy.set(array);
   arrayCopy[0] &= 0b00111111;
 
-  const dv = new DataView(arrayCopy.buffer);
+  const dv = new DataView(arrayCopy.buffer, arrayCopy.byteOffset);
 
   switch (prefix) {
     case 0b00:
+      console.log(dv.getUint8(0));
       streamId = BigInt(dv.getUint8(0));
       break;
     case 0b01:
@@ -51,7 +53,7 @@ function toStreamId(array: Uint8Array): bigint {
       streamId = dv.getBigUint64(0, false);
       break;
   }
-  return streamId!;
+  return streamId! as StreamId;
 }
 
 function fromStreamId(streamId: StreamId): Uint8Array {
