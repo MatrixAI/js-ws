@@ -68,14 +68,14 @@ class WebSocketStream
       {
         start: async (controller) => {
           this.readableController = controller;
-          try {
-            await this.streamSend(StreamCode.ACK);
-          } catch (err) {
-            controller.error(err);
-          }
         },
         pull: async (controller) => {
-
+          if (controller.desiredSize == null) {
+            controller.error(new errors.ErrorWebSocketUndefinedBehaviour());
+          }
+          if (controller.desiredSize! > 0) {
+            await this.streamSend(StreamCode.ACK, controller.desiredSize!).catch((e) => controller.error(e));
+          }
         },
         cancel: async (reason) => {},
       },
@@ -100,7 +100,7 @@ class WebSocketStream
         if (this.writableDesiredSize <= 0) {
           this.writableDesiredSizeProm = promise();
         }
-        await this.streamSend(StreamCode.DATA, chunk);
+        await this.streamSend(StreamCode.DATA, chunk).catch((e) => controller.error(e));;
         this.writableDesiredSize = newWritableDesiredSize;
         if (isChunkable) {
           await writableWrite(chunk.subarray(this.writableDesiredSize), controller);
@@ -119,7 +119,6 @@ class WebSocketStream
         },
         write: writableWrite,
         close: async () => {
-          await this.streamSend(StreamCode.CLOSE);
           this.signalWritableEnd();
         },
         abort: async (reason?: any) => {
@@ -141,10 +140,10 @@ class WebSocketStream
     this.logger.info(`Destroyed ${this.constructor.name}`);
   }
 
-  public async streamSend(code: StreamCode);
-  public async streamSend(code: StreamCode.ACK, payloadSize: number);
-  public async streamSend(code: StreamCode.DATA, data: Uint8Array);
-  public async streamSend(code: StreamCode, data_?: Uint8Array | number) {
+  public async streamSend(code: StreamCode): Promise<void>;
+  public async streamSend(code: StreamCode.ACK, payloadSize: number): Promise<void>;
+  public async streamSend(code: StreamCode.DATA, data: Uint8Array): Promise<void>;
+  public async streamSend(code: StreamCode, data_?: Uint8Array | number): Promise<void> {
     let data: Uint8Array | undefined;
     if (code === StreamCode.ACK && typeof data_ === 'number') {
       data = new Uint8Array([data_]);
@@ -157,7 +156,13 @@ class WebSocketStream
     if (data != null) {
       array.set(data, 1);
     }
-    await this.connection.streamSend(this.streamId, array);
+    try {
+      await this.connection.streamSend(this.streamId, array);
+    }
+    catch (e) {
+      this.signalWritableEnd(e);
+      throw e;
+    }
   }
 
   public async streamRecv(message: Uint8Array) {
@@ -165,26 +170,28 @@ class WebSocketStream
     const data = message.subarray(1);
     const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
     if (code === StreamCode.DATA) {
-      const data = message.subarray(1);
+      if (this.readableController.desiredSize == null) {
+        this.readableController.error(new errors.ErrorWebSocketUndefinedBehaviour());
+        return;
+      }
+      if (data.length > this.readableController.desiredSize) {
+        this.readableController.error(new errors.ErrorWebSocketStream());
+        return;
+      }
       this.readableController.enqueue(data);
-      this.readableController.desiredSize;
     }
     else if (code === StreamCode.ACK) {
-      console.log(data);
       const bufferSize = dv.getUint32(0, false);
-      console.log(bufferSize);
       this.writableDesiredSize = bufferSize;
       this.writableDesiredSizeProm.resolveP();
 
     }
     else if (code === StreamCode.ERROR) {
-      this.readableController?.error(new errors.ErrorWebSocketStream());
+      this.readableController.error(new errors.ErrorWebSocketStream());
     }
     else if (code === StreamCode.CLOSE) {
       // close the stream
     }
-
-    this.readableController?.enqueue(data);
   }
 
   /**
