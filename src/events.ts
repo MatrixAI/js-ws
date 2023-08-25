@@ -1,5 +1,5 @@
-import WebSocketConnection from './WebSocketConnection';
 import type WebSocketStream from './WebSocketStream';
+import type WebSocketConnection from './WebSocketConnection';
 
 // Server events
 
@@ -86,4 +86,14 @@ class WebSocketStreamDestroyEvent extends WebSocketStreamEvent {
 }
 
 export {
-  WebSocketServerEvent, WebSocketServerConnectionEvent, WebSocketServerStartEvent, WebSocketServerStopEvent, WebSocketConnectionEvent, WebSocketConnectionStreamEvent, WebSocketConnectionStopEvent, WebSocketConnectionErrorEvent, WebSocketStreamEvent, WebSocketStreamDestroyEvent, };
+  WebSocketServerEvent,
+  WebSocketServerConnectionEvent,
+  WebSocketServerStartEvent,
+  WebSocketServerStopEvent,
+  WebSocketConnectionEvent,
+  WebSocketConnectionStreamEvent,
+  WebSocketConnectionStopEvent,
+  WebSocketConnectionErrorEvent,
+  WebSocketStreamEvent,
+  WebSocketStreamDestroyEvent,
+};

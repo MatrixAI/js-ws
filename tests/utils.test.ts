@@ -1,6 +1,6 @@
-import { StreamId } from '@/types';
-import * as utils from '@/utils';
+import type { StreamId } from '@/types';
 import { fc, testProp } from '@fast-check/jest';
+import * as utils from '@/utils';
 
 const MAX_62_BIT_UINT = 2n ** 62n - 1n;
 
@@ -12,6 +12,6 @@ describe('utils', () => {
       const array = utils.fromStreamId(input as StreamId);
       const { data: id } = utils.toStreamId(array);
       expect(id).toBe(input);
-    }
+    },
   );
-})
+});

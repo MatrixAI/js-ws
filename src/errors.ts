@@ -4,7 +4,6 @@ class ErrorWebSocket<T> extends AbstractError<T> {
   static description = 'WebSocket error';
 }
 
-
 // Server
 
 class ErrorWebSocketServer<T> extends ErrorWebSocket<T> {
@@ -21,15 +20,21 @@ class ErrorWebSocketConnection<T> extends ErrorWebSocket<T> {
   static description = 'WebSocket Connection error';
 }
 
-class ErrorWebSocketConnectionNotRunning<T> extends ErrorWebSocketConnection<T> {
+class ErrorWebSocketConnectionNotRunning<
+  T,
+> extends ErrorWebSocketConnection<T> {
   static description = 'WebSocket Connection is not running';
 }
 
-class ErrorWebSocketConnectionStartTimeOut<T> extends ErrorWebSocketConnection<T> {
+class ErrorWebSocketConnectionStartTimeOut<
+  T,
+> extends ErrorWebSocketConnection<T> {
   static description = 'WebSocket Connection start timeout';
 }
 
-class ErrorWebSocketConnectionKeepAliveTimeOut<T> extends ErrorWebSocketConnection<T> {
+class ErrorWebSocketConnectionKeepAliveTimeOut<
+  T,
+> extends ErrorWebSocketConnection<T> {
   static description = 'WebSocket Connection reached idle timeout';
 }
 
@@ -48,7 +53,8 @@ class ErrorWebSocketStreamClose<T> extends ErrorWebSocketStream<T> {
 }
 
 class ErrorWebSocketStreamCancel<T> extends ErrorWebSocketStream<T> {
-  static description = 'WebSocket Stream was cancelled without a provided reason';
+  static description =
+    'WebSocket Stream was cancelled without a provided reason';
 }
 
 // Misc
@@ -69,5 +75,5 @@ export {
   ErrorWebSocketStreamDestroyed,
   ErrorWebSocketStreamClose,
   ErrorWebSocketStreamCancel,
-  ErrorWebSocketUndefinedBehaviour
+  ErrorWebSocketUndefinedBehaviour,
 };

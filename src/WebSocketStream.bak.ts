@@ -3,13 +3,13 @@ import type {
   ReadableStreamController,
   WritableStreamDefaultController,
 } from 'stream/web';
-import type * as ws from 'ws';
 import type Logger from '@matrixai/logger';
+import type WebSocketConnection from './WebSocketConnection';
 import { WritableStream, ReadableStream } from 'stream/web';
+import * as ws from 'ws';
 import * as webSocketErrors from './errors';
 import * as utilsErrors from './utils/errors';
 import { promise } from './utils';
-import WebSocketConnection from './WebSocketConnection';
 
 class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   public readable: ReadableStream;

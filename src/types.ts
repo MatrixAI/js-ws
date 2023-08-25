@@ -84,9 +84,9 @@ type ConnectionMetadata = {
 type VerifyCallback = (peerCert: DetailedPeerCertificate) => Promise<void>;
 
 type WebSocketConfig = {
-  connectTimeoutTime: number,
-  keepAliveTimeoutTime: number,
-  keepAliveIntervalTime: number,
+  connectTimeoutTime: number;
+  keepAliveTimeoutTime: number;
+  keepAliveIntervalTime: number;
 };
 
 interface Parsed<T> {
@@ -110,5 +110,5 @@ export type {
   ConnectionMetadata,
   VerifyCallback,
   WebSocketConfig,
-  Parsed
+  Parsed,
 };

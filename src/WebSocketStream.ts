@@ -1,9 +1,9 @@
-import { CreateDestroy } from "@matrixai/async-init/dist/CreateDestroy";
-import Logger from "@matrixai/logger";
-import {  } from "stream/web";
-import { StreamId } from "./types";
-import { promise, StreamCode } from "./utils";
-import WebSocketConnection from "./WebSocketConnection";
+import { CreateDestroy } from '@matrixai/async-init/dist/CreateDestroy';
+import Logger from '@matrixai/logger';
+import {} from 'stream/web';
+import type { StreamId } from './types';
+import { promise, StreamCode } from './utils';
+import type WebSocketConnection from './WebSocketConnection';
 import * as errors from './errors';
 
 interface WebSocketStream extends CreateDestroy {}
@@ -24,15 +24,14 @@ class WebSocketStream
   protected logger: Logger;
   protected connection: WebSocketConnection;
   protected readableController:
-  | ReadableStreamController<Uint8Array>
-  | undefined;
+    | ReadableStreamController<Uint8Array>
+    | undefined;
   protected writableController: WritableStreamDefaultController | undefined;
-
 
   public static async createWebSocketStream({
     streamId,
     connection,
-    logger = new Logger(`${this.name} ${streamId}`)
+    logger = new Logger(`${this.name} ${streamId}`),
   }: {
     streamId: StreamId;
     connection: WebSocketConnection;
@@ -42,7 +41,7 @@ class WebSocketStream
     const stream = new this({
       streamId,
       connection,
-      logger
+      logger,
     });
     connection.streamMap.set(streamId, stream);
     logger.info(`Created ${this.name}`);
@@ -52,7 +51,7 @@ class WebSocketStream
   constructor({
     streamId,
     connection,
-    logger
+    logger,
   }: {
     streamId: StreamId;
     connection: WebSocketConnection;
@@ -67,35 +66,27 @@ class WebSocketStream
       {
         start: async (controller) => {
           try {
-            await this.streamSend(StreamCode.ACK)
-          }
-          catch (err) {
+            await this.streamSend(StreamCode.ACK);
+          } catch (err) {
             controller.error(err);
           }
-
         },
-        pull: async (controller) => {
-
-        },
-        cancel: async (reason) => {
-
-        }
+        pull: async (controller) => {},
+        cancel: async (reason) => {},
       },
       new CountQueuingStrategy({
         // Allow 1 buffered message, so we can know when data is desired, and we can know when to un-pause.
         highWaterMark: 1,
-      })
+      }),
     );
 
     this.writable = new WritableStream(
       {
-        start: async (controller) => {
-        },
+        start: async (controller) => {},
         write: async (chunk: Uint8Array, controller) => {
           try {
-            await this.streamSend(StreamCode.DATA, chunk)
-          }
-          catch (err) {
+            await this.streamSend(StreamCode.DATA, chunk);
+          } catch (err) {
             controller.error(err);
           }
         },
@@ -105,38 +96,34 @@ class WebSocketStream
         },
         abort: async (reason?: any) => {
           this.signalWritableEnd(reason);
-        }
+        },
       },
       {
         highWaterMark: 1,
-      }
+      },
     );
   }
 
   public async destroy() {
     this.logger.info(`Destroy ${this.constructor.name}`);
-    // force close any open streams
+    // Force close any open streams
     this.cancel();
     // Removing stream from the connection's stream map
     this.connection.streamMap.delete(this.streamId);
     this.logger.info(`Destroyed ${this.constructor.name}`);
   }
 
-  public async streamSend(code: StreamCode)
-  public async streamSend(code: StreamCode.ACK, payloadSize: number)
-  public async streamSend(code: StreamCode.DATA, data: Uint8Array)
-  public async streamSend(
-    code: StreamCode,
-    data_?: Uint8Array | number,
-  ) {
+  public async streamSend(code: StreamCode);
+  public async streamSend(code: StreamCode.ACK, payloadSize: number);
+  public async streamSend(code: StreamCode.DATA, data: Uint8Array);
+  public async streamSend(code: StreamCode, data_?: Uint8Array | number) {
     let data: Uint8Array | undefined;
     if (code === StreamCode.ACK && typeof data_ === 'number') {
       data = new Uint8Array([data_]);
-    }
-    else {
+    } else {
       data = data_ as Uint8Array | undefined;
     }
-    let arrayLength = 1 + (data?.length ?? 0);
+    const arrayLength = 1 + (data?.length ?? 0);
     const array = new Uint8Array(arrayLength);
     array.set([code], 0);
     if (data != null) {

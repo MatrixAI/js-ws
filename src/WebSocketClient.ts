@@ -1,5 +1,6 @@
 import type { DetailedPeerCertificate, TLSSocket } from 'tls';
 import type { ContextTimed } from '@matrixai/contexts';
+import type { VerifyCallback } from './types';
 import { createDestroy } from '@matrixai/async-init';
 import Logger from '@matrixai/logger';
 import WebSocket from 'ws';
@@ -8,7 +9,6 @@ import { Timer } from '@matrixai/timer';
 import WebSocketStream from './WebSocketStream';
 import * as webSocketErrors from './errors';
 import { promise } from './utils';
-import { VerifyCallback } from './types';
 import WebSocketConnection from './WebSocketConnection';
 
 interface WebSocketClient extends createDestroy.CreateDestroy {}
@@ -35,7 +35,7 @@ class WebSocketClient {
     pingIntervalTime = 1_000,
     pingTimeoutTimeTime = 10_000,
     logger = new Logger(this.name),
-    verifyCallback
+    verifyCallback,
   }: {
     host: string;
     port: number;
@@ -53,7 +53,7 @@ class WebSocketClient {
       connectionTimeoutTime,
       pingIntervalTime,
       pingTimeoutTimeTime,
-      verifyCallback
+      verifyCallback,
     );
     logger.info(`Created ${this.name}`);
     return clientClient;
@@ -69,7 +69,7 @@ class WebSocketClient {
     protected connectionTimeoutTime: number,
     protected pingIntervalTime: number,
     protected pingTimeoutTimeTime: number,
-    protected verifyCallback?: VerifyCallback
+    protected verifyCallback?: VerifyCallback,
   ) {
     if (Validator.isValidIPv4String(host)[0]) {
       this.host = host;
@@ -182,7 +182,7 @@ class WebSocketClient {
           localPort: request.connection.localPort ?? 0,
           remoteHost: request.connection.remoteAddress ?? '',
           remotePort: request.connection.remotePort ?? 0,
-          peerCert
+          peerCert,
         });
       } catch (e) {
         authenticateProm.rejectP(e);

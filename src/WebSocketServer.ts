@@ -1,15 +1,15 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import type tls from 'tls';
+import type { Host, Port, WebSocketConfig } from './types';
 import https from 'https';
 import { startStop, status } from '@matrixai/async-init';
 import Logger from '@matrixai/logger';
 import * as ws from 'ws';
+import Counter from 'resource-counter';
 import * as errors from './errors';
 import * as webSocketEvents from './events';
 import { never, promise } from './utils';
-import { Host, Port, WebSocketConfig } from './types';
 import WebSocketConnection from './WebSocketConnection';
-import Counter from 'resource-counter';
 import { serverDefault } from './config';
 import * as utils from './utils';
 
@@ -42,9 +42,13 @@ class WebSocketServer extends EventTarget {
       );
     } else if (event instanceof webSocketEvents.WebSocketConnectionStopEvent) {
       this.dispatchEvent(new webSocketEvents.WebSocketConnectionStopEvent());
-    } else if (event instanceof webSocketEvents.WebSocketConnectionStreamEvent) {
+    } else if (
+      event instanceof webSocketEvents.WebSocketConnectionStreamEvent
+    ) {
       this.dispatchEvent(
-        new webSocketEvents.WebSocketConnectionStreamEvent({ detail: event.detail }),
+        new webSocketEvents.WebSocketConnectionStreamEvent({
+          detail: event.detail,
+        }),
       );
     } else {
       utils.never();
@@ -61,11 +65,11 @@ class WebSocketServer extends EventTarget {
     logger,
   }: {
     config: Partial<WebSocketConfig> & {
-      key: string,
-      cert: string,
-      ca?: string,
+      key: string;
+      cert: string;
+      ca?: string;
     };
-    logger?: Logger,
+    logger?: Logger;
   }) {
     super();
     const wsConfig = {
@@ -87,7 +91,6 @@ class WebSocketServer extends EventTarget {
     this.server = https.createServer({
       ...this.config,
       requestTimeout: this.config.connectTimeoutTime,
-
     });
     this.webSocketServer = new ws.WebSocketServer({
       server: this.server,
@@ -108,24 +111,18 @@ class WebSocketServer extends EventTarget {
     this._port = address.port;
     this.logger.debug(`Listening on port ${this._port}`);
     this._host = address.address ?? '127.0.0.1';
-    this.dispatchEvent(
-      new webSocketEvents.WebSocketServerStartEvent(),
-    );
+    this.dispatchEvent(new webSocketEvents.WebSocketServerStartEvent());
     this.logger.info(`Started ${this.constructor.name}`);
   }
 
-  public async stop({
-    force = false,
-  }: {
-    force?: boolean;
-  }): Promise<void> {
+  public async stop({ force = false }: { force?: boolean }): Promise<void> {
     this.logger.info(`Stopping ${this.constructor.name}`);
     const destroyProms: Array<Promise<void>> = [];
     for (const webSocketConnection of this.connectionMap.values()) {
       destroyProms.push(
         webSocketConnection.stop({
-          force
-        })
+          force,
+        }),
       );
     }
     this.logger.debug('Awaiting connections to destroy');
@@ -173,11 +170,13 @@ class WebSocketServer extends EventTarget {
   }
 
   @startStop.ready(new errors.ErrorWebSocketServerNotRunning())
-  public updateConfig(config: Partial<WebSocketConfig> & {
-    key?: string,
-    cert?: string,
-    ca?: string,
-  }): void {
+  public updateConfig(
+    config: Partial<WebSocketConfig> & {
+      key?: string;
+      cert?: string;
+      ca?: string;
+    },
+  ): void {
     const tlsServer = this.server as tls.Server;
     tlsServer.setSecureContext({
       key: config.key,
@@ -211,7 +210,7 @@ class WebSocketServer extends EventTarget {
       config: this.config,
       socket: webSocket,
       logger: this.logger.getChild(
-        `${WebSocketConnection.name} ${connectionId}`
+        `${WebSocketConnection.name} ${connectionId}`,
       ),
       server: this,
     });
@@ -251,7 +250,7 @@ class WebSocketServer extends EventTarget {
 
     this.dispatchEvent(
       new webSocketEvents.WebSocketServerConnectionEvent({
-        detail: connection
+        detail: connection,
       }),
     );
   };

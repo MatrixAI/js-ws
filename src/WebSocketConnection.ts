@@ -1,19 +1,25 @@
-import { PromiseCancellable } from '@matrixai/async-cancellable';
+import type { PromiseCancellable } from '@matrixai/async-cancellable';
+import type { ContextTimed, ContextTimedInput } from '@matrixai/contexts';
+import type {
+  Host,
+  RemoteInfo,
+  StreamId,
+  VerifyCallback,
+  WebSocketConfig,
+} from './types';
+import type WebSocketClient from './WebSocketClient';
+import type WebSocketServer from './WebSocketServer';
 import { startStop } from '@matrixai/async-init';
-import { ContextTimed, ContextTimedInput } from '@matrixai/contexts';
 import { Lock } from '@matrixai/async-locks';
 import { context, timedCancellable } from '@matrixai/contexts/dist/decorators';
 import Logger from '@matrixai/logger';
 import * as ws from 'ws';
-import { Host, RemoteInfo, StreamId, VerifyCallback, WebSocketConfig } from './types';
-import WebSocketClient from './WebSocketClient';
-import WebSocketServer from './WebSocketServer';
+import { Timer } from '@matrixai/timer';
+import { ready } from '@matrixai/async-init/dist/CreateDestroyStartStop';
 import WebSocketStream from './WebSocketStream';
 import * as errors from './errors';
 import { fromStreamId, promise, toStreamId } from './utils';
-import { Timer } from '@matrixai/timer';
 import * as events from './events';
-import { ready } from '@matrixai/async-init/dist/CreateDestroyStartStop';
 
 const timerCleanupReasonSymbol = Symbol('timerCleanupReasonSymbol');
 
@@ -60,32 +66,32 @@ class WebSocketConnection extends EventTarget {
   /**
    * Stream ID increment lock.
    */
-   protected streamIdLock: Lock = new Lock();
+  protected streamIdLock: Lock = new Lock();
 
-   /**
-    * Client initiated bidirectional stream starts at 0.
-    * Increment by 4 to get the next ID.
-    */
+  /**
+   * Client initiated bidirectional stream starts at 0.
+   * Increment by 4 to get the next ID.
+   */
   protected streamIdClientBidi: StreamId = 0b00n as StreamId;
 
-   /**
-    * Server initiated bidirectional stream starts at 1.
-    * Increment by 4 to get the next ID.
-    */
+  /**
+   * Server initiated bidirectional stream starts at 1.
+   * Increment by 4 to get the next ID.
+   */
   protected streamIdServerBidi: StreamId = 0b01n as StreamId;
 
-   /**
-    * Client initiated unidirectional stream starts at 2.
-    * Increment by 4 to get the next ID.
-    * Currently unsupported.
-    */
+  /**
+   * Client initiated unidirectional stream starts at 2.
+   * Increment by 4 to get the next ID.
+   * Currently unsupported.
+   */
   protected _streamIdClientUni: StreamId = 0b10n as StreamId;
 
-   /**
-    * Server initiated unidirectional stream starts at 3.
-    * Increment by 4 to get the next ID.
-    * Currently unsupported.
-    */
+  /**
+   * Server initiated unidirectional stream starts at 3.
+   * Increment by 4 to get the next ID.
+   * Currently unsupported.
+   */
   protected _streamIdServerUni: StreamId = 0b11n as StreamId;
 
   protected keepAliveTimeOutTimer?: Timer;
@@ -117,12 +123,13 @@ class WebSocketConnection extends EventTarget {
     if (!isBinary || data instanceof Array) {
       this.dispatchEvent(
         new events.WebSocketConnectionErrorEvent({
-          detail: new errors.ErrorWebSocketUndefinedBehaviour()
-        })
+          detail: new errors.ErrorWebSocketUndefinedBehaviour(),
+        }),
       );
       return;
     }
-    let message: Uint8Array = data instanceof ArrayBuffer ? new Uint8Array(data) : data;
+    let message: Uint8Array =
+      data instanceof ArrayBuffer ? new Uint8Array(data) : data;
 
     const { data: streamId, remainder } = toStreamId(message);
     message = remainder;
@@ -137,97 +144,92 @@ class WebSocketConnection extends EventTarget {
       stream.addEventListener(
         'streamDestroy',
         this.handleWebSocketStreamDestroyEvent,
-        { once: true }
+        { once: true },
       );
       this.dispatchEvent(
         new events.WebSocketConnectionStreamEvent({
           detail: stream,
-        })
+        }),
       );
     }
 
     stream!.streamRecv(message);
-  }
+  };
 
   protected pingHandler = () => {
     this.socket.pong();
-  }
+  };
 
   protected pongHandler = () => {
     this.setKeepAliveTimeoutTimer();
-  }
+  };
 
   public static createWebSocketConnection(
-    args: {
-      type: 'client';
-      connectionId: number;
-      remoteInfo: RemoteInfo;
-      config: WebSocketConfig;
-      socket: ws.WebSocket;
-      server?: undefined
-      client?: WebSocketClient;
-      verifyCallback?: VerifyCallback;
-      logger?: Logger;
-    } | {
-      type: 'server';
-      connectionId: number;
-      remoteInfo: RemoteInfo;
-      config: WebSocketConfig;
-      socket: ws.WebSocket;
-      server?: WebSocketServer;
-      client?: undefined;
-      verifyCallback?: undefined;
-      logger?: Logger;
-    },
+    args:
+      | {
+          type: 'client';
+          connectionId: number;
+          remoteInfo: RemoteInfo;
+          config: WebSocketConfig;
+          socket: ws.WebSocket;
+          server?: undefined;
+          client?: WebSocketClient;
+          verifyCallback?: VerifyCallback;
+          logger?: Logger;
+        }
+      | {
+          type: 'server';
+          connectionId: number;
+          remoteInfo: RemoteInfo;
+          config: WebSocketConfig;
+          socket: ws.WebSocket;
+          server?: WebSocketServer;
+          client?: undefined;
+          verifyCallback?: undefined;
+          logger?: Logger;
+        },
     ctx?: Partial<ContextTimedInput>,
   ): PromiseCancellable<WebSocketConnection>;
-  @timedCancellable(
-    true,
-    Infinity,
-    errors.ErrorWebSocketConnectionStartTimeOut
-  )
+  @timedCancellable(true, Infinity, errors.ErrorWebSocketConnectionStartTimeOut)
   public static async createWebSocketConnection(
-    args: {
-      type: 'client';
-      connectionId: number;
-      remoteInfo: RemoteInfo;
-      config: WebSocketConfig;
-      socket: ws.WebSocket;
-      server?: undefined
-      client?: WebSocketClient;
-      verifyCallback?: VerifyCallback;
-      logger?: Logger;
-    } | {
-      type: 'server';
-      connectionId: number;
-      remoteInfo: RemoteInfo;
-      config: WebSocketConfig;
-      socket: ws.WebSocket;
-      server?: WebSocketServer;
-      client?: undefined;
-      verifyCallback?: undefined;
-      logger?: Logger;
-    },
+    args:
+      | {
+          type: 'client';
+          connectionId: number;
+          remoteInfo: RemoteInfo;
+          config: WebSocketConfig;
+          socket: ws.WebSocket;
+          server?: undefined;
+          client?: WebSocketClient;
+          verifyCallback?: VerifyCallback;
+          logger?: Logger;
+        }
+      | {
+          type: 'server';
+          connectionId: number;
+          remoteInfo: RemoteInfo;
+          config: WebSocketConfig;
+          socket: ws.WebSocket;
+          server?: WebSocketServer;
+          client?: undefined;
+          verifyCallback?: undefined;
+          logger?: Logger;
+        },
     @context ctx: ContextTimed,
   ): Promise<WebSocketConnection> {
     // Setting up abort/cancellation logic
     const abortProm = promise<never>();
     const abortHandler = () => {
       abortProm.rejectP(ctx.signal.reason);
-    }
+    };
     ctx.signal.addEventListener('abort', abortHandler);
     const connection = new this(args);
     try {
-      await Promise.race([
-        connection.start(),
-        abortProm.p,
-      ]);
-    }
-    catch (e) {
+      await Promise.race([connection.start(), abortProm.p]);
+    } catch (e) {
       await connection.stop({ force: true });
       throw e;
-    }
-    finally {
+    } finally {
       ctx.signal.removeEventListener('abort', abortHandler);
     }
     if (connection.config.keepAliveIntervalTime != null) {
@@ -247,27 +249,29 @@ class WebSocketConnection extends EventTarget {
     client,
     verifyCallback,
     logger,
-  }: {
-    type: 'client';
-    connectionId: number;
-    remoteInfo: RemoteInfo;
-    config: WebSocketConfig;
-    socket: ws.WebSocket;
-    server?: undefined
-    client?: WebSocketClient;
-    verifyCallback?: VerifyCallback;
-    logger?: Logger;
-  } | {
-    type: 'server';
-    connectionId: number;
-    remoteInfo: RemoteInfo;
-    config: WebSocketConfig;
-    socket: ws.WebSocket;
-    server?: WebSocketServer;
-    client?: undefined;
-    verifyCallback?: undefined;
-    logger?: Logger;
-  }) {
+  }:
+    | {
+        type: 'client';
+        connectionId: number;
+        remoteInfo: RemoteInfo;
+        config: WebSocketConfig;
+        socket: ws.WebSocket;
+        server?: undefined;
+        client?: WebSocketClient;
+        verifyCallback?: VerifyCallback;
+        logger?: Logger;
+      }
+    | {
+        type: 'server';
+        connectionId: number;
+        remoteInfo: RemoteInfo;
+        config: WebSocketConfig;
+        socket: ws.WebSocket;
+        server?: WebSocketServer;
+        client?: undefined;
+        verifyCallback?: undefined;
+        logger?: Logger;
+      }) {
     super();
     this.logger = logger ?? new Logger(`${this.constructor.name}`);
     this.connectionId = connectionId;
@@ -286,7 +290,6 @@ class WebSocketConnection extends EventTarget {
     this.closedP = closedP;
     this.resolveClosedP = resolveClosedP;
     this.rejectClosedP = rejectClosedP;
-
   }
   public async start(): Promise<void> {
     this.logger.info(`Start ${this.constructor.name}`);
@@ -330,7 +333,9 @@ class WebSocketConnection extends EventTarget {
   }
 
   @ready(new errors.ErrorWebSocketConnectionNotRunning())
-  public async streamNew(streamType: 'bidi' = 'bidi'): Promise<WebSocketStream> {
+  public async streamNew(
+    streamType: 'bidi' = 'bidi',
+  ): Promise<WebSocketStream> {
     return await this.streamIdLock.withF(async () => {
       let streamId: StreamId;
       if (this.type === 'client' && streamType === 'bidi') {
@@ -346,7 +351,7 @@ class WebSocketConnection extends EventTarget {
       stream.addEventListener(
         'streamDestroy',
         this.handleWebSocketStreamDestroyEvent,
-        { once: true }
+        { once: true },
       );
       // Ok the stream is opened and working
       if (this.type === 'client' && streamType === 'bidi') {
@@ -358,8 +363,7 @@ class WebSocketConnection extends EventTarget {
     });
   }
 
-  public async streamSend(streamId: StreamId, data: Uint8Array)
-  {
+  public async streamSend(streamId: StreamId, data: Uint8Array) {
     const sendProm = promise<void>();
 
     const encodedStreamId = fromStreamId(streamId);
@@ -370,7 +374,7 @@ class WebSocketConnection extends EventTarget {
       array.set(data, encodedStreamId.length);
     }
 
-    this.socket.send(array,  (err) => {
+    this.socket.send(array, (err) => {
       if (err == null) sendProm.resolveP();
       else sendProm.rejectP(err);
     });
@@ -378,11 +382,7 @@ class WebSocketConnection extends EventTarget {
     await sendProm.p;
   }
 
-  public async stop({
-    force = false
-  } : {
-    force: boolean
-  }) {
+  public async stop({ force = false }: { force: boolean }) {
     this.logger.info(`Stop ${this.constructor.name}`);
     // Cleaning up existing streams
     // ...
@@ -394,8 +394,7 @@ class WebSocketConnection extends EventTarget {
     // Socket Cleanup
     if (this.socket.readyState === ws.CLOSED) {
       this.resolveClosedP();
-    }
-    else {
+    } else {
       this.socket.close();
     }
     await this.closedP;
@@ -418,9 +417,11 @@ class WebSocketConnection extends EventTarget {
     const logger = this.logger.getChild('timer');
     const timeout = this.config.keepAliveTimeoutTime;
     const keepAliveTimeOutHandler = () => {
-      this.dispatchEvent(new events.WebSocketConnectionErrorEvent({
-        detail: new errors.ErrorWebSocketConnectionKeepAliveTimeOut(),
-      }));
+      this.dispatchEvent(
+        new events.WebSocketConnectionErrorEvent({
+          detail: new errors.ErrorWebSocketConnectionKeepAliveTimeOut(),
+        }),
+      );
       if (this[startStop.running] && this[startStop.status] !== 'stopping') {
         void this.stop({ force: true });
       }
@@ -430,7 +431,7 @@ class WebSocketConnection extends EventTarget {
       this.keepAliveTimeOutTimer != null &&
       this.keepAliveTimeOutTimer.status === null
     ) {
-      // logger.debug(`resetting timer with ${timeout} delay`);
+      // Logger.debug(`resetting timer with ${timeout} delay`);
       this.keepAliveTimeOutTimer.reset(timeout);
     } else {
       logger.debug(`timeout created with delay ${timeout}`);

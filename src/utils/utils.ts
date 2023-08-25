@@ -1,9 +1,6 @@
-import type {
-  PromiseDeconstructed,
-} from './types';
+import type { PromiseDeconstructed } from './types';
+import type { Parsed, StreamId } from '@/types';
 import * as errors from '../errors';
-import { Parsed, StreamId } from '@/types';
-
 
 function never(): never {
   throw new errors.ErrorWebSocketUndefinedBehaviour();
@@ -28,11 +25,11 @@ function promise<T = void>(): PromiseDeconstructed<T> {
 function toStreamId(array: Uint8Array): Parsed<StreamId> {
   let streamId: bigint;
 
-  // get header and prefix
+  // Get header and prefix
   const header = array[0];
   const prefix = header >> 6;
 
-  // copy bytearray and remove prefix
+  // Copy bytearray and remove prefix
   const arrayCopy = new Uint8Array(array.length);
   arrayCopy.set(array);
   arrayCopy[0] &= 0b00111111;
@@ -53,6 +50,7 @@ function toStreamId(array: Uint8Array): Parsed<StreamId> {
     case 0b10:
       readBytes = 4;
       streamId = BigInt(dv.getUint32(0, false));
+      break;
     case 0b11:
       readBytes = 8;
       streamId = dv.getBigUint64(0, false);
@@ -60,7 +58,7 @@ function toStreamId(array: Uint8Array): Parsed<StreamId> {
   }
   return {
     data: streamId! as StreamId,
-    remainder: array.subarray(readBytes)
+    remainder: array.subarray(readBytes),
   };
 }
 
@@ -75,20 +73,17 @@ function fromStreamId(streamId: StreamId): Uint8Array {
     array = new Uint8Array(1);
     dv = new DataView(array.buffer);
     dv.setUint8(0, Number(id));
-  }
-  else if (id < 0x4000) {
+  } else if (id < 0x4000) {
     array = new Uint8Array(2);
     dv = new DataView(array.buffer);
     dv.setUint16(0, Number(id));
     prefixMask = 0b01_000000;
-  }
-  else if (id < 0x40000000) {
+  } else if (id < 0x40000000) {
     array = new Uint8Array(4);
     dv = new DataView(array.buffer);
     dv.setUint32(0, Number(id));
     prefixMask = 0b10_000000;
-  }
-  else {
+  } else {
     array = new Uint8Array(8);
     dv = new DataView(array.buffer);
     dv.setBigUint64(0, id);
@@ -109,10 +104,4 @@ enum StreamCode {
   CLOSE = 3,
 }
 
-export {
-  never,
-  promise,
-  toStreamId,
-  fromStreamId,
-  StreamCode
-};
+export { never, promise, toStreamId, fromStreamId, StreamCode };
