@@ -1,8 +1,12 @@
 import type { WebSocketServerConnectionEvent } from '@/events';
 import WebSocketServer from '@/WebSocketServer';
+import { WebSocket } from 'ws';
 import * as testsUtils from './utils';
 
 describe('test', () => {
+  beforeEach(() => {
+
+  });
   test('test', async () => {
     const tlsConfigServer = await testsUtils.generateConfig('RSA');
     const server = new WebSocketServer({

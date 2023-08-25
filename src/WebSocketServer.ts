@@ -12,6 +12,7 @@ import { never, promise } from './utils';
 import WebSocketConnection from './WebSocketConnection';
 import { serverDefault } from './config';
 import * as utils from './utils';
+import WebSocketConnectionMap from './WebSocketConnectionMap';
 
 /**
  * Events:
@@ -28,8 +29,7 @@ class WebSocketServer extends EventTarget {
   protected webSocketServer: ws.WebSocketServer;
   protected _port: number;
   protected _host: string;
-  public readonly connectionIdCounter = new Counter(0);
-  public readonly connectionMap: Map<number, WebSocketConnection> = new Map();
+  public readonly connectionMap: WebSocketConnectionMap = new WebSocketConnectionMap();
 
   protected handleWebSocketConnectionEvents = (
     event: webSocketEvents.WebSocketConnectionEvent,
@@ -199,7 +199,7 @@ class WebSocketServer extends EventTarget {
     request: IncomingMessage,
   ) => {
     const httpSocket = request.connection;
-    const connectionId = this.connectionIdCounter.allocate();
+    const connectionId = this.connectionMap.allocateId();
     const connection = await WebSocketConnection.createWebSocketConnection({
       type: 'server',
       connectionId: connectionId,

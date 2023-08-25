@@ -11,6 +11,7 @@ import * as errors from './errors';
 import { promise } from './utils';
 import WebSocketConnection from './WebSocketConnection';
 import Counter from 'resource-counter';
+import WebSocketConnectionMap from './WebSocketConnectionMap';
 
 interface WebSocketClient extends createDestroy.CreateDestroy {}
 @createDestroy.CreateDestroy()
@@ -63,7 +64,7 @@ class WebSocketClient {
   protected host: string;
 
   public readonly connectionIdCounter = new Counter(0);
-  public readonly connectionMap: Map<number, WebSocketConnection> = new Map();
+  public readonly connectionMap: WebSocketConnectionMap = new WebSocketConnectionMap();
 
   constructor(
     protected logger: Logger,
