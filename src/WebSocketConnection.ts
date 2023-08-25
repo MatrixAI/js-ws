@@ -20,6 +20,7 @@ import WebSocketStream from './WebSocketStream';
 import * as errors from './errors';
 import { fromStreamId, promise, toStreamId } from './utils';
 import * as events from './events';
+import { Counter } from 'resource-counter';
 
 const timerCleanupReasonSymbol = Symbol('timerCleanupReasonSymbol');
 
@@ -97,8 +98,10 @@ class WebSocketConnection extends EventTarget {
   protected keepAliveTimeOutTimer?: Timer;
   protected keepAliveIntervalTimer?: Timer;
 
-  protected client?: WebSocketClient;
-  protected server?: WebSocketServer;
+  protected connectionMapHolder: {
+    connectionIdCounter: Counter<number>;
+    connectionMap: Map<number, WebSocketConnection>;
+  };
   protected logger: Logger;
   protected _remoteHost: Host;
 
@@ -277,8 +280,7 @@ class WebSocketConnection extends EventTarget {
     this.socket = socket;
     this.config = config;
     this.type = type;
-    this.server = server;
-    this.client = client;
+    this.connectionMapHolder = server ?? client!;
     this._remoteHost = remoteInfo.host;
 
     const {
@@ -314,7 +316,7 @@ class WebSocketConnection extends EventTarget {
 
     // Set the connection up
     if (this.type === 'server') {
-      this.server!.connectionMap.set(this.connectionId, this);
+      this.connectionMapHolder.connectionMap.set(this.connectionId, this);
     }
 
     this.socket.once('close', () => {
@@ -408,8 +410,8 @@ class WebSocketConnection extends EventTarget {
     this.keepAliveTimeOutTimer?.cancel(timerCleanupReasonSymbol);
 
     if (this.type === 'server') {
-      this.server!.connectionMap.delete(this.connectionId);
-      this.server!.connectionIdCounter.deallocate(this.connectionId);
+      this.connectionMapHolder!.connectionMap.delete(this.connectionId);
+      this.connectionMapHolder!.connectionIdCounter.deallocate(this.connectionId);
     }
 
     this.dispatchEvent(new events.WebSocketConnectionStopEvent());
