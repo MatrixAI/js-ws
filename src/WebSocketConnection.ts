@@ -119,7 +119,6 @@ class WebSocketConnection extends EventTarget {
   protected rejectClosedP: (reason?: any) => void;
 
   protected messageHandler = async (data: ws.RawData, isBinary: boolean) => {
-    console.log(isBinary);
     if (!isBinary || data instanceof Array) {
       this.dispatchEvent(
         new events.WebSocketConnectionErrorEvent({
@@ -385,9 +384,13 @@ class WebSocketConnection extends EventTarget {
   public async stop({ force = false }: { force: boolean }) {
     this.logger.info(`Stop ${this.constructor.name}`);
     // Cleaning up existing streams
-    // ...
+    const streamsDestroyP: Array<Promise<void>> = [];
     this.logger.debug('triggering stream destruction');
+    for (const stream of this.streamMap.values()) {
+      streamsDestroyP.push(stream.destroy());
+    }
     this.logger.debug('waiting for streams to destroy');
+    await Promise.all(streamsDestroyP);
     this.logger.debug('streams destroyed');
     this.stopKeepAliveIntervalTimer();
 

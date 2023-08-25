@@ -5,6 +5,7 @@ import type { StreamId } from './types';
 import { promise, StreamCode } from './utils';
 import type WebSocketConnection from './WebSocketConnection';
 import * as errors from './errors';
+import * as events from './events';
 
 interface WebSocketStream extends CreateDestroy {}
 @CreateDestroy()
@@ -23,10 +24,11 @@ class WebSocketStream
 
   protected logger: Logger;
   protected connection: WebSocketConnection;
-  protected readableController:
-    | ReadableStreamController<Uint8Array>
-    | undefined;
-  protected writableController: WritableStreamDefaultController | undefined;
+  protected readableController: ReadableStreamController<Uint8Array>;
+  protected writableController: WritableStreamDefaultController;
+
+  protected writableDesiredSize = 0;
+  protected writableDesiredSizeProm = promise<void>();
 
   public static async createWebSocketStream({
     streamId,
@@ -62,34 +64,60 @@ class WebSocketStream
     this.connection = connection;
     this.logger = logger;
 
-    this.readable = new ReadableStream(
+    this.readable = new ReadableStream<Uint8Array>(
       {
         start: async (controller) => {
+          this.readableController = controller;
           try {
             await this.streamSend(StreamCode.ACK);
           } catch (err) {
             controller.error(err);
           }
         },
-        pull: async (controller) => {},
+        pull: async (controller) => {
+
+        },
         cancel: async (reason) => {},
       },
-      new CountQueuingStrategy({
-        // Allow 1 buffered message, so we can know when data is desired, and we can know when to un-pause.
-        highWaterMark: 1,
-      }),
+      new ByteLengthQueuingStrategy({
+        highWaterMark: 0xFFFFFFFF,
+      })
     );
+
+    const writableWrite = async (chunk: Uint8Array, controller: WritableStreamDefaultController) => {
+      await this.writableDesiredSizeProm.p;
+      let data: Uint8Array;
+      const isChunkable = chunk.length > this.writableDesiredSize;
+      if (isChunkable) {
+        data = chunk.subarray(0, this.writableDesiredSize);
+      }
+      else {
+        data = chunk;
+      }
+      const newWritableDesiredSize = this.writableDesiredSize - data.length;
+      const oldProm = this.writableDesiredSizeProm;
+      try {
+        if (this.writableDesiredSize <= 0) {
+          this.writableDesiredSizeProm = promise();
+        }
+        await this.streamSend(StreamCode.DATA, chunk);
+        this.writableDesiredSize = newWritableDesiredSize;
+        if (isChunkable) {
+          await writableWrite(chunk.subarray(this.writableDesiredSize), controller);
+        }
+      }
+      catch {
+        this.writableDesiredSizeProm = oldProm;
+        // TODO: Handle error
+      }
+    }
 
     this.writable = new WritableStream(
       {
-        start: async (controller) => {},
-        write: async (chunk: Uint8Array, controller) => {
-          try {
-            await this.streamSend(StreamCode.DATA, chunk);
-          } catch (err) {
-            controller.error(err);
-          }
+        start: (controller) => {
+          this.writableController = controller;
         },
+        write: writableWrite,
         close: async () => {
           await this.streamSend(StreamCode.CLOSE);
           this.signalWritableEnd();
@@ -99,8 +127,8 @@ class WebSocketStream
         },
       },
       {
-        highWaterMark: 1,
-      },
+        highWaterMark: 1
+      }
     );
   }
 
@@ -133,23 +161,45 @@ class WebSocketStream
   }
 
   public async streamRecv(message: Uint8Array) {
-    this.logger.debug(message);
+    const code = message[0] as StreamCode;
+    const data = message.subarray(1);
+    const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
+    if (code === StreamCode.DATA) {
+      const data = message.subarray(1);
+      this.readableController.enqueue(data);
+      this.readableController.desiredSize;
+    }
+    else if (code === StreamCode.ACK) {
+      console.log(data);
+      const bufferSize = dv.getUint32(0, false);
+      console.log(bufferSize);
+      this.writableDesiredSize = bufferSize;
+      this.writableDesiredSizeProm.resolveP();
+
+    }
+    else if (code === StreamCode.ERROR) {
+      this.readableController?.error(new errors.ErrorWebSocketStream());
+    }
+    else if (code === StreamCode.CLOSE) {
+      // close the stream
+    }
+
+    this.readableController?.enqueue(data);
   }
 
   /**
    * Forces the active stream to end early
    */
   public cancel(reason?: any): void {
-    // Default error
-    const err = reason ?? new errors.ErrorWebSocketStreamCancel();
+    reason = reason ?? new errors.ErrorWebSocketStreamCancel();
     // Close the streams with the given error,
     if (!this._readableEnded) {
-      this.readableController?.error(err);
-      this.signalReadableEnd(err);
+      this.readableController.error(reason);
+      this.signalReadableEnd(reason);
     }
     if (!this._writableEnded) {
-      this.writableController?.error(err);
-      this.signalWritableEnd(err);
+      this.writableController.error(reason);
+      this.signalWritableEnd(reason);
     }
   }
 
