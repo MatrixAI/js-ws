@@ -7,9 +7,10 @@ import WebSocket from 'ws';
 import { Validator } from 'ip-num';
 import { Timer } from '@matrixai/timer';
 import WebSocketStream from './WebSocketStream';
-import * as webSocketErrors from './errors';
+import * as errors from './errors';
 import { promise } from './utils';
 import WebSocketConnection from './WebSocketConnection';
+import Counter from 'resource-counter';
 
 interface WebSocketClient extends createDestroy.CreateDestroy {}
 @createDestroy.CreateDestroy()
@@ -45,7 +46,7 @@ class WebSocketClient {
     logger?: Logger;
     verifyCallback?: VerifyCallback;
   }): Promise<WebSocketClient> {
-    logger.info(`Creating ${this.name}`);
+    logger.info(`Create ${this.name} to ${host}:${port}`);
     const clientClient = new this(
       logger,
       host,
@@ -60,7 +61,9 @@ class WebSocketClient {
   }
 
   protected host: string;
-  protected activeConnections: Set<WebSocketStream> = new Set();
+
+  public readonly connectionIdCounter = new Counter(0);
+  public readonly connectionMap: Map<number, WebSocketConnection> = new Map();
 
   constructor(
     protected logger: Logger,
@@ -76,7 +79,7 @@ class WebSocketClient {
     } else if (Validator.isValidIPv6String(host)[0]) {
       this.host = `[${host}]`;
     } else {
-      throw new webSocketErrors.ErrorClientInvalidHost();
+      throw new errors.ErrorWebSocketClientInvalidHost();
     }
   }
 
@@ -85,7 +88,7 @@ class WebSocketClient {
     if (force) {
       for (const activeConnection of this.activeConnections) {
         activeConnection.cancel(
-          new webSocketErrors.ErrorClientEndingConnections(
+          new errors.ErrorClientEndingConnections(
             'Destroying WebSocketClient',
           ),
         );
@@ -98,11 +101,11 @@ class WebSocketClient {
     this.logger.info(`Destroyed ${this.constructor.name}`);
   }
 
-  @createDestroy.ready(new webSocketErrors.ErrorClientDestroyed())
+  @createDestroy.ready(new errors.ErrorWebSocketClientDestroyed())
   public async stopConnections() {
     for (const activeConnection of this.activeConnections) {
       activeConnection.cancel(
-        new webSocketErrors.ErrorClientEndingConnections(),
+        new errors.ErrorClientEndingConnections(),
       );
     }
     for (const activeConnection of this.activeConnections) {
@@ -111,7 +114,7 @@ class WebSocketClient {
     }
   }
 
-  @createDestroy.ready(new webSocketErrors.ErrorClientDestroyed())
+  @createDestroy.ready(new errors.ErrorWebSocketClientDestroyed())
   public async startConnection(
     ctx: Partial<ContextTimed> = {},
   ): Promise<WebSocketStream> {
@@ -127,7 +130,7 @@ class WebSocketClient {
     void timer.then(
       () => {
         abortRaceProm.rejectP(
-          new webSocketErrors.ErrorClientConnectionTimedOut(),
+          new errors.ErrorClientConnectionTimedOut(),
         );
       },
       () => {}, // Ignore cancellation errors
@@ -163,7 +166,7 @@ class WebSocketClient {
     // Handle connection failure
     const openErrorHandler = (e) => {
       connectProm.rejectP(
-        new webSocketErrors.ErrorClientConnectionFailed(undefined, {
+        new errors.ErrorClientConnectionFailed(undefined, {
           cause: e,
         }),
       );
@@ -236,7 +239,7 @@ class WebSocketClient {
     );
     const abortStream = () => {
       webSocketStreamClient.cancel(
-        new webSocketErrors.ErrorClientStreamAborted(undefined, {
+        new errors.ErrorClientStreamAborted(undefined, {
           cause: signal?.reason,
         }),
       );

@@ -14,6 +14,24 @@ class ErrorWebSocketServerNotRunning<T> extends ErrorWebSocketServer<T> {
   static description = 'WebSocket Server is not running';
 }
 
+// Client
+
+class ErrorWebSocketClient<T> extends ErrorWebSocket<T> {
+  static description = 'WebSocket Client error';
+}
+
+class ErrorWebSocketClientCreateTimeOut<T> extends ErrorWebSocketClient<T> {
+  static description = 'WebSocketC Client create timeout';
+}
+
+class ErrorWebSocketClientDestroyed<T> extends ErrorWebSocketClient<T> {
+  static description = 'WebSocket Client is destroyed';
+}
+
+class ErrorWebSocketClientInvalidHost<T> extends ErrorWebSocketClient<T> {
+  static description = 'WebSocket Client cannot be created with the specified host';
+}
+
 // Connection
 
 class ErrorWebSocketConnection<T> extends ErrorWebSocket<T> {
@@ -67,6 +85,10 @@ export {
   ErrorWebSocket,
   ErrorWebSocketServer,
   ErrorWebSocketServerNotRunning,
+  ErrorWebSocketClient,
+  ErrorWebSocketClientCreateTimeOut,
+  ErrorWebSocketClientDestroyed,
+  ErrorWebSocketClientInvalidHost,
   ErrorWebSocketConnection,
   ErrorWebSocketConnectionNotRunning,
   ErrorWebSocketConnectionStartTimeOut,
