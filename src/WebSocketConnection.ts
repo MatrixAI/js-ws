@@ -145,6 +145,7 @@ class WebSocketConnection extends EventTarget {
       stream = await WebSocketStream.createWebSocketStream({
         connection: this,
         streamId,
+        bufferSize: this.config.streamBufferSize,
         logger: this.logger.getChild(`${WebSocketStream.name} ${streamId!}`),
       });
       stream.addEventListener(
@@ -400,6 +401,7 @@ class WebSocketConnection extends EventTarget {
       const stream = await WebSocketStream.createWebSocketStream({
         streamId: streamId!,
         connection: this,
+        bufferSize: this.config.streamBufferSize,
         logger: this.logger.getChild(`${WebSocketStream.name} ${streamId!}`),
       });
       stream.addEventListener(

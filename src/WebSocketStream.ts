@@ -33,16 +33,19 @@ class WebSocketStream
   public static async createWebSocketStream({
     streamId,
     connection,
+    bufferSize,
     logger = new Logger(`${this.name} ${streamId}`),
   }: {
     streamId: StreamId;
     connection: WebSocketConnection;
-    logger: Logger;
+    bufferSize: number;
+    logger?: Logger;
   }): Promise<WebSocketStream> {
     logger.info(`Create ${this.name}`);
     const stream = new this({
       streamId,
       connection,
+      bufferSize,
       logger,
     });
     connection.streamMap.set(streamId, stream);
@@ -53,10 +56,12 @@ class WebSocketStream
   constructor({
     streamId,
     connection,
+    bufferSize,
     logger,
   }: {
     streamId: StreamId;
     connection: WebSocketConnection;
+    bufferSize: number;
     logger: Logger;
   }) {
     super();
@@ -80,34 +85,38 @@ class WebSocketStream
         cancel: async (reason) => {},
       },
       new ByteLengthQueuingStrategy({
-        highWaterMark: 0xFFFFFFFF,
+        highWaterMark: bufferSize,
       })
     );
 
     const writableWrite = async (chunk: Uint8Array, controller: WritableStreamDefaultController) => {
       await this.writableDesiredSizeProm.p;
+      this.logger.debug(`${chunk.length} bytes need to be written into a receiver buffer of ${this.writableDesiredSize} bytes`);
       let data: Uint8Array;
       const isChunkable = chunk.length > this.writableDesiredSize;
       if (isChunkable) {
+        this.logger.debug(`this chunk will be split into sizes of ${this.writableDesiredSize} bytes`);
         data = chunk.subarray(0, this.writableDesiredSize);
       }
       else {
         data = chunk;
       }
-      const newWritableDesiredSize = this.writableDesiredSize - data.length;
-      const oldProm = this.writableDesiredSizeProm;
       try {
-        if (this.writableDesiredSize <= 0) {
+        if (this.writableDesiredSize === data.length) {
+          this.logger.debug(`this chunk will trigger receiver to send an ACK`);
+          // Resolve and reset the promise to wait for another ACK
+          this.writableDesiredSizeProm.resolveP();
           this.writableDesiredSizeProm = promise();
         }
-        await this.streamSend(StreamCode.DATA, chunk).catch((e) => controller.error(e));;
-        this.writableDesiredSize = newWritableDesiredSize;
+        const bytesWritten = this.writableDesiredSize;
+        await this.streamSend(StreamCode.DATA, data).catch((e) => controller.error(e));
+        this.writableDesiredSize =- data.length;
         if (isChunkable) {
-          await writableWrite(chunk.subarray(this.writableDesiredSize), controller);
+          await writableWrite(chunk.subarray(bytesWritten), controller);
         }
       }
       catch {
-        this.writableDesiredSizeProm = oldProm;
+        this.writableDesiredSizeProm.resolveP();
         // TODO: Handle error
       }
     }
@@ -146,7 +155,9 @@ class WebSocketStream
   public async streamSend(code: StreamCode, data_?: Uint8Array | number): Promise<void> {
     let data: Uint8Array | undefined;
     if (code === StreamCode.ACK && typeof data_ === 'number') {
-      data = new Uint8Array([data_]);
+      data = new Uint8Array(4);
+      const dv = new DataView(data.buffer);
+      dv.setUint32(0, data_, false);
     } else {
       data = data_ as Uint8Array | undefined;
     }
@@ -184,7 +195,7 @@ class WebSocketStream
       const bufferSize = dv.getUint32(0, false);
       this.writableDesiredSize = bufferSize;
       this.writableDesiredSizeProm.resolveP();
-
+      this.logger.debug(`received ACK, writerDesiredSize is now reset to ${bufferSize} bytes`);
     }
     else if (code === StreamCode.ERROR) {
       this.readableController.error(new errors.ErrorWebSocketStream());

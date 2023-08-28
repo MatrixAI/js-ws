@@ -87,6 +87,10 @@ type WebSocketConfig = {
   connectTimeoutTime: number;
   keepAliveTimeoutTime: number;
   keepAliveIntervalTime: number;
+  /**
+   * Maximum number of bytes for the readable stream
+   */
+  streamBufferSize: number;
 };
 
 interface Parsed<T> {
