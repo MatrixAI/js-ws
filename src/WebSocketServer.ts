@@ -213,6 +213,8 @@ class WebSocketServer extends EventTarget {
         `${WebSocketConnection.name} ${connectionId}`,
       ),
       server: this,
+    }, {
+      timer: this.config.connectTimeoutTime
     });
 
     // Handling connection events

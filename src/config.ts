@@ -6,4 +6,10 @@ const serverDefault: WebSocketConfig = {
   keepAliveTimeoutTime: 10_000,
 };
 
-export { serverDefault };
+const clientDefault: WebSocketConfig = {
+  connectTimeoutTime: Infinity,
+  keepAliveIntervalTime: 1_000,
+  keepAliveTimeoutTime: 10_000,
+}
+
+export { serverDefault, clientDefault };

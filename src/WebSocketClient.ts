@@ -1,6 +1,6 @@
 import type { DetailedPeerCertificate, TLSSocket } from 'tls';
 import type { ContextTimed } from '@matrixai/contexts';
-import type { VerifyCallback } from './types';
+import type { Host, Port, VerifyCallback, WebSocketConfig } from './types';
 import { createDestroy } from '@matrixai/async-init';
 import Logger from '@matrixai/logger';
 import WebSocket from 'ws';
@@ -12,10 +12,11 @@ import { promise } from './utils';
 import WebSocketConnection from './WebSocketConnection';
 import Counter from 'resource-counter';
 import WebSocketConnectionMap from './WebSocketConnectionMap';
+import { clientDefault } from './config';
 
 interface WebSocketClient extends createDestroy.CreateDestroy {}
 @createDestroy.CreateDestroy()
-class WebSocketClient {
+class WebSocketClient extends EventTarget {
   /**
    * @param obj
    * @param obj.host - Target host address to connect to
@@ -33,55 +34,82 @@ class WebSocketClient {
   static async createWebSocketClient({
     host,
     port,
-    connectionTimeoutTime = Infinity,
-    pingIntervalTime = 1_000,
-    pingTimeoutTimeTime = 10_000,
-    logger = new Logger(this.name),
+    config,
+    logger = new Logger(`${this.name}`),
     verifyCallback,
   }: {
     host: string;
     port: number;
-    connectionTimeoutTime?: number;
-    pingIntervalTime?: number;
-    pingTimeoutTimeTime?: number;
+    config?: Partial<WebSocketConfig>;
     logger?: Logger;
     verifyCallback?: VerifyCallback;
   }): Promise<WebSocketClient> {
     logger.info(`Create ${this.name} to ${host}:${port}`);
-    const clientClient = new this(
-      logger,
-      host,
-      port,
-      connectionTimeoutTime,
-      pingIntervalTime,
-      pingTimeoutTimeTime,
+    const wsConfig = {
+      ...clientDefault,
+      ...config,
+    };
+
+    let host_: Host;
+    if (Validator.isValidIPv4String(host)[0]) {
+      host_ = host as Host;
+    } else if (Validator.isValidIPv6String(host)[0]) {
+      host_ = `[${host}]` as Host;
+    } else {
+      throw new errors.ErrorWebSocketClientInvalidHost();
+    }
+    let port_: Port;
+    if (port >= 0 && port <= 65535) {
+      port_ = port as Port;
+    }
+    else {
+      throw new errors.ErrorWebSocketClientInvalidHost();
+    }
+
+    const address = `wss://${host_}:${port_}`;
+
+    const client = new this({
+      address,
+      logger
+    });
+
+    const webSocket = new WebSocket(address, {
+      rejectUnauthorized: verifyCallback != null,
+    });
+
+    const connectionId = client.connectionMap.allocateId();
+    const connection = WebSocketConnection.createWebSocketConnection({
+      type: 'client',
+      connectionId,
+      remoteInfo: {
+        host: host_,
+        port: port_,
+      },
+      config: wsConfig,
+      socket: webSocket,
       verifyCallback,
-    );
+      client: client,
+    })
     logger.info(`Created ${this.name}`);
-    return clientClient;
+    return client;
   }
 
-  protected host: string;
+  protected address: string;
+  protected logger: Logger;
 
   public readonly connectionIdCounter = new Counter(0);
   public readonly connectionMap: WebSocketConnectionMap = new WebSocketConnectionMap();
 
-  constructor(
-    protected logger: Logger,
-    host: string,
-    protected port: number,
-    protected connectionTimeoutTime: number,
-    protected pingIntervalTime: number,
-    protected pingTimeoutTimeTime: number,
-    protected verifyCallback?: VerifyCallback,
-  ) {
-    if (Validator.isValidIPv4String(host)[0]) {
-      this.host = host;
-    } else if (Validator.isValidIPv6String(host)[0]) {
-      this.host = `[${host}]`;
-    } else {
-      throw new errors.ErrorWebSocketClientInvalidHost();
-    }
+  constructor({
+    address,
+    logger,
+  } : {
+    address: string,
+    logger: Logger
+  }) {
+    super();
+    this.address = address;
+    this.logger = logger;
   }
 
   public async destroy(force: boolean = false) {
@@ -153,13 +181,7 @@ class WebSocketClient {
     const address = `wss://${this.host}:${this.port}`;
     this.logger.info(`Connecting to ${address}`);
     const connectProm = promise<void>();
-    const authenticateProm = promise<{
-      localHost: string;
-      localPort: number;
-      remoteHost: string;
-      remotePort: number;
-      peerCert: DetailedPeerCertificate;
-    }>();
+
     // Let ws handle authentication if no custom verify callback is provided.
     const ws = new WebSocket(address, {
       rejectUnauthorized: this.verifyCallback != null,

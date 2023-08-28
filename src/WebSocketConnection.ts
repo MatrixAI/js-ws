@@ -2,6 +2,7 @@ import type { PromiseCancellable } from '@matrixai/async-cancellable';
 import type { ContextTimed, ContextTimedInput } from '@matrixai/contexts';
 import type {
   Host,
+  PromiseDeconstructed,
   RemoteInfo,
   StreamId,
   VerifyCallback,
@@ -22,6 +23,7 @@ import { fromStreamId, promise, toStreamId } from './utils';
 import * as events from './events';
 import { Counter } from 'resource-counter';
 import WebSocketConnectionMap from './WebSocketConnectionMap';
+import { DetailedPeerCertificate, TLSSocket } from 'tls';
 
 const timerCleanupReasonSymbol = Symbol('timerCleanupReasonSymbol');
 
@@ -120,6 +122,8 @@ class WebSocketConnection extends EventTarget {
 
   protected resolveClosedP: () => void;
   protected rejectClosedP: (reason?: any) => void;
+
+  protected verifyCallback: ((peerCert: DetailedPeerCertificate) => Promise<void>) | undefined;
 
   protected messageHandler = async (data: ws.RawData, isBinary: boolean) => {
     if (!isBinary || data instanceof Array) {
@@ -282,6 +286,7 @@ class WebSocketConnection extends EventTarget {
     this.type = type;
     this.parentInstance = server ?? client!;
     this._remoteHost = remoteInfo.host;
+    this.verifyCallback = verifyCallback;
 
     const {
       p: closedP,
@@ -294,7 +299,10 @@ class WebSocketConnection extends EventTarget {
   }
   public async start(): Promise<void> {
     this.logger.info(`Start ${this.constructor.name}`);
+    const promises: Array<Promise<any>> = [];
+
     const connectProm = promise<void>();
+
     if (this.socket.readyState === ws.OPEN) {
       connectProm.resolveP();
     }
@@ -311,13 +319,58 @@ class WebSocketConnection extends EventTarget {
       connectProm.resolveP();
     };
     this.socket.once('open', openHandler);
-    await connectProm;
-    this.socket.off('open', openHandler);
+    promises.push(connectProm.p);
+
+    if (this.type === 'client') {
+      const authenticateProm = promise<{
+        localHost: string;
+        localPort: number;
+        remoteHost: string;
+        remotePort: number;
+        peerCert: DetailedPeerCertificate;
+      }>();
+      this.socket.once('upgrade', async (request) => {
+        const tlsSocket = request.socket as TLSSocket;
+        const peerCert = tlsSocket.getPeerCertificate(true);
+        try {
+          if (this.verifyCallback != null) {
+            await this.verifyCallback(peerCert);
+          }
+          authenticateProm.resolveP({
+            localHost: request.connection.localAddress ?? '',
+            localPort: request.connection.localPort ?? 0,
+            remoteHost: request.connection.remoteAddress ?? '',
+            remotePort: request.connection.remotePort ?? 0,
+            peerCert,
+          });
+        }
+        catch (e) {
+          authenticateProm.rejectP(e);
+        }
+      });
+      promises.push(authenticateProm.p);
+    }
+
+    // Wait for open
+    try {
+      await Promise.all(promises);
+    }
+    catch (e) {
+      this.socket.removeAllListeners('error');
+      this.socket.removeAllListeners('upgrade');
+      this.socket.removeAllListeners('open');
+      // Close the ws if it's open at this stage
+      this.socket.terminate();
+      throw e;
+    }
+    finally {
+      this.socket.removeAllListeners('upgrade');
+      this.socket.off('open', openHandler);
+      this.socket.off('error', openErrorHandler);
+    }
 
     // Set the connection up
-    if (this.type === 'server') {
-      this.parentInstance.connectionMap.set(this.connectionId, this);
-    }
+    this.parentInstance.connectionMap.set(this.connectionId, this);
 
     this.socket.once('close', () => {
       this.resolveClosedP();
