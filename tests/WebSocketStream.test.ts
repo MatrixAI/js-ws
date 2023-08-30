@@ -22,6 +22,7 @@ jest.mock('@/WebSocketConnection', () => {
     };
     instance.streamMap = new Map<StreamId, WebSocketStream>();
     instance.streamSend = async (streamId: StreamId, data: Uint8Array) => {
+      console.log('streamSend', streamId, data);
       let stream = instance.connectedConnection!.streamMap.get(streamId);
       if (stream == null) {
         stream = await WebSocketStream.createWebSocketStream({
@@ -99,7 +100,7 @@ describe(WebSocketStream.name, () => {
   test('normal', async () => {
     const [stream1, stream2] = await createStreamPair(connection1, connection2);
 
-    const buffer = new Uint8Array(DEFAULT_BUFFER_SIZE);
+    const buffer = new Uint8Array(DEFAULT_BUFFER_SIZE + 1);
     await testUtils.randomBytes(buffer);
 
     const stream1Readable = stream1.readable;

@@ -139,15 +139,16 @@ class WebSocketStream
       } else {
         data = chunk;
       }
-      if (this.writableDesiredSize === data.length) {
+      const bytesWritten = data.length;
+      if (this.writableDesiredSize === bytesWritten) {
         this.logger.debug(`this chunk will trigger receiver to send an ACK`);
         // Reset the promise to wait for another ACK
         this.writableDesiredSizeProm = promise();
       }
-      const bytesWritten = data.length;
       await this.streamSend(StreamType.DATA, data);
       // Decrement the desired size by the amount of bytes written
-      this.writableDesiredSize = -bytesWritten;
+      this.writableDesiredSize -= bytesWritten;
+
       if (isChunkable) {
         await writeHandler(chunk.subarray(bytesWritten), controller);
       }
@@ -289,7 +290,7 @@ class WebSocketStream
         this.writableDesiredSize = bufferSize;
         this.writableDesiredSizeProm.resolveP();
         this.logger.debug(
-          `received ACK, writerDesiredSize is now reset to ${bufferSize} bytes`,
+          `received ACK, writableDesiredSize is now reset to ${bufferSize} bytes`,
         );
       } catch (e) {
         this.logger.debug(`received malformed ACK, closing stream`);
