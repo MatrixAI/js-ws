@@ -57,6 +57,10 @@ class ErrorWebSocketConnectionKeepAliveTimeOut<
   static description = 'WebSocket Connection reached idle timeout';
 }
 
+class ErrorWebSocketConnectionSocket<T> extends ErrorWebSocketConnection<T> {
+  static description = 'WebSocket Connection underlying websocket error';
+}
+
 // Stream
 
 class ErrorWebSocketStream<T> extends ErrorWebSocket<T> {
@@ -89,6 +93,7 @@ export {
   ErrorWebSocketConnectionNotRunning,
   ErrorWebSocketConnectionStartTimeOut,
   ErrorWebSocketConnectionKeepAliveTimeOut,
+  ErrorWebSocketConnectionSocket,
   ErrorWebSocketStream,
   ErrorWebSocketStreamReaderBufferOverload,
   ErrorWebSocketStreamDestroyed,

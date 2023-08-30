@@ -185,6 +185,19 @@ class WebSocketConnection extends EventTarget {
     this.setKeepAliveTimeoutTimer();
   };
 
+  protected errorHandler = (err: Error) => {
+    this.dispatchEvent(
+      new events.WebSocketConnectionErrorEvent({
+        detail: new errors.ErrorWebSocketConnectionSocket(
+          'An error occurred on the underlying WebSocket instance.',
+          {
+            cause: err,
+          },
+        ),
+      }),
+    );
+  };
+
   public static createWebSocketConnection(
     args:
       | {
@@ -410,6 +423,7 @@ class WebSocketConnection extends EventTarget {
     this.socket.on('message', this.messageHandler);
     this.socket.on('ping', this.pingHandler);
     this.socket.on('pong', this.pongHandler);
+    this.socket.on('error', this.errorHandler);
 
     this.logger.info(`Started ${this.constructor.name}`);
   }
@@ -503,6 +517,7 @@ class WebSocketConnection extends EventTarget {
     this.socket.off('message', this.messageHandler);
     this.socket.off('ping', this.pingHandler);
     this.socket.off('pong', this.pongHandler);
+    this.socket.off('error', this.errorHandler);
     this.keepAliveTimeOutTimer?.cancel(timerCleanupReasonSymbol);
 
     if (this.type === 'server') {
