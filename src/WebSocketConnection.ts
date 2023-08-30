@@ -234,7 +234,7 @@ class WebSocketConnection extends EventTarget {
     try {
       await Promise.race([connection.start(), abortProm.p]);
     } catch (e) {
-      await connection.stop({ force: true });
+      await connection.stop();
       throw e;
     } finally {
       ctx.signal.removeEventListener('abort', abortHandler);
@@ -376,7 +376,7 @@ class WebSocketConnection extends EventTarget {
     this.socket.once('close', () => {
       this.resolveClosedP();
       if (this[startStop.running] && this[startStop.status] !== 'stopping') {
-        void this.stop({ force: true });
+        void this.stop();
       }
     });
 
@@ -419,26 +419,40 @@ class WebSocketConnection extends EventTarget {
     });
   }
 
+  /**
+   * Send data to the other side of the connection.
+   * This will not will not error out, but will rather close the connection assuming any further communication is expected to fail.
+   * @param streamId The stream id to send the data on
+   * @param data The data to send, this will include the stream message type.
+   * @internal
+   */
   public async streamSend(streamId: StreamId, data: Uint8Array) {
-    const sendProm = promise<void>();
-
     const encodedStreamId = fromStreamId(streamId);
     const array = new Uint8Array(encodedStreamId.length + data.length);
     array.set(encodedStreamId, 0);
     array.set(data, encodedStreamId.length);
-    if (data != null) {
-      array.set(data, encodedStreamId.length);
+
+    try {
+      const sendProm = promise<void>();
+      this.socket.send(array, (err) => {
+        if (err == null) sendProm.resolveP();
+        else sendProm.rejectP(err);
+      });
+      await sendProm.p;
     }
-
-    this.socket.send(array, (err) => {
-      if (err == null) sendProm.resolveP();
-      else sendProm.rejectP(err);
-    });
-
-    await sendProm.p;
+    catch (err) {
+      await this.stop();
+    }
   }
 
-  public async stop({ force = false }: { force: boolean }) {
+
+  public async stop({
+    errorCode = 1000,
+    errorMessage = '',
+  }: {
+    errorCode?: number,
+    errorMessage?: string,
+  } = {}) {
     this.logger.info(`Stop ${this.constructor.name}`);
     // Cleaning up existing streams
     const streamsDestroyP: Array<Promise<void>> = [];
@@ -455,7 +469,7 @@ class WebSocketConnection extends EventTarget {
     if (this.socket.readyState === ws.CLOSED) {
       this.resolveClosedP();
     } else {
-      this.socket.close();
+      this.socket.close(errorCode, errorMessage);
     }
     await this.closedP;
     this.logger.debug('closedP');
@@ -465,7 +479,7 @@ class WebSocketConnection extends EventTarget {
     this.keepAliveTimeOutTimer?.cancel(timerCleanupReasonSymbol);
 
     if (this.type === 'server') {
-      this.parentInstance!.connectionMap.delete(this.connectionId);
+      this.parentInstance.connectionMap.delete(this.connectionId);
     }
 
     this.dispatchEvent(new events.WebSocketConnectionStopEvent());
@@ -482,7 +496,7 @@ class WebSocketConnection extends EventTarget {
         }),
       );
       if (this[startStop.running] && this[startStop.status] !== 'stopping') {
-        void this.stop({ force: true });
+        void this.stop();
       }
     };
     // If there was an existing timer, we cancel it and set a new one
