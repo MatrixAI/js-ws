@@ -1,16 +1,14 @@
-import { StreamId } from "@/types";
-import WebSocketStream from "@/WebSocketStream";
-import WebSocketConnection from "@/WebSocketConnection";
-import * as events from "@/events";
-import { promise } from "@/utils";
-import { fc, testProp } from "@fast-check/jest";
+import type { StreamId } from '@/types';
+import WebSocketStream from '@/WebSocketStream';
+import WebSocketConnection from '@/WebSocketConnection';
+import * as events from '@/events';
+import { promise } from '@/utils';
 import * as testUtils from './utils';
 
 const DEFAULT_BUFFER_SIZE = 1024;
 
 jest.mock('@/WebSocketConnection', () => {
-  return jest.fn().mockImplementation((
-  ) => {
+  return jest.fn().mockImplementation(() => {
     const instance = new EventTarget() as EventTarget & {
       connectedConnection: WebSocketConnection | undefined;
       connectTo: (connection: WebSocketConnection) => void;
@@ -31,11 +29,13 @@ jest.mock('@/WebSocketConnection', () => {
           bufferSize: DEFAULT_BUFFER_SIZE,
           connection: instance.connectedConnection!,
         });
-        instance.connectedConnection!.dispatchEvent(new events.WebSocketConnectionStreamEvent({
-          detail: stream,
-        }));
+        instance.connectedConnection!.dispatchEvent(
+          new events.WebSocketConnectionStreamEvent({
+            detail: stream,
+          }),
+        );
       }
-      stream.streamRecv(data);
+      await stream.streamRecv(data);
     };
     return instance;
   });
@@ -57,16 +57,20 @@ describe(WebSocketStream.name, () => {
     const stream1 = await WebSocketStream.createWebSocketStream({
       streamId: 0n as StreamId,
       bufferSize: DEFAULT_BUFFER_SIZE,
-      connection: connection1
+      connection: connection1,
     });
     const createStream2Prom = promise<WebSocketStream>();
-    connection2.addEventListener("connectionStream", (e: events.WebSocketConnectionStreamEvent) => {
-      createStream2Prom.resolveP(e.detail);
-    }, { once: true });
+    connection2.addEventListener(
+      'connectionStream',
+      (e: events.WebSocketConnectionStreamEvent) => {
+        createStream2Prom.resolveP(e.detail);
+      },
+      { once: true },
+    );
     const stream2 = await createStream2Prom.p;
     return [stream1, stream2];
   }
-  // testProp(
+  // TestProp(
   //   'normal',
   //   [fc.infiniteStream(fc.uint8Array({minLength: 1, maxLength: DEFAULT_BUFFER_SIZE}))],
   //   async (iterable) => {
@@ -92,21 +96,18 @@ describe(WebSocketStream.name, () => {
   //     // await stream1.destroy();
   //   }
   // );
-  test(
-    'normal',
-    async () => {
-      const [stream1, stream2] = await createStreamPair(connection1, connection2);
+  test('normal', async () => {
+    const [stream1, stream2] = await createStreamPair(connection1, connection2);
 
-      const buffer = new Uint8Array(DEFAULT_BUFFER_SIZE);
-      testUtils.randomBytes(buffer);
+    const buffer = new Uint8Array(DEFAULT_BUFFER_SIZE);
+    await testUtils.randomBytes(buffer);
 
-      const stream1Readable = stream1.readable;
-      const stream2Writable = stream2.writable;
-      const writeProm = stream2Writable.getWriter().write(buffer);
-      await stream1Readable.getReader().read();
-      await writeProm;
+    const stream1Readable = stream1.readable;
+    const stream2Writable = stream2.writable;
+    const writeProm = stream2Writable.getWriter().write(buffer);
+    await stream1Readable.getReader().read();
+    await writeProm;
 
-      await stream1.destroy();
-    }
-  );
+    await stream1.destroy();
+  });
 });

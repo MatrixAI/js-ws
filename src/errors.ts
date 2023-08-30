@@ -29,7 +29,8 @@ class ErrorWebSocketClientDestroyed<T> extends ErrorWebSocketClient<T> {
 }
 
 class ErrorWebSocketClientInvalidHost<T> extends ErrorWebSocketClient<T> {
-  static description = 'WebSocket Client cannot be created with the specified host';
+  static description =
+    'WebSocket Client cannot be created with the specified host';
 }
 
 // Connection

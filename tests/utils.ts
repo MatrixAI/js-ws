@@ -595,10 +595,9 @@ function toReadableStream<T>(iterator: IterableIterator<T>) {
         controller.enqueue(chunk);
       }
       controller.close();
-    }
+    },
   });
 }
-
 
 export {
   sleep,

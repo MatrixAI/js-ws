@@ -6,11 +6,11 @@ import Logger from '@matrixai/logger';
 import WebSocket from 'ws';
 import { Validator } from 'ip-num';
 import { Timer } from '@matrixai/timer';
+import Counter from 'resource-counter';
 import WebSocketStream from './WebSocketStream';
 import * as errors from './errors';
 import { promise } from './utils';
 import WebSocketConnection from './WebSocketConnection';
-import Counter from 'resource-counter';
 import WebSocketConnectionMap from './WebSocketConnectionMap';
 import { clientDefault } from './config';
 
@@ -61,8 +61,7 @@ class WebSocketClient extends EventTarget {
     let port_: Port;
     if (port >= 0 && port <= 65535) {
       port_ = port as Port;
-    }
-    else {
+    } else {
       throw new errors.ErrorWebSocketClientInvalidHost();
     }
 
@@ -70,7 +69,7 @@ class WebSocketClient extends EventTarget {
 
     const client = new this({
       address,
-      logger
+      logger,
     });
 
     const webSocket = new WebSocket(address, {
@@ -89,7 +88,7 @@ class WebSocketClient extends EventTarget {
       socket: webSocket,
       verifyCallback,
       client: client,
-    })
+    });
     logger.info(`Created ${this.name}`);
     return client;
   }
@@ -97,16 +96,10 @@ class WebSocketClient extends EventTarget {
   protected address: string;
   protected logger: Logger;
 
-  public readonly connectionIdCounter = new Counter(0);
-  public readonly connectionMap: WebSocketConnectionMap = new WebSocketConnectionMap();
+  public readonly connectionMap: WebSocketConnectionMap =
+    new WebSocketConnectionMap();
 
-  constructor({
-    address,
-    logger,
-  } : {
-    address: string,
-    logger: Logger
-  }) {
+  constructor({ address, logger }: { address: string; logger: Logger }) {
     super();
     this.address = address;
     this.logger = logger;
@@ -115,15 +108,11 @@ class WebSocketClient extends EventTarget {
   public async destroy(force: boolean = false) {
     this.logger.info(`Destroying ${this.constructor.name}`);
     if (force) {
-      for (const activeConnection of this.activeConnections) {
-        activeConnection.cancel(
-          new errors.ErrorClientEndingConnections(
-            'Destroying WebSocketClient',
-          ),
-        );
+      for (const activeConnection of this.connectionMap.values()) {
+        activeConnection.stop({ force });
       }
     }
-    for (const activeConnection of this.activeConnections) {
+    for (const activeConnection of this.connectionMap.values()) {
       // Ignore errors here, we only care that it finishes
       await activeConnection.endedProm.catch(() => {});
     }
@@ -133,9 +122,7 @@ class WebSocketClient extends EventTarget {
   @createDestroy.ready(new errors.ErrorWebSocketClientDestroyed())
   public async stopConnections() {
     for (const activeConnection of this.activeConnections) {
-      activeConnection.cancel(
-        new errors.ErrorClientEndingConnections(),
-      );
+      activeConnection.cancel(new errors.ErrorClientEndingConnections());
     }
     for (const activeConnection of this.activeConnections) {
       // Ignore errors here, we only care that it finished
@@ -158,9 +145,7 @@ class WebSocketClient extends EventTarget {
       });
     void timer.then(
       () => {
-        abortRaceProm.rejectP(
-          new errors.ErrorClientConnectionTimedOut(),
-        );
+        abortRaceProm.rejectP(new errors.ErrorClientConnectionTimedOut());
       },
       () => {}, // Ignore cancellation errors
     );

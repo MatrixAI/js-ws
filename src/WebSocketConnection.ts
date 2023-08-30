@@ -11,6 +11,8 @@ import type {
 } from './types';
 import type WebSocketClient from './WebSocketClient';
 import type WebSocketServer from './WebSocketServer';
+import type { DetailedPeerCertificate, TLSSocket } from 'tls';
+import type WebSocketConnectionMap from './WebSocketConnectionMap';
 import { startStop } from '@matrixai/async-init';
 import { Lock } from '@matrixai/async-locks';
 import { context, timedCancellable } from '@matrixai/contexts/dist/decorators';
@@ -22,9 +24,6 @@ import WebSocketStream from './WebSocketStream';
 import * as errors from './errors';
 import { fromStreamId, promise, toStreamId } from './utils';
 import * as events from './events';
-import { Counter } from 'resource-counter';
-import WebSocketConnectionMap from './WebSocketConnectionMap';
-import { DetailedPeerCertificate, TLSSocket } from 'tls';
 
 const timerCleanupReasonSymbol = Symbol('timerCleanupReasonSymbol');
 
@@ -115,7 +114,7 @@ class WebSocketConnection extends EventTarget {
   protected keepAliveIntervalTimer?: Timer;
 
   protected parentInstance: {
-    connectionMap: WebSocketConnectionMap
+    connectionMap: WebSocketConnectionMap;
   };
   protected logger: Logger;
   protected _remoteHost: Host;
@@ -136,7 +135,9 @@ class WebSocketConnection extends EventTarget {
   protected resolveClosedP: () => void;
   protected rejectClosedP: (reason?: any) => void;
 
-  protected verifyCallback: ((peerCert: DetailedPeerCertificate) => Promise<void>) | undefined;
+  protected verifyCallback:
+    | ((peerCert: DetailedPeerCertificate) => Promise<void>)
+    | undefined;
 
   protected messageHandler = async (data: ws.RawData, isBinary: boolean) => {
     if (!isBinary || data instanceof Array) {
@@ -173,7 +174,7 @@ class WebSocketConnection extends EventTarget {
       );
     }
 
-    stream!.streamRecv(message);
+    await stream!.streamRecv(message);
   };
 
   protected pingHandler = () => {
@@ -373,8 +374,7 @@ class WebSocketConnection extends EventTarget {
             remotePort: request.connection.remotePort ?? 0,
             peerCert,
           });
-        }
-        catch (e) {
+        } catch (e) {
           authenticateProm.rejectP(e);
         }
       });
@@ -384,16 +384,14 @@ class WebSocketConnection extends EventTarget {
     // Wait for open
     try {
       await Promise.all(promises);
-    }
-    catch (e) {
+    } catch (e) {
       this.socket.removeAllListeners('error');
       this.socket.removeAllListeners('upgrade');
       this.socket.removeAllListeners('open');
       // Close the ws if it's open at this stage
       this.socket.terminate();
       throw e;
-    }
-    finally {
+    } finally {
       this.socket.removeAllListeners('upgrade');
       this.socket.off('open', openHandler);
       this.socket.off('error', openErrorHandler);
@@ -451,10 +449,10 @@ class WebSocketConnection extends EventTarget {
   }
 
   /**
-   * Send data to the other side of the connection.
+   * Send data to the other side of the connection with a streamId.
    * This will not will not error out, but will rather close the connection assuming any further communication is expected to fail.
-   * @param streamId The stream id to send the data on
-   * @param data The data to send, this will include the stream message type.
+   * @param streamId - The stream id to send the data on
+   * @param data - The data to send, this will include the stream message type.
    * @internal
    */
   public async streamSend(streamId: StreamId, data: Uint8Array) {
@@ -470,19 +468,17 @@ class WebSocketConnection extends EventTarget {
         else sendProm.rejectP(err);
       });
       await sendProm.p;
-    }
-    catch (err) {
+    } catch (err) {
       await this.stop();
     }
   }
-
 
   public async stop({
     errorCode = 1000,
     errorMessage = '',
   }: {
-    errorCode?: number,
-    errorMessage?: string,
+    errorCode?: number;
+    errorMessage?: string;
   } = {}) {
     this.logger.info(`Stop ${this.constructor.name}`);
     // Cleaning up existing streams

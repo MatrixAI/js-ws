@@ -22,7 +22,6 @@ function promise<T = void>(): PromiseDeconstructed<T> {
   };
 }
 
-
 function toVarInt(array: Uint8Array): Parsed<bigint> {
   let streamId: bigint;
 
@@ -108,8 +107,16 @@ enum StreamType {
 
 enum StreamShutdown {
   Read = 0,
-  Write = 1
+  Write = 1,
 }
 
-
-export { never, promise, toVarInt, fromVarInt, toStreamId, fromStreamId, StreamType, StreamShutdown };
+export {
+  never,
+  promise,
+  toVarInt,
+  fromVarInt,
+  toStreamId,
+  fromStreamId,
+  StreamType,
+  StreamShutdown,
+};

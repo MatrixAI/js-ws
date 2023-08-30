@@ -1,12 +1,10 @@
 import type { WebSocketServerConnectionEvent } from '@/events';
-import WebSocketServer from '@/WebSocketServer';
 import { WebSocket } from 'ws';
+import WebSocketServer from '@/WebSocketServer';
 import * as testsUtils from './utils';
 
 describe('test', () => {
-  beforeEach(() => {
-
-  });
+  beforeEach(() => {});
   test('test', async () => {
     const tlsConfigServer = await testsUtils.generateConfig('RSA');
     const server = new WebSocketServer({
@@ -14,7 +12,7 @@ describe('test', () => {
         ...tlsConfigServer,
       },
     });
-    server.start({
+    await server.start({
       port: 3000,
     });
     server.addEventListener(
@@ -24,8 +22,8 @@ describe('test', () => {
         const stream = await connection.streamNew('bidi');
         const writer = stream.writable.getWriter();
         await writer.ready;
-        writer.write(new Uint8Array([1, 2, 3]));
-        writer.write(new Uint8Array([1, 2, 3]));
+        await writer.write(new Uint8Array([1, 2, 3]));
+        await writer.write(new Uint8Array([1, 2, 3]));
       },
     );
   });

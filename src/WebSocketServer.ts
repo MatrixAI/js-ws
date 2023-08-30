@@ -1,11 +1,16 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import type tls from 'tls';
-import type { Host, Port, StreamCodeToReason, StreamReasonToCode, WebSocketConfig } from './types';
+import type {
+  Host,
+  Port,
+  StreamCodeToReason,
+  StreamReasonToCode,
+  WebSocketConfig,
+} from './types';
 import https from 'https';
 import { startStop, status } from '@matrixai/async-init';
 import Logger from '@matrixai/logger';
 import * as ws from 'ws';
-import Counter from 'resource-counter';
 import * as errors from './errors';
 import * as webSocketEvents from './events';
 import { never, promise } from './utils';
@@ -29,7 +34,8 @@ class WebSocketServer extends EventTarget {
   protected webSocketServer: ws.WebSocketServer;
   protected reasonToCode: StreamReasonToCode | undefined;
   protected codeToReason: StreamCodeToReason | undefined;
-  public readonly connectionMap: WebSocketConnectionMap = new WebSocketConnectionMap();
+  public readonly connectionMap: WebSocketConnectionMap =
+    new WebSocketConnectionMap();
 
   protected _port: number;
   protected _host: string;
@@ -209,24 +215,27 @@ class WebSocketServer extends EventTarget {
   ) => {
     const httpSocket = request.connection;
     const connectionId = this.connectionMap.allocateId();
-    const connection = await WebSocketConnection.createWebSocketConnection({
-      type: 'server',
-      connectionId: connectionId,
-      remoteInfo: {
-        host: (httpSocket.remoteAddress ?? '') as Host,
-        port: (httpSocket.remotePort ?? 0) as Port,
+    const connection = await WebSocketConnection.createWebSocketConnection(
+      {
+        type: 'server',
+        connectionId: connectionId,
+        remoteInfo: {
+          host: (httpSocket.remoteAddress ?? '') as Host,
+          port: (httpSocket.remotePort ?? 0) as Port,
+        },
+        socket: webSocket,
+        config: this.config,
+        reasonToCode: this.reasonToCode,
+        codeToReason: this.codeToReason,
+        logger: this.logger.getChild(
+          `${WebSocketConnection.name} ${connectionId}`,
+        ),
+        server: this,
       },
-      socket: webSocket,
-      config: this.config,
-      reasonToCode: this.reasonToCode,
-      codeToReason: this.codeToReason,
-      logger: this.logger.getChild(
-        `${WebSocketConnection.name} ${connectionId}`,
-      ),
-      server: this,
-    }, {
-      timer: this.config.connectTimeoutTime
-    });
+      {
+        timer: this.config.connectTimeoutTime,
+      },
+    );
 
     // Handling connection events
     connection.addEventListener(

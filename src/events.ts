@@ -90,6 +90,7 @@ export {
   WebSocketServerConnectionEvent,
   WebSocketServerStartEvent,
   WebSocketServerStopEvent,
+  WebSocketServerErrorEvent,
   WebSocketConnectionEvent,
   WebSocketConnectionStreamEvent,
   WebSocketConnectionStopEvent,
