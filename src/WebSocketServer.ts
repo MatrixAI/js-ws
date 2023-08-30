@@ -20,10 +20,17 @@ import * as utils from './utils';
 import WebSocketConnectionMap from './WebSocketConnectionMap';
 
 /**
+ * You must provide an error handler `addEventListener('error')`.
+ * Otherwise, errors will just be ignored.
+ *
  * Events:
- * - start
- * - stop
- * - connection
+ * - serverStop
+ * - serverError
+ * - serverConnection
+ * - connectionStream - when new stream is created from a connection
+ * - connectionError - connection error event
+ * - connectionDestroy - when connection is destroyed
+ * - streamDestroy - when stream is destroyed
  */
 interface WebSocketServer extends startStop.StartStop {}
 @startStop.StartStop()
@@ -293,7 +300,16 @@ class WebSocketServer extends EventTarget {
    * Used to propagate error conditions
    */
   protected errorHandler = (e: Error) => {
-    this.logger.error(e);
+    this.dispatchEvent(
+      new webSocketEvents.WebSocketServerErrorEvent({
+        detail: new errors.ErrorWebSocketServer(
+          'An error occured on the underlying server',
+          {
+            cause: e,
+          },
+        ),
+      }),
+    );
   };
 
   /**
