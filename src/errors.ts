@@ -62,17 +62,12 @@ class ErrorWebSocketStream<T> extends ErrorWebSocket<T> {
   static description = 'WebSocket Stream error';
 }
 
+class ErrorWebSocketStreamReaderBufferOverload<T> extends ErrorWebSocket<T> {
+  static description = 'WebSocket Stream readable buffer has overloaded';
+}
+
 class ErrorWebSocketStreamDestroyed<T> extends ErrorWebSocketStream<T> {
   static description = 'WebSocket Stream is destroyed';
-}
-
-class ErrorWebSocketStreamClose<T> extends ErrorWebSocketStream<T> {
-  static description = 'WebSocket Stream force close';
-}
-
-class ErrorWebSocketStreamCancel<T> extends ErrorWebSocketStream<T> {
-  static description =
-    'WebSocket Stream was cancelled without a provided reason';
 }
 
 // Misc
@@ -94,8 +89,7 @@ export {
   ErrorWebSocketConnectionStartTimeOut,
   ErrorWebSocketConnectionKeepAliveTimeOut,
   ErrorWebSocketStream,
+  ErrorWebSocketStreamReaderBufferOverload,
   ErrorWebSocketStreamDestroyed,
-  ErrorWebSocketStreamClose,
-  ErrorWebSocketStreamCancel,
   ErrorWebSocketUndefinedBehaviour,
 };

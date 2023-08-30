@@ -2,9 +2,10 @@ import type { PromiseCancellable } from '@matrixai/async-cancellable';
 import type { ContextTimed, ContextTimedInput } from '@matrixai/contexts';
 import type {
   Host,
-  PromiseDeconstructed,
   RemoteInfo,
+  StreamCodeToReason,
   StreamId,
+  StreamReasonToCode,
   VerifyCallback,
   WebSocketConfig,
 } from './types';
@@ -59,6 +60,18 @@ class WebSocketConnection extends EventTarget {
   protected socket: ws.WebSocket;
 
   protected config: WebSocketConfig;
+
+  /**
+   * Converts reason to code.
+   * Used during `QUICStream` creation.
+   */
+  protected reasonToCode: StreamReasonToCode;
+
+  /**
+   * Converts code to reason.
+   * Used during `QUICStream` creation.
+   */
+  protected codeToReason: StreamCodeToReason;
 
   /**
    * Internal stream map.
@@ -181,6 +194,8 @@ class WebSocketConnection extends EventTarget {
           socket: ws.WebSocket;
           server?: undefined;
           client?: WebSocketClient;
+          reasonToCode?: StreamReasonToCode;
+          codeToReason?: StreamCodeToReason;
           verifyCallback?: VerifyCallback;
           logger?: Logger;
         }
@@ -192,6 +207,8 @@ class WebSocketConnection extends EventTarget {
           socket: ws.WebSocket;
           server?: WebSocketServer;
           client?: undefined;
+          reasonToCode?: StreamReasonToCode;
+          codeToReason?: StreamCodeToReason;
           verifyCallback?: undefined;
           logger?: Logger;
         },
@@ -208,6 +225,8 @@ class WebSocketConnection extends EventTarget {
           socket: ws.WebSocket;
           server?: undefined;
           client?: WebSocketClient;
+          reasonToCode?: StreamReasonToCode;
+          codeToReason?: StreamCodeToReason;
           verifyCallback?: VerifyCallback;
           logger?: Logger;
         }
@@ -219,6 +238,8 @@ class WebSocketConnection extends EventTarget {
           socket: ws.WebSocket;
           server?: WebSocketServer;
           client?: undefined;
+          reasonToCode?: StreamReasonToCode;
+          codeToReason?: StreamCodeToReason;
           verifyCallback?: undefined;
           logger?: Logger;
         },
@@ -254,6 +275,8 @@ class WebSocketConnection extends EventTarget {
     socket,
     server,
     client,
+    reasonToCode = () => 0n,
+    codeToReason = (type, code) => new Error(`${type} ${code}`),
     verifyCallback,
     logger,
   }:
@@ -265,6 +288,8 @@ class WebSocketConnection extends EventTarget {
         socket: ws.WebSocket;
         server?: undefined;
         client?: WebSocketClient;
+        reasonToCode?: StreamReasonToCode;
+        codeToReason?: StreamCodeToReason;
         verifyCallback?: VerifyCallback;
         logger?: Logger;
       }
@@ -276,6 +301,8 @@ class WebSocketConnection extends EventTarget {
         socket: ws.WebSocket;
         server?: WebSocketServer;
         client?: undefined;
+        reasonToCode?: StreamReasonToCode;
+        codeToReason?: StreamCodeToReason;
         verifyCallback?: undefined;
         logger?: Logger;
       }) {
@@ -287,6 +314,8 @@ class WebSocketConnection extends EventTarget {
     this.type = type;
     this.parentInstance = server ?? client!;
     this._remoteHost = remoteInfo.host;
+    this.reasonToCode = reasonToCode;
+    this.codeToReason = codeToReason;
     this.verifyCallback = verifyCallback;
 
     const {
@@ -402,6 +431,8 @@ class WebSocketConnection extends EventTarget {
         streamId: streamId!,
         connection: this,
         bufferSize: this.config.streamBufferSize,
+        codeToReason: this.codeToReason,
+        reasonToCode: this.reasonToCode,
         logger: this.logger.getChild(`${WebSocketStream.name} ${streamId!}`),
       });
       stream.addEventListener(

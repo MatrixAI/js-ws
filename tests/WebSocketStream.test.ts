@@ -107,7 +107,6 @@ describe(WebSocketStream.name, () => {
       await writeProm;
 
       await stream1.destroy();
-      await stream2.destroy();
     }
   );
 });

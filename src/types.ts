@@ -63,14 +63,14 @@ type RemoteInfo = {
 type StreamReasonToCode = (
   type: 'recv' | 'send',
   reason?: any,
-) => number | PromiseLike<number>;
+) => bigint | PromiseLike<bigint>;
 
 /**
  * Maps code to a reason. 0 usually indicates unknown/default reason.
  */
 type StreamCodeToReason = (
   type: 'recv' | 'send',
-  code: number,
+  code: bigint,
 ) => any | PromiseLike<any>;
 
 type ConnectionMetadata = {

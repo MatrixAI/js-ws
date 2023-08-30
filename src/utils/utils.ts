@@ -2,8 +2,8 @@ import type { PromiseDeconstructed } from './types';
 import type { Parsed, StreamId } from '@/types';
 import * as errors from '../errors';
 
-function never(): never {
-  throw new errors.ErrorWebSocketUndefinedBehaviour();
+function never(message?: string): never {
+  throw new errors.ErrorWebSocketUndefinedBehaviour(message);
 }
 
 /**
@@ -22,7 +22,8 @@ function promise<T = void>(): PromiseDeconstructed<T> {
   };
 }
 
-function toStreamId(array: Uint8Array): Parsed<StreamId> {
+
+function toVarInt(array: Uint8Array): Parsed<bigint> {
   let streamId: bigint;
 
   // Get header and prefix
@@ -57,36 +58,34 @@ function toStreamId(array: Uint8Array): Parsed<StreamId> {
       break;
   }
   return {
-    data: streamId! as StreamId,
+    data: streamId!,
     remainder: array.subarray(readBytes),
   };
 }
 
-function fromStreamId(streamId: StreamId): Uint8Array {
-  const id = streamId as bigint;
-
+function fromVarInt(varInt: bigint): Uint8Array {
   let array: Uint8Array;
   let dv: DataView;
   let prefixMask = 0;
 
-  if (id < 0x40) {
+  if (varInt < 0x40) {
     array = new Uint8Array(1);
     dv = new DataView(array.buffer);
-    dv.setUint8(0, Number(id));
-  } else if (id < 0x4000) {
+    dv.setUint8(0, Number(varInt));
+  } else if (varInt < 0x4000) {
     array = new Uint8Array(2);
     dv = new DataView(array.buffer);
-    dv.setUint16(0, Number(id));
+    dv.setUint16(0, Number(varInt));
     prefixMask = 0b01_000000;
-  } else if (id < 0x40000000) {
+  } else if (varInt < 0x40000000) {
     array = new Uint8Array(4);
     dv = new DataView(array.buffer);
-    dv.setUint32(0, Number(id));
+    dv.setUint32(0, Number(varInt));
     prefixMask = 0b10_000000;
   } else {
     array = new Uint8Array(8);
     dv = new DataView(array.buffer);
-    dv.setBigUint64(0, id);
+    dv.setBigUint64(0, varInt);
     prefixMask = 0b11_000000;
   }
 
@@ -97,11 +96,20 @@ function fromStreamId(streamId: StreamId): Uint8Array {
   return array;
 }
 
-enum StreamCode {
+const fromStreamId = fromVarInt as (streamId: StreamId) => Uint8Array;
+const toStreamId = toVarInt as (array: Uint8Array) => Parsed<StreamId>;
+
+enum StreamType {
   DATA = 0,
   ACK = 1,
   ERROR = 2,
   CLOSE = 3,
 }
 
-export { never, promise, toStreamId, fromStreamId, StreamCode };
+enum StreamShutdown {
+  Read = 0,
+  Write = 1
+}
+
+
+export { never, promise, toVarInt, fromVarInt, toStreamId, fromStreamId, StreamType, StreamShutdown };

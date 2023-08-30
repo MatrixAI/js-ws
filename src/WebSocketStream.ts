@@ -1,7 +1,7 @@
 import { CreateDestroy, status } from '@matrixai/async-init/dist/CreateDestroy';
 import Logger from '@matrixai/logger';
 import type { StreamCodeToReason, StreamId, StreamReasonToCode } from './types';
-import { never, promise, StreamCode } from './utils';
+import { fromVarInt, never, promise, StreamType, StreamShutdown, toVarInt } from './utils';
 import type WebSocketConnection from './WebSocketConnection';
 import * as errors from './errors';
 import * as events from './events';
@@ -35,7 +35,7 @@ class WebSocketStream
     streamId,
     connection,
     bufferSize,
-    reasonToCode = () => 0,
+    reasonToCode = () => 0n,
     codeToReason = (type, code) => new Error(`${type.toString()} ${code.toString()}`),
     logger = new Logger(`${this.name} ${streamId}`),
   }: {
@@ -90,12 +90,12 @@ class WebSocketStream
         },
         pull: async (controller) => {
           if (controller.desiredSize != null && controller.desiredSize > 0) {
-            await this.streamSend(StreamCode.ACK, controller.desiredSize!);
+            await this.streamSend(StreamType.ACK, controller.desiredSize!);
           }
         },
         cancel: async (reason) => {
           this.logger.debug(`readable aborted with [${reason.message}]`);
-          this.signalReadableEnd(true, reason);
+          await this.signalReadableEnd(true, reason);
         },
       },
       new ByteLengthQueuingStrategy({
@@ -123,7 +123,7 @@ class WebSocketStream
           this.writableDesiredSizeProm = promise();
         }
         const bytesWritten = this.writableDesiredSize;
-        await this.streamSend(StreamCode.DATA, data);
+        await this.streamSend(StreamType.DATA, data);
         // Decrement the desired size and resolved the old promise as to not block application exit
         this.writableDesiredSize =- data.length;
         oldProm.resolveP();
@@ -143,10 +143,10 @@ class WebSocketStream
         },
         write: writableWrite,
         close: async () => {
-          this.signalWritableEnd();
+          await this.signalWritableEnd();
         },
         abort: async (reason?: any) => {
-          this.signalWritableEnd(true, reason);
+          await this.signalWritableEnd(true, reason);
         },
       },
       {
@@ -171,7 +171,7 @@ class WebSocketStream
     this.logger.info(`Destroy ${this.constructor.name}`);
     // Force close any open streams
     this.writableDesiredSizeProm.resolveP();
-    this.cancel(new errors.ErrorWebSocketStreamClose());
+    this.cancel();
     // Removing stream from the connection's stream map
     this.connection.streamMap.delete(this.streamId);
     this.dispatchEvent(new events.WebSocketStreamDestroyEvent());
@@ -179,34 +179,54 @@ class WebSocketStream
   }
 
   /**
-   * Send a code with no payload on the stream.
-   * @param code - The stream code to send.
-   */
-  protected async streamSend(code: StreamCode): Promise<void>;
-  /**
    * Send an ACK frame with a payloadSize.
    * @param code - ACK
-   * @param payloadSize
+   * @param payloadSize - The number of bytes that the receiver can accept.
    */
-  protected async streamSend(code: StreamCode.ACK, payloadSize: number): Promise<void>;
-  /**
-   * Send a DATA frame with a payload on the stream.
-   * @param code - DATA
-   * @param data - The payload to send.
-   */
-  protected async streamSend(code: StreamCode.DATA, data: Uint8Array): Promise<void>;
-  protected async streamSend(code: StreamCode, data_?: Uint8Array | number): Promise<void> {
+  protected async streamSend(type: StreamType.ACK, payloadSize: number): Promise<void>;
+   /**
+    * Send a DATA frame with a payload on the stream.
+    * @param code - DATA
+    * @param data - The payload to send.
+    */
+  protected async streamSend(type: StreamType.DATA, data: Uint8Array): Promise<void>;
+   /**
+    * Send an ERROR frame with a payload on the stream.
+    * @param code - CLOSE
+    * @param shutdown - Signifies whether the ReadableStream or the WritableStream has been shutdown.
+    */
+  protected async streamSend(type: StreamType.ERROR, shutdown: StreamShutdown, code: bigint): Promise<void>;
+   /**
+    * Send a CLOSE frame with a payload on the stream.
+    * @param code - CLOSE
+    * @param shutdown - Signifies whether the ReadableStream or the WritableStream has been shutdown.
+    */
+  protected async streamSend(type: StreamType.CLOSE, shutdown: StreamShutdown): Promise<void>;
+  protected async streamSend(type: StreamType, data_?: Uint8Array | number, code?: bigint): Promise<void> {
     let data: Uint8Array | undefined;
-    if (code === StreamCode.ACK && typeof data_ === 'number') {
+    if (type === StreamType.ACK && typeof data_ === 'number') {
       data = new Uint8Array(4);
       const dv = new DataView(data.buffer);
       dv.setUint32(0, data_, false);
-    } else {
-      data = data_ as Uint8Array | undefined;
+    } else if (type === StreamType.DATA) {
+      data = data_ as Uint8Array;
+    }
+    else if (type === StreamType.ERROR) {
+      const errorCode = fromVarInt(code!);
+      data = new Uint8Array(1 + errorCode.length);
+      const dv = new DataView(data.buffer);
+      dv.setUint8(0, data_ as StreamShutdown);
+      data.set(errorCode, 1);
+    }
+    else if (type === StreamType.CLOSE) {
+      data = new Uint8Array([data_ as StreamShutdown]);
+    }
+    else {
+    never();
     }
     const arrayLength = 1 + (data?.length ?? 0);
     const array = new Uint8Array(arrayLength);
-    array.set([code], 0);
+    array.set([type], 0);
     if (data != null) {
       array.set(data, 1);
     }
@@ -214,34 +234,43 @@ class WebSocketStream
   }
 
   public async streamRecv(message: Uint8Array) {
-    if (message.length === 0) {
-      this.logger.debug('received empty message, closing stream');
-      this.signalReadableEnd(true, new errors.ErrorWebSocketStream());
-      return;
-    }
-    const code = message[0] as StreamCode;
+    const type = message[0] as StreamType;
     const data = message.subarray(1);
     const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
-    if (code === StreamCode.DATA) {
-      if (this.readableController.desiredSize != null && data.length > this.readableController.desiredSize) {
-        if (!this._readableEnded) {
-          this.signalReadableEnd(true, new errors.ErrorWebSocketStream());
-        }
-        return;
-      }
-      this.readableController.enqueue(data);
-    }
-    else if (code === StreamCode.ACK) {
+    if (type === StreamType.ACK) {
       const bufferSize = dv.getUint32(0, false);
       this.writableDesiredSize = bufferSize;
       this.writableDesiredSizeProm.resolveP();
       this.logger.debug(`received ACK, writerDesiredSize is now reset to ${bufferSize} bytes`);
     }
-    else if (code === StreamCode.ERROR) {
-      this.cancel(new errors.ErrorWebSocketStream());
+    else if (type === StreamType.DATA) {
+      if (this.readableController.desiredSize != null && data.length > this.readableController.desiredSize) {
+        await this.signalReadableEnd(true, new errors.ErrorWebSocketStreamReaderBufferOverload());
+        return;
+      }
+      this.readableController.enqueue(data);
     }
-    else if (code === StreamCode.CLOSE) {
-      this.cancel();
+    else if (type === StreamType.ERROR || type === StreamType.CLOSE) {
+      const shutdown = dv.getUint8(0) as StreamShutdown;
+      let isError = false;
+      let reason: any;
+      if (type === StreamType.ERROR) {
+        isError = true;
+        const errorCode = toVarInt(data.subarray(1)).data;
+        reason = await this.codeToReason('recv', errorCode);
+      }
+      if (shutdown === StreamShutdown.Read) {
+        await this.signalReadableEnd(isError, reason);
+      }
+      else if (shutdown === StreamShutdown.Write) {
+        await this.signalWritableEnd(isError, reason);
+      }
+      else {
+        never();
+      }
+    }
+    else {
+      never();
     }
   }
 
@@ -249,15 +278,16 @@ class WebSocketStream
    * Forces the active stream to end early
    */
   public cancel(reason?: any): void {
-    reason = reason ?? new errors.ErrorWebSocketStreamCancel();
+    console.log(reason)
+    const isError = reason != null;
     // Close the streams with the given error,
     if (!this._readableEnded) {
       this.readableController.error(reason);
-      this.signalReadableEnd(true, reason);
+      void this.signalReadableEnd(isError, reason);
     }
     if (!this._writableEnded) {
       this.writableController.error(reason);
-      this.signalWritableEnd(true, reason);
+      void this.signalWritableEnd(isError, reason);
     }
   }
 
@@ -265,18 +295,23 @@ class WebSocketStream
    * Signals the end of the ReadableStream. to be used with the extended class
    * to track the streams state.
    */
-  protected signalReadableEnd(isError: boolean = false, reason?: any) {
-    if (isError) this.logger.debug(`readable ended with error ${reason.message}`);
+  protected async signalReadableEnd(isError: boolean = false, reason?: any) {
+    if (isError) this.logger.debug(`ending readable with error ${reason.message}`);
+    else this.logger.debug(`ending readable`);
     if (this._readableEnded) return;
-    this.logger.debug(`end readable`);
     // indicate that receiving side is closed
     this._readableEnded = true;
+    // shutdown the write side of the other stream
     if (isError) {
-      this.readableController.error(reason);
+      const code = await this.reasonToCode('send', reason);
+      this.streamSend(StreamType.ERROR, StreamShutdown.Write, code);
     }
+    else {
+      this.streamSend(StreamType.CLOSE, StreamShutdown.Write);
+    }
+    this.readableController.error(reason);
     if (this._readableEnded && this._writableEnded) {
       this.destroyProm.resolveP();
-      void this.streamSend(StreamCode.CLOSE);
       if (this[status] !== 'destroying') void this.destroy();
     }
     this.logger.debug(`readable ended`);
@@ -286,46 +321,30 @@ class WebSocketStream
    * Signals the end of the WritableStream. to be used with the extended class
    * to track the streams state.
    */
-  protected signalWritableEnd(
+  protected async signalWritableEnd(
     isError: boolean = false,
     reason?: any,
   ) {
-    if (isError) this.logger.debug(`writable ended with error ${reason.message}`);
+    if (isError) this.logger.debug(`ending writable with error ${reason.message}`);
+    else this.logger.debug(`ending writable`);
     if (this._writableEnded) return;
     // indicate that sending side is closed
     this._writableEnded = true;
+    // shutdown the read side of the other stream
     if (isError) {
-      this.readableController.error(reason);
+      const code = await this.reasonToCode('send', reason);
+      this.streamSend(StreamType.ERROR, StreamShutdown.Read, code);
+
     }
+    else {
+      this.streamSend(StreamType.CLOSE, StreamShutdown.Read);
+    }
+    this.writableController.error(reason);
     if (this._readableEnded && this._writableEnded) {
       this.destroyProm.resolveP();
-      void this.streamSend(StreamCode.CLOSE);
       if (this[status] !== 'destroying') void this.destroy();
     }
     this.logger.debug(`writable ended`);
-  }
-
-  /**
-   * This will process any errors from a `streamSend` or `streamRecv`, extract the code and covert to a reason.
-   * Will return null if the error was not an expected stream ending error.
-   */
-  protected async processSendStreamError(
-    e: Error,
-    type: 'recv' | 'send',
-  ): Promise<any | null> {
-    let match =
-      e.message.match(/StreamStopped\((.+)\)/) ??
-      e.message.match(/StreamReset\((.+)\)/);
-    if (match != null) {
-      const code = parseInt(match[1]);
-      return await this.codeToReason(type, code);
-    }
-    match = e.message.match(/InvalidStreamState\((.+)\)/);
-    if (match != null) {
-      // `InvalidStreamState()` returns the stream ID and not any actual error code
-      return never('Should never reach an [InvalidState(StreamId)] error');
-    }
-    return null;
   }
 }
 
