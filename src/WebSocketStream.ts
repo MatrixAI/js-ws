@@ -94,12 +94,18 @@ class WebSocketStream
       {
         start: async (controller) => {
           this.readableController = controller;
-          this.logger.debug('started');
         },
         pull: async (controller) => {
-          if (controller.desiredSize != null && controller.desiredSize > 0) {
-            await this.streamSend(StreamType.ACK, controller.desiredSize!);
+          // If a readable has ended, whether by the closing of the sender's WritableStream or by calling `.close`, do not bother to send back an ACK
+          if (this._readableEnded) {
+            return;
           }
+          // If desiredSize is less than or equal to 0, it means that the buffer is still full after a read
+          if (controller.desiredSize != null && controller.desiredSize <= 0) {
+            return;
+          }
+          // Send ACK on every read as there will be more usable space on the buffer.
+          await this.streamSend(StreamType.ACK, controller.desiredSize!);
         },
         cancel: async (reason) => {
           this.logger.debug(`readable aborted with [${reason.message}]`);
@@ -111,10 +117,14 @@ class WebSocketStream
       }),
     );
 
-    const writableWrite = async (
+    const writeHandler = async (
       chunk: Uint8Array,
       controller: WritableStreamDefaultController,
     ) => {
+      // Do not bother to write or wait for ACK if the writable has ended
+      if (this._writableEnded) {
+        return;
+      }
       await this.writableDesiredSizeProm.p;
       this.logger.debug(
         `${chunk.length} bytes need to be written into a receiver buffer of ${this.writableDesiredSize} bytes`,
@@ -129,23 +139,17 @@ class WebSocketStream
       } else {
         data = chunk;
       }
-      const oldProm = this.writableDesiredSizeProm;
-      try {
-        if (this.writableDesiredSize === data.length) {
-          this.logger.debug(`this chunk will trigger receiver to send an ACK`);
-          // Reset the promise to wait for another ACK
-          this.writableDesiredSizeProm = promise();
-        }
-        const bytesWritten = this.writableDesiredSize;
-        await this.streamSend(StreamType.DATA, data);
-        // Decrement the desired size and resolved the old promise as to not block application exit
-        this.writableDesiredSize = -data.length;
-        oldProm.resolveP();
-        if (isChunkable) {
-          await writableWrite(chunk.subarray(bytesWritten), controller);
-        }
-      } catch {
-        this.writableDesiredSizeProm = oldProm;
+      if (this.writableDesiredSize === data.length) {
+        this.logger.debug(`this chunk will trigger receiver to send an ACK`);
+        // Reset the promise to wait for another ACK
+        this.writableDesiredSizeProm = promise();
+      }
+      const bytesWritten = data.length;
+      await this.streamSend(StreamType.DATA, data);
+      // Decrement the desired size by the amount of bytes written
+      this.writableDesiredSize = -bytesWritten;
+      if (isChunkable) {
+        await writeHandler(chunk.subarray(bytesWritten), controller);
       }
     };
 
@@ -154,7 +158,7 @@ class WebSocketStream
         start: (controller) => {
           this.writableController = controller;
         },
-        write: writableWrite,
+        write: writeHandler,
         close: async () => {
           await this.signalWritableEnd();
         },
@@ -267,16 +271,38 @@ class WebSocketStream
    * @internal
    */
   public async streamRecv(message: Uint8Array) {
+    if (message.length === 0) {
+      this.logger.debug(`received empty message, closing stream`);
+      await this.signalReadableEnd(
+        true,
+        new errors.ErrorWebSocketStreamReaderParse('empty message', {
+          cause: new RangeError(),
+        }),
+      );
+    }
     const type = message[0] as StreamType;
     const data = message.subarray(1);
     const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
     if (type === StreamType.ACK) {
-      const bufferSize = dv.getUint32(0, false);
-      this.writableDesiredSize = bufferSize;
-      this.writableDesiredSizeProm.resolveP();
-      this.logger.debug(
-        `received ACK, writerDesiredSize is now reset to ${bufferSize} bytes`,
-      );
+      try {
+        const bufferSize = dv.getUint32(0, false);
+        this.writableDesiredSize = bufferSize;
+        this.writableDesiredSizeProm.resolveP();
+        this.logger.debug(
+          `received ACK, writerDesiredSize is now reset to ${bufferSize} bytes`,
+        );
+      } catch (e) {
+        this.logger.debug(`received malformed ACK, closing stream`);
+        await this.signalReadableEnd(
+          true,
+          new errors.ErrorWebSocketStreamReaderParse(
+            'ACK message did not contain a valid buffer size',
+            {
+              cause: e,
+            },
+          ),
+        );
+      }
     } else if (type === StreamType.DATA) {
       if (
         this.readableController.desiredSize != null &&
@@ -290,20 +316,32 @@ class WebSocketStream
       }
       this.readableController.enqueue(data);
     } else if (type === StreamType.ERROR || type === StreamType.CLOSE) {
-      const shutdown = dv.getUint8(0) as StreamShutdown;
-      let isError = false;
-      let reason: any;
-      if (type === StreamType.ERROR) {
-        isError = true;
-        const errorCode = toVarInt(data.subarray(1)).data;
-        reason = await this.codeToReason('recv', errorCode);
-      }
-      if (shutdown === StreamShutdown.Read) {
-        await this.signalReadableEnd(isError, reason);
-      } else if (shutdown === StreamShutdown.Write) {
-        await this.signalWritableEnd(isError, reason);
-      } else {
-        never();
+      try {
+        const shutdown = dv.getUint8(0) as StreamShutdown;
+        let isError = false;
+        let reason: any;
+        if (type === StreamType.ERROR) {
+          isError = true;
+          const errorCode = toVarInt(data.subarray(1)).data;
+          reason = await this.codeToReason('recv', errorCode);
+        }
+        if (shutdown === StreamShutdown.Read) {
+          await this.signalReadableEnd(isError, reason);
+        } else if (shutdown === StreamShutdown.Write) {
+          await this.signalWritableEnd(isError, reason);
+        } else {
+          never('invalid shutdown type');
+        }
+      } catch (e) {
+        await this.signalReadableEnd(
+          true,
+          new errors.ErrorWebSocketStreamReaderParse(
+            'ERROR/CLOSE message did not contain a valid payload',
+            {
+              cause: e,
+            },
+          ),
+        );
       }
     } else {
       never();
