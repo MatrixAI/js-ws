@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import type tls from 'tls';
-import type { Host, Port, WebSocketConfig } from './types';
+import type { Host, Port, StreamCodeToReason, StreamReasonToCode, WebSocketConfig } from './types';
 import https from 'https';
 import { startStop, status } from '@matrixai/async-init';
 import Logger from '@matrixai/logger';
@@ -27,9 +27,12 @@ class WebSocketServer extends EventTarget {
   protected config: WebSocketConfig;
   protected server: https.Server;
   protected webSocketServer: ws.WebSocketServer;
+  protected reasonToCode: StreamReasonToCode | undefined;
+  protected codeToReason: StreamCodeToReason | undefined;
+  public readonly connectionMap: WebSocketConnectionMap = new WebSocketConnectionMap();
+
   protected _port: number;
   protected _host: string;
-  public readonly connectionMap: WebSocketConnectionMap = new WebSocketConnectionMap();
 
   protected handleWebSocketConnectionEvents = (
     event: webSocketEvents.WebSocketConnectionEvent,
@@ -62,6 +65,8 @@ class WebSocketServer extends EventTarget {
    */
   constructor({
     config,
+    reasonToCode,
+    codeToReason,
     logger,
   }: {
     config: Partial<WebSocketConfig> & {
@@ -69,6 +74,8 @@ class WebSocketServer extends EventTarget {
       cert: string;
       ca?: string;
     };
+    reasonToCode?: StreamReasonToCode;
+    codeToReason?: StreamCodeToReason;
     logger?: Logger;
   }) {
     super();
@@ -78,6 +85,8 @@ class WebSocketServer extends EventTarget {
     };
     this.logger = logger ?? new Logger(this.constructor.name);
     this.config = wsConfig;
+    this.reasonToCode = reasonToCode;
+    this.codeToReason = codeToReason;
   }
 
   public async start({
@@ -121,7 +130,7 @@ class WebSocketServer extends EventTarget {
     for (const webSocketConnection of this.connectionMap.values()) {
       destroyProms.push(
         webSocketConnection.stop({
-          force,
+          errorMessage: 'cleaning up connections',
         }),
       );
     }
@@ -207,8 +216,10 @@ class WebSocketServer extends EventTarget {
         host: (httpSocket.remoteAddress ?? '') as Host,
         port: (httpSocket.remotePort ?? 0) as Port,
       },
-      config: this.config,
       socket: webSocket,
+      config: this.config,
+      reasonToCode: this.reasonToCode,
+      codeToReason: this.codeToReason,
       logger: this.logger.getChild(
         `${WebSocketConnection.name} ${connectionId}`,
       ),

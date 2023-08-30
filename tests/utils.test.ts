@@ -2,8 +2,6 @@ import type { StreamId } from '@/types';
 import { fc, testProp } from '@fast-check/jest';
 import * as utils from '@/utils';
 
-const MAX_62_BIT_UINT = ;
-
 describe('utils', () => {
   testProp(
     'from/to StreamId',
