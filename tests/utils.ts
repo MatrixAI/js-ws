@@ -588,6 +588,18 @@ async function generateConfig(type: KeyTypes): Promise<TLSConfigs> {
   };
 }
 
+function toReadableStream<T>(iterator: IterableIterator<T>) {
+  return new ReadableStream<T>({
+    async start(controller) {
+      for await (const chunk of iterator) {
+        controller.enqueue(chunk);
+      }
+      controller.close();
+    }
+  });
+}
+
+
 export {
   sleep,
   randomBytes,
@@ -603,6 +615,7 @@ export {
   signHMAC,
   verifyHMAC,
   generateConfig,
+  toReadableStream,
 };
 
 export type { KeyTypes, TLSConfigs };

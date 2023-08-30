@@ -3,6 +3,8 @@ import WebSocketStream from "@/WebSocketStream";
 import WebSocketConnection from "@/WebSocketConnection";
 import * as events from "@/events";
 import { promise } from "@/utils";
+import { fc, testProp } from "@fast-check/jest";
+import * as testUtils from './utils';
 
 const DEFAULT_BUFFER_SIZE = 1024;
 
@@ -44,14 +46,15 @@ const connectionMock = jest.mocked(WebSocketConnection, true);
 describe(WebSocketStream.name, () => {
   let connection1: WebSocketConnection;
   let connection2: WebSocketConnection;
-  let stream1: WebSocketStream;
-  let stream2: WebSocketStream;
   beforeEach(async () => {
     connectionMock.mockClear();
     connection1 = new (WebSocketConnection as any)();
     connection2 = new (WebSocketConnection as any)();
     (connection1 as any).connectTo(connection2);
-    stream1 = await WebSocketStream.createWebSocketStream({
+  });
+
+  async function createStreamPair(connection1, connection2) {
+    const stream1 = await WebSocketStream.createWebSocketStream({
       streamId: 0n as StreamId,
       bufferSize: DEFAULT_BUFFER_SIZE,
       connection: connection1
@@ -59,15 +62,52 @@ describe(WebSocketStream.name, () => {
     const createStream2Prom = promise<WebSocketStream>();
     connection2.addEventListener("connectionStream", (e: events.WebSocketConnectionStreamEvent) => {
       createStream2Prom.resolveP(e.detail);
-    });
-    stream2 = await createStream2Prom.p;
-  });
-  test('buffering', async () => {
-    const stream1Readable = stream1.readable;
-    const stream2Writable = stream2.writable;
-    const buffer = new Uint8Array(DEFAULT_BUFFER_SIZE+1);
-    const writeProm = stream2Writable.getWriter().write(buffer);
-    await stream1Readable.getReader().read()
-    await writeProm;
-  });
+    }, { once: true });
+    const stream2 = await createStream2Prom.p;
+    return [stream1, stream2];
+  }
+  // testProp(
+  //   'normal',
+  //   [fc.infiniteStream(fc.uint8Array({minLength: 1, maxLength: DEFAULT_BUFFER_SIZE}))],
+  //   async (iterable) => {
+
+  //     const writingTest = async () => {
+  //       const stream2Writable = stream2.writable;
+  //       const stream = testUtils.toReadableStream(iterable);
+  //       await stream.pipeTo(stream2Writable);
+  //     }
+
+  //     const readingTest = async () => {
+  //       const stream1Readable = stream1.readable;
+  //       await stream1Readable.pipeTo([]);
+  //     }
+
+  //     await Promise.all([writingTest(), readingTest()]);
+
+  //     // const stream2Writable = stream2.writable;
+  //     // const buffer = new Uint8Array(2);
+  //     // const writeProm = stream2Writable.getWriter().write(buffer);
+  //     // await stream1Readable.getReader().read();
+  //     // await writeProm;
+  //     // await stream1.destroy();
+  //   }
+  // );
+  test(
+    'normal',
+    async () => {
+      const [stream1, stream2] = await createStreamPair(connection1, connection2);
+
+      const buffer = new Uint8Array(DEFAULT_BUFFER_SIZE);
+      testUtils.randomBytes(buffer);
+
+      const stream1Readable = stream1.readable;
+      const stream2Writable = stream2.writable;
+      const writeProm = stream2Writable.getWriter().write(buffer);
+      await stream1Readable.getReader().read();
+      await writeProm;
+
+      await stream1.destroy();
+      await stream2.destroy();
+    }
+  );
 });
