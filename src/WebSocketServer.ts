@@ -66,7 +66,12 @@ class WebSocketServer extends EventTarget {
           detail: event.detail,
         }),
       );
-    } else {
+    } else if (event instanceof webSocketEvents.WebSocketStreamDestroyEvent) {
+      this.dispatchEvent(
+        new webSocketEvents.WebSocketStreamDestroyEvent()
+      );
+    }
+    else {
       utils.never();
     }
   };
