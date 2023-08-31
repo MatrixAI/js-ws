@@ -22,7 +22,7 @@ import { Timer } from '@matrixai/timer';
 import { ready } from '@matrixai/async-init/dist/CreateDestroyStartStop';
 import WebSocketStream from './WebSocketStream';
 import * as errors from './errors';
-import { fromStreamId, promise, toStreamId } from './utils';
+import { fromStreamId, promise, StreamType, toStreamId } from './utils';
 import * as events from './events';
 
 const timerCleanupReasonSymbol = Symbol('timerCleanupReasonSymbol');
@@ -156,6 +156,10 @@ class WebSocketConnection extends EventTarget {
 
     let stream = this.streamMap.get(streamId);
     if (stream == null) {
+      const messageType = message.at(0);
+      if (messageType === StreamType.CLOSE || messageType === StreamType.ERROR) {
+        return;
+      }
       stream = await WebSocketStream.createWebSocketStream({
         connection: this,
         streamId,

@@ -191,6 +191,10 @@ class WebSocketStream
     this.writableDesiredSizeProm.resolveP();
     this.cancel();
     // Removing stream from the connection's stream map
+    // TODO: the other side currently will send back an ERROR/CLOSE frame from us sending an ERROR/CLOSE frame from this.close().
+    // However, out stream gets deleted before we receive that message on the connection.
+    // So the connection will infinitely create streams with the same streamId when it receives the ERROR/CLOSE frame.
+    // I'm dealing with this by just filtering out ERROR/CLOSE frames in the connection's onMessage handler, but there might be a better way to do this.
     this.connection.streamMap.delete(this.streamId);
     this.dispatchEvent(new events.WebSocketStreamDestroyEvent());
     this.logger.info(`Destroyed ${this.constructor.name}`);
