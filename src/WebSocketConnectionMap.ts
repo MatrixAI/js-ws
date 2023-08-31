@@ -1,5 +1,5 @@
 import type WebSocketConnection from './WebSocketConnection';
-import { Counter } from 'resource-counter';
+import Counter from 'resource-counter';
 
 class WebSocketConnectionMap extends Map<number, WebSocketConnection> {
   counter: Counter<number>;
