@@ -406,6 +406,8 @@ class WebSocketStream
     if (this._writableEnded) return;
     // Indicate that sending side is closed
     this._writableEnded = true;
+    // resolve backpressure blocking promise in case unresolved
+    this.writableDesiredSizeProm.resolveP();
     // Shutdown the read side of the other stream
     if (isError) {
       const code = await this.reasonToCode('send', reason);

@@ -416,7 +416,7 @@ class WebSocketConnection extends EventTarget {
     this.socket.once('close', () => {
       this.resolveClosedP();
       if (this[startStop.running] && this[startStop.status] !== 'stopping') {
-        void this.stop();
+        void this.stop({ force: true });
       }
     });
 
@@ -483,23 +483,32 @@ class WebSocketConnection extends EventTarget {
       });
       await sendProm.p;
     } catch (err) {
-      await this.stop();
+      await this.stop({
+        force: true,
+        errorCode: 1006,
+        errorMessage: 'connection was unable to send data',
+      });
     }
   }
 
   public async stop({
     errorCode = 1000,
     errorMessage = '',
+    force = false,
   }: {
     errorCode?: number;
     errorMessage?: string;
+    force?: boolean;
   } = {}) {
     this.logger.info(`Stop ${this.constructor.name}`);
     // Cleaning up existing streams
     const streamsDestroyP: Array<Promise<void>> = [];
     this.logger.debug('triggering stream destruction');
     for (const stream of this.streamMap.values()) {
-      streamsDestroyP.push(stream.destroy());
+      if (force) {
+        await stream.destroy();
+      }
+      streamsDestroyP.push(stream.destroyedP);
     }
     this.logger.debug('waiting for streams to destroy');
     await Promise.all(streamsDestroyP);
@@ -538,7 +547,8 @@ class WebSocketConnection extends EventTarget {
         }),
       );
       if (this[startStop.running] && this[startStop.status] !== 'stopping') {
-        void this.stop();
+        // Background stopping, we don't want to block the timer resolving
+        void this.stop({ force: true });
       }
     };
     // If there was an existing timer, we cancel it and set a new one

@@ -144,6 +144,7 @@ class WebSocketServer extends EventTarget {
       destroyProms.push(
         webSocketConnection.stop({
           errorMessage: 'cleaning up connections',
+          force
         }),
       );
     }
