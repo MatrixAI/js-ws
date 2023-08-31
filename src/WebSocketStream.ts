@@ -145,9 +145,9 @@ class WebSocketStream
         // Reset the promise to wait for another ACK
         this.writableDesiredSizeProm = promise();
       }
-      await this.streamSend(StreamType.DATA, data);
       // Decrement the desired size by the amount of bytes written
       this.writableDesiredSize -= bytesWritten;
+      await this.streamSend(StreamType.DATA, data);
 
       if (isChunkable) {
         await writeHandler(chunk.subarray(bytesWritten), controller);
