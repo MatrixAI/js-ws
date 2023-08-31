@@ -1,6 +1,28 @@
 import type WebSocketStream from './WebSocketStream';
 import type WebSocketConnection from './WebSocketConnection';
 
+// Client Events
+
+abstract class WebSocketClientEvent extends Event {}
+
+class WebSocketClientDestroyEvent extends Event {
+  constructor(options?: EventInit) {
+    super('clientDestroy', options);
+  }
+}
+
+class WebSocketClientErrorEvent extends Event {
+  public detail: Error;
+  constructor(
+    options: EventInit & {
+      detail: Error;
+    },
+  ) {
+    super('clientError', options);
+    this.detail = options.detail;
+  }
+}
+
 // Server events
 
 abstract class WebSocketServerEvent extends Event {}
@@ -86,6 +108,9 @@ class WebSocketStreamDestroyEvent extends WebSocketStreamEvent {
 }
 
 export {
+  WebSocketClientEvent,
+  WebSocketClientErrorEvent,
+  WebSocketClientDestroyEvent,
   WebSocketServerEvent,
   WebSocketServerConnectionEvent,
   WebSocketServerStartEvent,
