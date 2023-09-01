@@ -20,6 +20,7 @@ import Logger from '@matrixai/logger';
 import * as ws from 'ws';
 import { Timer } from '@matrixai/timer';
 import { ready } from '@matrixai/async-init/dist/CreateDestroyStartStop';
+import { Evented } from '@matrixai/events';
 import WebSocketStream from './WebSocketStream';
 import * as errors from './errors';
 import { fromStreamId, promise, StreamType, toStreamId } from './utils';
@@ -40,7 +41,9 @@ const timerCleanupReasonSymbol = Symbol('timerCleanupReasonSymbol');
  * - streamDestroy
  */
 interface WebSocketConnection extends startStop.StartStop {}
+interface WebSocketConnection extends Evented {}
 @startStop.StartStop()
+@Evented()
 class WebSocketConnection extends EventTarget {
   /**
    * This determines when it is a client or server connection.
@@ -122,8 +125,10 @@ class WebSocketConnection extends EventTarget {
   /**
    * Bubble up stream destroy event
    */
-  protected handleWebSocketStreamDestroyEvent = () => {
-    this.dispatchEvent(new events.WebSocketStreamDestroyEvent());
+  protected handleEventWebSocketStreamDestroy = (
+    event: events.EventWebSocketStreamDestroy,
+  ) => {
+    this.dispatchEvent(event.clone());
   };
 
   /**
@@ -142,8 +147,8 @@ class WebSocketConnection extends EventTarget {
   protected messageHandler = async (data: ws.RawData, isBinary: boolean) => {
     if (!isBinary || data instanceof Array) {
       this.dispatchEvent(
-        new events.WebSocketConnectionErrorEvent({
-          detail: new errors.ErrorWebSocketUndefinedBehaviour(),
+        new events.EventWebSocketConnectionError({
+          detail: new errors.ErrorWebSocketUndefinedBehaviour() as Error,
         }),
       );
       return;
@@ -170,12 +175,12 @@ class WebSocketConnection extends EventTarget {
         logger: this.logger.getChild(`${WebSocketStream.name} ${streamId!}`),
       });
       stream.addEventListener(
-        'streamDestroy',
-        this.handleWebSocketStreamDestroyEvent,
+        events.EventWebSocketStreamDestroy.name,
+        this.handleEventWebSocketStreamDestroy,
         { once: true },
       );
       this.dispatchEvent(
-        new events.WebSocketConnectionStreamEvent({
+        new events.EventWebSocketConnectionStream({
           detail: stream,
         }),
       );
@@ -194,7 +199,7 @@ class WebSocketConnection extends EventTarget {
 
   protected errorHandler = (err: Error) => {
     this.dispatchEvent(
-      new events.WebSocketConnectionErrorEvent({
+      new events.EventWebSocketConnectionError({
         detail: new errors.ErrorWebSocketConnectionSocket(
           'An error occurred on the underlying WebSocket instance.',
           {
@@ -455,8 +460,8 @@ class WebSocketConnection extends EventTarget {
         logger: this.logger.getChild(`${WebSocketStream.name} ${streamId!}`),
       });
       stream.addEventListener(
-        'streamDestroy',
-        this.handleWebSocketStreamDestroyEvent,
+        events.EventWebSocketStreamDestroy.name,
+        this.handleEventWebSocketStreamDestroy,
         { once: true },
       );
       // Ok the stream is opened and working
@@ -540,7 +545,7 @@ class WebSocketConnection extends EventTarget {
       this.parentInstance.connectionMap.delete(this.connectionId);
     }
 
-    this.dispatchEvent(new events.WebSocketConnectionStopEvent());
+    this.dispatchEvent(new events.EventWebSocketConnectionStop());
     this.logger.info(`Stopped ${this.constructor.name}`);
   }
 
@@ -549,8 +554,9 @@ class WebSocketConnection extends EventTarget {
     const timeout = this.config.keepAliveTimeoutTime;
     const keepAliveTimeOutHandler = () => {
       this.dispatchEvent(
-        new events.WebSocketConnectionErrorEvent({
-          detail: new errors.ErrorWebSocketConnectionKeepAliveTimeOut(),
+        new events.EventWebSocketConnectionError({
+          detail:
+            new errors.ErrorWebSocketConnectionKeepAliveTimeOut() as Error,
         }),
       );
       if (this[startStop.running] && this[startStop.status] !== 'stopping') {

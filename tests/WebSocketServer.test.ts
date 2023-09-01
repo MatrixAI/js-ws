@@ -1,6 +1,7 @@
-import type { WebSocketServerConnectionEvent } from '@/events';
 import { WebSocket } from 'ws';
+import { EventWebSocketServerConnection } from '@/events';
 import WebSocketServer from '@/WebSocketServer';
+import { promise } from '@/utils';
 import * as testsUtils from './utils';
 
 describe('test', () => {
@@ -16,8 +17,8 @@ describe('test', () => {
       port: 3000,
     });
     server.addEventListener(
-      'serverConnection',
-      async (event: WebSocketServerConnectionEvent) => {
+      EventWebSocketServerConnection.name,
+      async (event: EventWebSocketServerConnection) => {
         const connection = event.detail;
         const stream = await connection.streamNew('bidi');
         const writer = stream.writable.getWriter();

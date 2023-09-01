@@ -50,7 +50,7 @@ jest.mock('@/WebSocketConnection', () => {
           logger: logger2,
         });
         instance.connectedConnection!.dispatchEvent(
-          new events.WebSocketConnectionStreamEvent({
+          new events.EventWebSocketConnectionStream({
             detail: stream,
           }),
         );
@@ -76,7 +76,10 @@ describe(WebSocketStream.name, () => {
     (connection1 as any).connectTo(connection2);
   });
 
-  async function createStreamPair(connection1, connection2) {
+  async function createStreamPair(
+    connection1: WebSocketConnection,
+    connection2: WebSocketConnection,
+  ) {
     const stream1 = await WebSocketStream.createWebSocketStream({
       streamId: streamIdCounter as StreamId,
       bufferSize: config.clientDefault.streamBufferSize,
@@ -85,8 +88,8 @@ describe(WebSocketStream.name, () => {
     });
     const createStream2Prom = promise<WebSocketStream>();
     connection2.addEventListener(
-      'connectionStream',
-      (e: events.WebSocketConnectionStreamEvent) => {
+      events.EventWebSocketConnectionStream.name,
+      (e: events.EventWebSocketConnectionStream) => {
         createStream2Prom.resolveP(e.detail);
       },
       { once: true },
@@ -169,7 +172,11 @@ describe(WebSocketStream.name, () => {
   );
   testProp(
     'multiple writes within buffer size',
-    [fc.array(fc.uint8Array({maxLength: config.clientDefault.streamBufferSize}))],
+    [
+      fc.array(
+        fc.uint8Array({ maxLength: config.clientDefault.streamBufferSize }),
+      ),
+    ],
     async (data) => {
       const [stream1, stream2] = await createStreamPair(
         connection1,

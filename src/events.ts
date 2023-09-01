@@ -1,125 +1,59 @@
 import type WebSocketStream from './WebSocketStream';
 import type WebSocketConnection from './WebSocketConnection';
+import { AbstractEvent } from '@matrixai/events';
+
+abstract class EventWebSocket<T = null> extends AbstractEvent<T> {}
 
 // Client Events
 
-abstract class WebSocketClientEvent extends Event {}
+abstract class EventWebSocketClient<T = null> extends EventWebSocket<T> {}
 
-class WebSocketClientDestroyEvent extends Event {
-  constructor(options?: EventInit) {
-    super('clientDestroy', options);
-  }
-}
+class EventWebSocketClientDestroy extends EventWebSocketClient {}
 
-class WebSocketClientErrorEvent extends Event {
-  public detail: Error;
-  constructor(
-    options: EventInit & {
-      detail: Error;
-    },
-  ) {
-    super('clientError', options);
-    this.detail = options.detail;
-  }
-}
+class EventWebSocketClientError extends EventWebSocketClient<Error> {}
 
 // Server events
 
-abstract class WebSocketServerEvent extends Event {}
+abstract class EventWebSocketServer<T = null> extends EventWebSocket<T> {}
 
-class WebSocketServerConnectionEvent extends Event {
-  public detail: WebSocketConnection;
-  constructor(
-    options: EventInit & {
-      detail: WebSocketConnection;
-    },
-  ) {
-    super('serverConnection', options);
-    this.detail = options.detail;
-  }
-}
+class EventWebSocketServerConnection extends EventWebSocketServer<WebSocketConnection> {}
 
-class WebSocketServerStartEvent extends Event {
-  constructor(options?: EventInit) {
-    super('serverStart', options);
-  }
-}
+class EventWebSocketServerStart extends EventWebSocketServer {}
 
-class WebSocketServerStopEvent extends Event {
-  constructor(options?: EventInit) {
-    super('serverStop', options);
-  }
-}
+class EventWebSocketServerStop extends EventWebSocketServer {}
 
-class WebSocketServerErrorEvent extends Event {
-  public detail: Error;
-  constructor(
-    options: EventInit & {
-      detail: Error;
-    },
-  ) {
-    super('serverError', options);
-    this.detail = options.detail;
-  }
-}
+class EventWebSocketServerError extends EventWebSocketServer<Error> {}
 
 // Connection events
 
-abstract class WebSocketConnectionEvent extends Event {}
+abstract class EventWebSocketConnection<T = null> extends EventWebSocket<T> {}
 
-class WebSocketConnectionStreamEvent extends WebSocketConnectionEvent {
-  public detail: WebSocketStream;
-  constructor(
-    options: EventInit & {
-      detail: WebSocketStream;
-    },
-  ) {
-    super('connectionStream', options);
-    this.detail = options.detail;
-  }
-}
+class EventWebSocketConnectionStream extends EventWebSocketConnection<WebSocketStream> {}
 
-class WebSocketConnectionStopEvent extends WebSocketConnectionEvent {
-  constructor(options?: EventInit) {
-    super('connectionStop', options);
-  }
-}
+class EventWebSocketConnectionStop extends EventWebSocketConnection {}
 
-class WebSocketConnectionErrorEvent extends WebSocketConnectionEvent {
-  public detail: Error;
-  constructor(
-    options: EventInit & {
-      detail: Error;
-    },
-  ) {
-    super('connectionError', options);
-    this.detail = options.detail;
-  }
-}
+class EventWebSocketConnectionError extends EventWebSocketConnection<Error> {}
 
 // Stream events
 
-abstract class WebSocketStreamEvent extends Event {}
+abstract class EventWebSocketStream<T = null> extends EventWebSocket<T> {}
 
-class WebSocketStreamDestroyEvent extends WebSocketStreamEvent {
-  constructor(options?: EventInit) {
-    super('streamDestroy', options);
-  }
-}
+class EventWebSocketStreamDestroy extends EventWebSocketStream {}
 
 export {
-  WebSocketClientEvent,
-  WebSocketClientErrorEvent,
-  WebSocketClientDestroyEvent,
-  WebSocketServerEvent,
-  WebSocketServerConnectionEvent,
-  WebSocketServerStartEvent,
-  WebSocketServerStopEvent,
-  WebSocketServerErrorEvent,
-  WebSocketConnectionEvent,
-  WebSocketConnectionStreamEvent,
-  WebSocketConnectionStopEvent,
-  WebSocketConnectionErrorEvent,
-  WebSocketStreamEvent,
-  WebSocketStreamDestroyEvent,
+  EventWebSocket,
+  EventWebSocketClient,
+  EventWebSocketClientError,
+  EventWebSocketClientDestroy,
+  EventWebSocketServer,
+  EventWebSocketServerConnection,
+  EventWebSocketServerStart,
+  EventWebSocketServerStop,
+  EventWebSocketServerError,
+  EventWebSocketConnection,
+  EventWebSocketConnectionStream,
+  EventWebSocketConnectionStop,
+  EventWebSocketConnectionError,
+  EventWebSocketStream,
+  EventWebSocketStreamDestroy,
 };

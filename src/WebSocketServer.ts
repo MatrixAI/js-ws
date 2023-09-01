@@ -11,12 +11,12 @@ import https from 'https';
 import { startStop, status } from '@matrixai/async-init';
 import Logger from '@matrixai/logger';
 import * as ws from 'ws';
+import { EventAll, EventDefault } from '@matrixai/events';
 import * as errors from './errors';
-import * as webSocketEvents from './events';
+import * as events from './events';
 import { never, promise } from './utils';
 import WebSocketConnection from './WebSocketConnection';
 import { serverDefault } from './config';
-import * as utils from './utils';
 import WebSocketConnectionMap from './WebSocketConnectionMap';
 
 /**
@@ -48,28 +48,14 @@ class WebSocketServer extends EventTarget {
   protected _host: string;
 
   protected handleWebSocketConnectionEvents = (
-    event: webSocketEvents.WebSocketConnectionEvent,
+    event:
+      | events.EventWebSocketConnection
+      | EventAll<events.EventWebSocketConnection>,
   ) => {
-    if (event instanceof webSocketEvents.WebSocketConnectionErrorEvent) {
-      this.dispatchEvent(
-        new webSocketEvents.WebSocketConnectionErrorEvent({
-          detail: event.detail,
-        }),
-      );
-    } else if (event instanceof webSocketEvents.WebSocketConnectionStopEvent) {
-      this.dispatchEvent(new webSocketEvents.WebSocketConnectionStopEvent());
-    } else if (
-      event instanceof webSocketEvents.WebSocketConnectionStreamEvent
-    ) {
-      this.dispatchEvent(
-        new webSocketEvents.WebSocketConnectionStreamEvent({
-          detail: event.detail,
-        }),
-      );
-    } else if (event instanceof webSocketEvents.WebSocketStreamDestroyEvent) {
-      this.dispatchEvent(new webSocketEvents.WebSocketStreamDestroyEvent());
+    if (event instanceof EventAll) {
+      this.dispatchEvent(event.detail.clone());
     } else {
-      utils.never();
+      this.dispatchEvent(event.clone());
     }
   };
 
@@ -135,7 +121,7 @@ class WebSocketServer extends EventTarget {
     this._port = address.port;
     this.logger.debug(`Listening on port ${this._port}`);
     this._host = address.address ?? '127.0.0.1';
-    this.dispatchEvent(new webSocketEvents.WebSocketServerStartEvent());
+    this.dispatchEvent(new events.EventWebSocketServerStart());
     this.logger.info(`Started ${this.constructor.name}`);
   }
 
@@ -180,7 +166,7 @@ class WebSocketServer extends EventTarget {
     this.server.off('error', this.errorHandler);
     this.server.on('request', this.requestHandler);
 
-    this.dispatchEvent(new webSocketEvents.WebSocketServerStopEvent());
+    this.dispatchEvent(new events.EventWebSocketServerStop());
     this.logger.info(`Stopped ${this.constructor.name}`);
   }
 
@@ -249,30 +235,10 @@ class WebSocketServer extends EventTarget {
 
     // Handling connection events
     connection.addEventListener(
-      'connectionError',
-      this.handleWebSocketConnectionEvents,
-    );
-    connection.addEventListener(
-      'connectionStream',
-      this.handleWebSocketConnectionEvents,
-    );
-    connection.addEventListener(
-      'streamDestroy',
-      this.handleWebSocketConnectionEvents,
-    );
-    connection.addEventListener(
-      'connectionStop',
-      (event) => {
+      events.EventWebSocketConnectionStop.name,
+      (event: events.EventWebSocketConnectionStop) => {
         connection.removeEventListener(
-          'connectionError',
-          this.handleWebSocketConnectionEvents,
-        );
-        connection.removeEventListener(
-          'connectionStream',
-          this.handleWebSocketConnectionEvents,
-        );
-        connection.removeEventListener(
-          'streamDestroy',
+          EventDefault.name,
           this.handleWebSocketConnectionEvents,
         );
         this.handleWebSocketConnectionEvents(event);
@@ -280,8 +246,13 @@ class WebSocketServer extends EventTarget {
       { once: true },
     );
 
+    connection.addEventListener(
+      EventDefault.name,
+      this.handleWebSocketConnectionEvents,
+    );
+
     this.dispatchEvent(
-      new webSocketEvents.WebSocketServerConnectionEvent({
+      new events.EventWebSocketServerConnection({
         detail: connection,
       }),
     );
@@ -304,7 +275,7 @@ class WebSocketServer extends EventTarget {
    */
   protected errorHandler = (e: Error) => {
     this.dispatchEvent(
-      new webSocketEvents.WebSocketServerErrorEvent({
+      new events.EventWebSocketServerError({
         detail: new errors.ErrorWebSocketServer(
           'An error occured on the underlying server',
           {

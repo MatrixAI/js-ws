@@ -1,5 +1,5 @@
-import type { WebSocketConnectionStreamEvent } from '@/events';
 import Logger, { formatting, LogLevel, StreamHandler } from '@matrixai/logger';
+import { EventWebSocketConnectionStream } from '@/events';
 import { serverDefault } from '@/config';
 import WebSocketClient from '@/WebSocketClient';
 import WebSocketServer from '@/WebSocketServer';
@@ -30,8 +30,8 @@ describe(WebSocketClient.name, () => {
     await server.start();
 
     server.addEventListener(
-      'connectionStream',
-      async (event: WebSocketConnectionStreamEvent) => {
+      EventWebSocketConnectionStream.name,
+      async (event: EventWebSocketConnectionStream) => {
         // Await event.detail.readable.getReader().read();
       },
     );

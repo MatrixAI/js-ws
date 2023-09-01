@@ -3,6 +3,7 @@ import { createDestroy } from '@matrixai/async-init';
 import Logger from '@matrixai/logger';
 import WebSocket from 'ws';
 import { Validator } from 'ip-num';
+import { EventAll } from '@matrixai/events';
 import * as errors from './errors';
 import WebSocketConnection from './WebSocketConnection';
 import WebSocketConnectionMap from './WebSocketConnectionMap';
@@ -21,16 +22,18 @@ class WebSocketClient extends EventTarget {
 
   protected address: string;
 
-  protected handleWebSocketConnectionEvents = async (
-    event: events.WebSocketConnectionEvent,
+  protected handleEventWebSocketConnection = async (
+    event_: EventAll | Event,
   ) => {
-    if (event instanceof events.WebSocketConnectionErrorEvent) {
+    let event: Event;
+    if (event_ instanceof EventAll) {
+      event = event_.detail;
+    } else {
+      event = event_;
+    }
+    if (event instanceof events.EventWebSocketConnectionError) {
       this.dispatchEvent(
-        new events.WebSocketConnectionErrorEvent({
-          detail: new errors.ErrorWebSocketClient('Connection error', {
-            cause: event.detail,
-          }),
-        }),
+        (event as events.EventWebSocketConnectionError).clone(),
       );
       try {
         // Force destroy means don't destroy gracefully
@@ -39,12 +42,12 @@ class WebSocketClient extends EventTarget {
         });
       } catch (e) {
         this.dispatchEvent(
-          new events.WebSocketClientErrorEvent({
+          new events.EventWebSocketClientError({
             detail: e.detail,
           }),
         );
       }
-    } else if (event instanceof events.WebSocketConnectionStopEvent) {
+    } else if (event instanceof events.EventWebSocketConnectionStop) {
       try {
         // Force destroy means don't destroy gracefully
         await this.destroy({
@@ -52,17 +55,17 @@ class WebSocketClient extends EventTarget {
         });
       } catch (e) {
         this.dispatchEvent(
-          new events.WebSocketClientErrorEvent({
+          new events.EventWebSocketClientError({
             detail: e.detail,
           }),
         );
       }
-    } else if (event instanceof events.WebSocketConnectionStreamEvent) {
+    } else if (event instanceof events.EventWebSocketConnectionStream) {
       this.dispatchEvent(
-        new events.WebSocketConnectionStreamEvent({ detail: event.detail }),
+        (event as events.EventWebSocketConnectionStream).clone(),
       );
-    } else if (event instanceof events.WebSocketStreamDestroyEvent) {
-      this.dispatchEvent(new events.WebSocketStreamDestroyEvent());
+    } else if (event instanceof events.EventWebSocketStreamDestroy) {
+      this.dispatchEvent((event as events.EventWebSocketStreamDestroy).clone());
     } else {
       utils.never();
     }
@@ -152,20 +155,8 @@ class WebSocketClient extends EventTarget {
       },
     );
     connection.addEventListener(
-      'connectionStream',
-      client.handleWebSocketConnectionEvents,
-    );
-    connection.addEventListener(
-      'connectionStop',
-      client.handleWebSocketConnectionEvents,
-    );
-    connection.addEventListener(
-      'connectionError',
-      client.handleWebSocketConnectionEvents,
-    );
-    connection.addEventListener(
-      'streamDestroy',
-      client.handleWebSocketConnectionEvents,
+      EventAll.name,
+      client.handleEventWebSocketConnection,
     );
     client._connection = connection;
 
@@ -186,27 +177,15 @@ class WebSocketClient extends EventTarget {
     this.logger.info(`Destroy ${this.constructor.name} on ${this.address}`);
     for (const connection of this.connectionMap.values()) {
       this._connection.removeEventListener(
-        'connectionStream',
-        this.handleWebSocketConnectionEvents,
-      );
-      this._connection.removeEventListener(
-        'connectionStop',
-        this.handleWebSocketConnectionEvents,
-      );
-      this._connection.removeEventListener(
-        'connectionError',
-        this.handleWebSocketConnectionEvents,
-      );
-      this._connection.removeEventListener(
-        'streamDestroy',
-        this.handleWebSocketConnectionEvents,
+        EventAll.name,
+        this.handleEventWebSocketConnection,
       );
       await connection.stop({
         errorMessage: 'cleaning up connections',
         force,
       });
     }
-    this.dispatchEvent(new events.WebSocketClientDestroyEvent());
+    this.dispatchEvent(new events.EventWebSocketClientDestroy());
     this.logger.info(`Destroyed ${this.constructor.name}`);
   }
 }
