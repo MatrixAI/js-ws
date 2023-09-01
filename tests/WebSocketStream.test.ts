@@ -8,6 +8,9 @@ import { promise, StreamType } from '@/utils';
 import * as config from '@/config';
 import * as testUtils from './utils';
 
+// Smaller buffer size for the sake of testing
+const STREAM_BUFFER_SIZE = 64;
+
 const logger1 = new Logger('stream 1', LogLevel.WARN, [
   new StreamHandler(
     formatting.format`${formatting.level}:${formatting.keys}:${formatting.msg}`,
@@ -45,7 +48,7 @@ jest.mock('@/WebSocketConnection', () => {
         }
         stream = await WebSocketStream.createWebSocketStream({
           streamId,
-          bufferSize: config.clientDefault.streamBufferSize,
+          bufferSize: STREAM_BUFFER_SIZE,
           connection: instance.connectedConnection!,
           logger: logger2,
         });
@@ -82,7 +85,7 @@ describe(WebSocketStream.name, () => {
   ) {
     const stream1 = await WebSocketStream.createWebSocketStream({
       streamId: streamIdCounter as StreamId,
-      bufferSize: config.clientDefault.streamBufferSize,
+      bufferSize: STREAM_BUFFER_SIZE,
       connection: connection1,
       logger: logger1,
     });
@@ -100,7 +103,7 @@ describe(WebSocketStream.name, () => {
   }
   testProp(
     'single write within buffer size',
-    [fc.uint8Array({ maxLength: config.clientDefault.streamBufferSize })],
+    [fc.uint8Array({ maxLength: STREAM_BUFFER_SIZE })],
     async (data) => {
       const [stream1, stream2] = await createStreamPair(
         connection1,
@@ -136,7 +139,7 @@ describe(WebSocketStream.name, () => {
   );
   testProp(
     'single write outside buffer size',
-    [fc.uint8Array()],
+    [fc.uint8Array({ minLength: STREAM_BUFFER_SIZE + 1 })],
     async (data) => {
       const [stream1, stream2] = await createStreamPair(
         connection1,
@@ -172,9 +175,92 @@ describe(WebSocketStream.name, () => {
   );
   testProp(
     'multiple writes within buffer size',
+    [fc.array(fc.uint8Array({ maxLength: STREAM_BUFFER_SIZE }))],
+    async (data) => {
+      const [stream1, stream2] = await createStreamPair(
+        connection1,
+        connection2,
+      );
+
+      const stream1Readable = stream1.readable;
+      const stream2Writable = stream2.writable;
+
+      const writer = stream2Writable.getWriter();
+      const reader = stream1Readable.getReader();
+
+      const writeProm = (async () => {
+        for (const chunk of data) {
+          await writer.write(chunk);
+        }
+        await writer.close();
+      })();
+
+      const readChunks: Array<Uint8Array> = [];
+      const readProm = (async () => {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          readChunks.push(value);
+        }
+      })();
+
+      await Promise.all([writeProm, readProm]);
+
+      expect(testUtils.concatUInt8Array(...readChunks)).toEqual(
+        testUtils.concatUInt8Array(...data),
+      );
+
+      await stream1.destroy();
+    },
+  );
+  testProp(
+    'multiple writes outside buffer size',
+    [fc.array(fc.uint8Array({ minLength: STREAM_BUFFER_SIZE + 1 }))],
+    async (data) => {
+      const [stream1, stream2] = await createStreamPair(
+        connection1,
+        connection2,
+      );
+
+      const stream1Readable = stream1.readable;
+      const stream2Writable = stream2.writable;
+
+      const writer = stream2Writable.getWriter();
+      const reader = stream1Readable.getReader();
+
+      const writeProm = (async () => {
+        for (const chunk of data) {
+          await writer.write(chunk);
+        }
+        await writer.close();
+      })();
+
+      const readChunks: Array<Uint8Array> = [];
+      const readProm = (async () => {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          readChunks.push(value);
+        }
+      })();
+
+      await Promise.all([writeProm, readProm]);
+
+      expect(testUtils.concatUInt8Array(...readChunks)).toEqual(
+        testUtils.concatUInt8Array(...data),
+      );
+
+      await stream1.destroy();
+    },
+  );
+  testProp(
+    'multiple writes within and outside buffer size',
     [
       fc.array(
-        fc.uint8Array({ maxLength: config.clientDefault.streamBufferSize }),
+        fc.oneof(
+          fc.uint8Array({ minLength: STREAM_BUFFER_SIZE + 1 }),
+          fc.uint8Array({ maxLength: STREAM_BUFFER_SIZE }),
+        ),
       ),
     ],
     async (data) => {
@@ -215,43 +301,64 @@ describe(WebSocketStream.name, () => {
     },
   );
   testProp(
-    'multiple writes outside buffer size',
-    [fc.array(fc.uint8Array())],
-    async (data) => {
-      const [stream1, stream2] = await createStreamPair(
+    'simultaneous writes',
+    [
+      fc.array(
+        fc.oneof(
+          fc.uint8Array({ minLength: STREAM_BUFFER_SIZE + 1 }),
+          fc.uint8Array({ maxLength: STREAM_BUFFER_SIZE }),
+        ),
+      ),
+      fc.array(
+        fc.oneof(
+          fc.uint8Array({ minLength: STREAM_BUFFER_SIZE + 1 }),
+          fc.uint8Array({ maxLength: STREAM_BUFFER_SIZE }),
+        ),
+      ),
+    ],
+    async (...data) => {
+      const streams = await createStreamPair(
         connection1,
         connection2,
       );
 
-      const stream1Readable = stream1.readable;
-      const stream2Writable = stream2.writable;
+      const readProms: Array<Promise<Array<Uint8Array>>> = [];
+      const writeProms: Array<Promise<void>> = [];
 
-      const writer = stream2Writable.getWriter();
-      const reader = stream1Readable.getReader();
+      for (const [i, stream] of streams.entries()) {
+        const reader = stream.readable.getReader();
+        const writer = stream.writable.getWriter();
+        const writeProm = (async () => {
+          for (const chunk of data[i]) {
+            await writer.write(chunk);
+          }
+          await writer.close();
+        })();
+        const readProm = (async () => {
+          const readChunks: Array<Uint8Array> = [];
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            readChunks.push(value);
+          }
+          return readChunks;
+        })();
+        readProms.push(readProm);
+        writeProms.push(writeProm);
+      }
+      await Promise.all(writeProms);
+      const readResults = await Promise.all(readProms);
 
-      const writeProm = (async () => {
-        for (const chunk of data) {
-          await writer.write(chunk);
-        }
-        await writer.close();
-      })();
+      data.reverse();
+      for (const [i, readResult] of readResults.entries()) {
+        expect(testUtils.concatUInt8Array(...readResult)).toEqual(
+          testUtils.concatUInt8Array(...data[i]),
+        );
+      }
 
-      const readChunks: Array<Uint8Array> = [];
-      const readProm = (async () => {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          readChunks.push(value);
-        }
-      })();
-
-      await Promise.all([writeProm, readProm]);
-
-      expect(testUtils.concatUInt8Array(...readChunks)).toEqual(
-        testUtils.concatUInt8Array(...data),
-      );
-
-      await stream1.destroy();
+      for (const stream of streams) {
+        await stream.destroy();
+      }
     },
   );
 });
