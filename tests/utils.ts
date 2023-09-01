@@ -11,9 +11,9 @@ import { never } from '@/utils';
 const webcrypto = new Crypto();
 
 /**
- * Monkey patches the global crypto object polyfill
+ * Monkey patches the global crypto object polyfill. This doesn't work on node 20, as globalThis has been made read-only.
  */
-globalThis.crypto = webcrypto;
+// globalThis.crypto = webcrypto;
 
 x509.cryptoProvider.set(webcrypto);
 
