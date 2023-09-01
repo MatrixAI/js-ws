@@ -98,7 +98,7 @@ function fromVarInt(varInt: bigint): Uint8Array {
 const fromStreamId = fromVarInt as (streamId: StreamId) => Uint8Array;
 const toStreamId = toVarInt as (array: Uint8Array) => Parsed<StreamId>;
 
-enum StreamType {
+enum StreamMessageType {
   DATA = 0,
   ACK = 1,
   ERROR = 2,
@@ -117,6 +117,6 @@ export {
   fromVarInt,
   toStreamId,
   fromStreamId,
-  StreamType,
+  StreamMessageType,
   StreamShutdown,
 };

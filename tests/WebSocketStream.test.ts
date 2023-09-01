@@ -4,7 +4,7 @@ import { fc, testProp } from '@fast-check/jest';
 import WebSocketStream from '@/WebSocketStream';
 import WebSocketConnection from '@/WebSocketConnection';
 import * as events from '@/events';
-import { promise, StreamType } from '@/utils';
+import { promise, StreamMessageType } from '@/utils';
 import * as config from '@/config';
 import * as testUtils from './utils';
 
@@ -41,8 +41,8 @@ jest.mock('@/WebSocketConnection', () => {
       let stream = instance.connectedConnection!.streamMap.get(streamId);
       if (stream == null) {
         if (
-          data.at(0) === StreamType.CLOSE ||
-          data.at(0) === StreamType.ERROR
+          data.at(0) === StreamMessageType.CLOSE ||
+          data.at(0) === StreamMessageType.ERROR
         ) {
           return;
         }

@@ -23,7 +23,7 @@ import { ready } from '@matrixai/async-init/dist/CreateDestroyStartStop';
 import { Evented } from '@matrixai/events';
 import WebSocketStream from './WebSocketStream';
 import * as errors from './errors';
-import { fromStreamId, promise, StreamType, toStreamId } from './utils';
+import { fromStreamId, promise, StreamMessageType, toStreamId } from './utils';
 import * as events from './events';
 
 const timerCleanupReasonSymbol = Symbol('timerCleanupReasonSymbol');
@@ -163,8 +163,8 @@ class WebSocketConnection extends EventTarget {
     if (stream == null) {
       const messageType = message.at(0);
       if (
-        messageType === StreamType.CLOSE ||
-        messageType === StreamType.ERROR
+        messageType === StreamMessageType.CLOSE ||
+        messageType === StreamMessageType.ERROR
       ) {
         return;
       }

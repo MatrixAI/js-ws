@@ -7,7 +7,7 @@ import {
   fromVarInt,
   never,
   promise,
-  StreamType,
+  StreamMessageType,
   StreamShutdown,
   toVarInt,
 } from './utils';
@@ -104,7 +104,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
             return;
           }
           // Send ACK on every read as there will be more usable space on the buffer.
-          await this.streamSend(StreamType.ACK, controller.desiredSize!);
+          await this.streamSend(StreamMessageType.ACK, controller.desiredSize!);
         },
         cancel: async (reason) => {
           this.logger.debug(`readable aborted with [${reason.message}]`);
@@ -146,7 +146,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       }
       // Decrement the desired size by the amount of bytes written
       this.writableDesiredSize -= bytesWritten;
-      await this.streamSend(StreamType.DATA, data);
+      await this.streamSend(StreamMessageType.DATA, data);
 
       if (isChunkable) {
         await writeHandler(chunk.subarray(bytesWritten), controller);
@@ -207,7 +207,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
    * @param payloadSize - The number of bytes that the receiver can accept.
    */
   protected async streamSend(
-    type: StreamType.ACK,
+    type: StreamMessageType.ACK,
     payloadSize: number,
   ): Promise<void>;
   /**
@@ -216,7 +216,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
    * @param data - The payload to send.
    */
   protected async streamSend(
-    type: StreamType.DATA,
+    type: StreamMessageType.DATA,
     data: Uint8Array,
   ): Promise<void>;
   /**
@@ -225,7 +225,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
    * @param shutdown - Signifies whether the ReadableStream or the WritableStream has been shutdown.
    */
   protected async streamSend(
-    type: StreamType.ERROR,
+    type: StreamMessageType.ERROR,
     shutdown: StreamShutdown,
     code: bigint,
   ): Promise<void>;
@@ -235,28 +235,28 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
    * @param shutdown - Signifies whether the ReadableStream or the WritableStream has been shutdown.
    */
   protected async streamSend(
-    type: StreamType.CLOSE,
+    type: StreamMessageType.CLOSE,
     shutdown: StreamShutdown,
   ): Promise<void>;
   protected async streamSend(
-    type: StreamType,
+    type: StreamMessageType,
     data_?: Uint8Array | number,
     code?: bigint,
   ): Promise<void> {
     let data: Uint8Array | undefined;
-    if (type === StreamType.ACK && typeof data_ === 'number') {
+    if (type === StreamMessageType.ACK && typeof data_ === 'number') {
       data = new Uint8Array(4);
       const dv = new DataView(data.buffer);
       dv.setUint32(0, data_, false);
-    } else if (type === StreamType.DATA) {
+    } else if (type === StreamMessageType.DATA) {
       data = data_ as Uint8Array;
-    } else if (type === StreamType.ERROR) {
+    } else if (type === StreamMessageType.ERROR) {
       const errorCode = fromVarInt(code!);
       data = new Uint8Array(1 + errorCode.length);
       const dv = new DataView(data.buffer);
       dv.setUint8(0, data_ as StreamShutdown);
       data.set(errorCode, 1);
-    } else if (type === StreamType.CLOSE) {
+    } else if (type === StreamMessageType.CLOSE) {
       data = new Uint8Array([data_ as StreamShutdown]);
     } else {
       never();
@@ -286,10 +286,10 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
         }),
       );
     }
-    const type = message[0] as StreamType;
+    const type = message[0] as StreamMessageType;
     const data = message.subarray(1);
     const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
-    if (type === StreamType.ACK) {
+    if (type === StreamMessageType.ACK) {
       try {
         const bufferSize = dv.getUint32(0, false);
         this.writableDesiredSize = bufferSize;
@@ -309,7 +309,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
           ),
         );
       }
-    } else if (type === StreamType.DATA) {
+    } else if (type === StreamMessageType.DATA) {
       if (this._readableEnded) {
         return;
       }
@@ -324,12 +324,12 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
         return;
       }
       this.readableController.enqueue(data);
-    } else if (type === StreamType.ERROR || type === StreamType.CLOSE) {
+    } else if (type === StreamMessageType.ERROR || type === StreamMessageType.CLOSE) {
       try {
         const shutdown = dv.getUint8(0) as StreamShutdown;
         let isError = false;
         let reason: any;
-        if (type === StreamType.ERROR) {
+        if (type === StreamMessageType.ERROR) {
           isError = true;
           const errorCode = toVarInt(data.subarray(1)).data;
           reason = await this.codeToReason('recv', errorCode);
@@ -398,10 +398,10 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     // Shutdown the write side of the other stream
     if (isError) {
       const code = await this.reasonToCode('send', reason);
-      await this.streamSend(StreamType.ERROR, StreamShutdown.Write, code);
+      await this.streamSend(StreamMessageType.ERROR, StreamShutdown.Write, code);
       this.readableController.error(reason);
     } else {
-      await this.streamSend(StreamType.CLOSE, StreamShutdown.Write);
+      await this.streamSend(StreamMessageType.CLOSE, StreamShutdown.Write);
     }
     if (this._readableEnded && this._writableEnded) {
       this.destroyProm.resolveP();
@@ -428,10 +428,10 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     // Shutdown the read side of the other stream
     if (isError) {
       const code = await this.reasonToCode('send', reason);
-      await this.streamSend(StreamType.ERROR, StreamShutdown.Read, code);
+      await this.streamSend(StreamMessageType.ERROR, StreamShutdown.Read, code);
       this.writableController.error(reason);
     } else {
-      await this.streamSend(StreamType.CLOSE, StreamShutdown.Read);
+      await this.streamSend(StreamMessageType.CLOSE, StreamShutdown.Read);
     }
     if (this._readableEnded && this._writableEnded) {
       this.destroyProm.resolveP();

@@ -24,9 +24,6 @@ import WebSocketConnectionMap from './WebSocketConnectionMap';
  * Otherwise, errors will just be ignored.
  *
  * Events:
- * - serverStop
- * - serverError
- * - serverConnection
  * - connectionStream - when new stream is created from a connection
  * - connectionError - connection error event
  * - connectionDestroy - when connection is destroyed
