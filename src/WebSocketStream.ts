@@ -1,4 +1,4 @@
-import type { StreamCodeToReason, StreamId, StreamReasonToCode } from './types';
+import type { StreamCodeToReason, StreamId, StreamReasonToCode, VarInt } from './types';
 import type WebSocketConnection from './WebSocketConnection';
 import { CreateDestroy, status } from '@matrixai/async-init/dist/CreateDestroy';
 import Logger from '@matrixai/logger';
@@ -228,7 +228,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   protected async streamSend(
     type: StreamMessageType.ERROR,
     shutdown: StreamShutdown,
-    code: bigint,
+    code: VarInt,
   ): Promise<void>;
   /**
    * Send a CLOSE frame with a payload on the stream.
@@ -242,7 +242,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   protected async streamSend(
     type: StreamMessageType,
     data_?: Uint8Array | number,
-    code?: bigint,
+    code?: VarInt,
   ): Promise<void> {
     let data: Uint8Array | undefined;
     if (type === StreamMessageType.ACK && typeof data_ === 'number') {
@@ -406,15 +406,15 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     this._readableEnded = true;
     // Shutdown the write side of the other stream
     if (isError) {
-      let code: bigint;
+      let code: VarInt;
       if (reason instanceof errors.ErrorWebSocketStreamReadableParse) {
-        code = BigInt(StreamErrorCode.ErrorReadableStreamParse);
+        code = BigInt(StreamErrorCode.ErrorReadableStreamParse) as VarInt;
       }
       else if (reason instanceof errors.ErrorWebSocketStreamReadableBufferOverload) {
-        code = BigInt(StreamErrorCode.ErrorReadableStreamBufferOverflow);
+        code = BigInt(StreamErrorCode.ErrorReadableStreamBufferOverflow) as VarInt;
       }
       else {
-        code = await this.reasonToCode('send', reason);
+        code = await this.reasonToCode('send', reason) as VarInt;
       }
       await this.streamSend(StreamMessageType.ERROR, StreamShutdown.Write, code);
       this.readableController.error(reason);
@@ -445,15 +445,15 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     this.writableDesiredSizeProm.resolveP();
     // Shutdown the read side of the other stream
     if (isError) {
-      let code: bigint;
+      let code: VarInt;
       if (reason instanceof errors.ErrorWebSocketStreamReadableParse) {
-        code = BigInt(StreamErrorCode.ErrorReadableStreamParse);
+        code = BigInt(StreamErrorCode.ErrorReadableStreamParse) as VarInt;
       }
       else if (reason instanceof errors.ErrorWebSocketStreamReadableBufferOverload) {
-        code = BigInt(StreamErrorCode.ErrorReadableStreamBufferOverflow);
+        code = BigInt(StreamErrorCode.ErrorReadableStreamBufferOverflow) as VarInt;
       }
       else {
-        code = await this.reasonToCode('send', reason);
+        code = await this.reasonToCode('send', reason) as VarInt;
       }
       await this.streamSend(StreamMessageType.ERROR, StreamShutdown.Read, code);
       this.writableController.error(reason);

@@ -1,5 +1,5 @@
 import type { PromiseDeconstructed } from './types';
-import type { Parsed, StreamId } from '@/types';
+import type { Parsed, StreamId, VarInt } from '@/types';
 import * as errors from '../errors';
 
 function never(message?: string): never {
@@ -22,7 +22,7 @@ function promise<T = void>(): PromiseDeconstructed<T> {
   };
 }
 
-function toVarInt(array: Uint8Array): Parsed<bigint> {
+function toVarInt(array: Uint8Array): Parsed<VarInt> {
   let streamId: bigint;
 
   // Get header and prefix
@@ -57,12 +57,12 @@ function toVarInt(array: Uint8Array): Parsed<bigint> {
       break;
   }
   return {
-    data: streamId!,
+    data: streamId! as VarInt,
     remainder: array.subarray(readBytes),
   };
 }
 
-function fromVarInt(varInt: bigint): Uint8Array {
+function fromVarInt(varInt: VarInt): Uint8Array {
   let array: Uint8Array;
   let dv: DataView;
   let prefixMask = 0;
