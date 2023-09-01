@@ -110,6 +110,12 @@ enum StreamShutdown {
   Write = 1,
 }
 
+enum StreamErrorCode {
+  Unknown = 0,
+  ErrorReadableStreamParse = 1,
+  ErrorReadableStreamBufferOverflow = 2,
+}
+
 export {
   never,
   promise,
@@ -119,4 +125,5 @@ export {
   fromStreamId,
   StreamMessageType,
   StreamShutdown,
+  StreamErrorCode
 };

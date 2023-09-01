@@ -7,6 +7,7 @@ import {
   fromVarInt,
   never,
   promise,
+  StreamErrorCode,
   StreamMessageType,
   StreamShutdown,
   toVarInt,
@@ -281,7 +282,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       this.logger.debug(`received empty message, closing stream`);
       await this.signalReadableEnd(
         true,
-        new errors.ErrorWebSocketStreamReaderParse('empty message', {
+        new errors.ErrorWebSocketStreamReadableParse('empty message', {
           cause: new RangeError(),
         }),
       );
@@ -301,7 +302,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
         this.logger.debug(`received malformed ACK, closing stream`);
         await this.signalReadableEnd(
           true,
-          new errors.ErrorWebSocketStreamReaderParse(
+          new errors.ErrorWebSocketStreamReadableParse(
             'ACK message did not contain a valid buffer size',
             {
               cause: e,
@@ -319,7 +320,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       ) {
         await this.signalReadableEnd(
           true,
-          new errors.ErrorWebSocketStreamReaderBufferOverload(),
+          new errors.ErrorWebSocketStreamReadableBufferOverload(),
         );
         return;
       }
@@ -327,12 +328,20 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     } else if (type === StreamMessageType.ERROR || type === StreamMessageType.CLOSE) {
       try {
         const shutdown = dv.getUint8(0) as StreamShutdown;
-        let isError = false;
+        let isError = type === StreamMessageType.ERROR;
         let reason: any;
         if (type === StreamMessageType.ERROR) {
-          isError = true;
           const errorCode = toVarInt(data.subarray(1)).data;
-          reason = await this.codeToReason('recv', errorCode);
+          switch (errorCode) {
+            case BigInt(StreamErrorCode.ErrorReadableStreamParse):
+              reason = new errors.ErrorWebSocketStreamReadableParse('receiver was unable to parse a sent message');
+              break;
+            case BigInt(StreamErrorCode.ErrorReadableStreamBufferOverflow):
+              reason = new errors.ErrorWebSocketStreamReadableBufferOverload('receiver was unable to accept a sent message');
+              break;
+            default:
+              reason = await this.codeToReason('recv', errorCode);
+          }
         }
         if (shutdown === StreamShutdown.Read) {
           if (this._readableEnded) {
@@ -351,7 +360,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       } catch (e) {
         await this.signalReadableEnd(
           true,
-          new errors.ErrorWebSocketStreamReaderParse(
+          new errors.ErrorWebSocketStreamReadableParse(
             'ERROR/CLOSE message did not contain a valid payload',
             {
               cause: e,
@@ -397,7 +406,16 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     this._readableEnded = true;
     // Shutdown the write side of the other stream
     if (isError) {
-      const code = await this.reasonToCode('send', reason);
+      let code: bigint;
+      if (reason instanceof errors.ErrorWebSocketStreamReadableParse) {
+        code = BigInt(StreamErrorCode.ErrorReadableStreamParse);
+      }
+      else if (reason instanceof errors.ErrorWebSocketStreamReadableBufferOverload) {
+        code = BigInt(StreamErrorCode.ErrorReadableStreamBufferOverflow);
+      }
+      else {
+        code = await this.reasonToCode('send', reason);
+      }
       await this.streamSend(StreamMessageType.ERROR, StreamShutdown.Write, code);
       this.readableController.error(reason);
     } else {
@@ -427,7 +445,16 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     this.writableDesiredSizeProm.resolveP();
     // Shutdown the read side of the other stream
     if (isError) {
-      const code = await this.reasonToCode('send', reason);
+      let code: bigint;
+      if (reason instanceof errors.ErrorWebSocketStreamReadableParse) {
+        code = BigInt(StreamErrorCode.ErrorReadableStreamParse);
+      }
+      else if (reason instanceof errors.ErrorWebSocketStreamReadableBufferOverload) {
+        code = BigInt(StreamErrorCode.ErrorReadableStreamBufferOverflow);
+      }
+      else {
+        code = await this.reasonToCode('send', reason);
+      }
       await this.streamSend(StreamMessageType.ERROR, StreamShutdown.Read, code);
       this.writableController.error(reason);
     } else {
