@@ -189,7 +189,7 @@ class WebSocketStream
     this.logger.info(`Destroy ${this.constructor.name}`);
     // Force close any open streams
     this.writableDesiredSizeProm.resolveP();
-    this.cancel();
+    this.cancel(new errors.ErrorWebSocketStreamClose());
     // Removing stream from the connection's stream map
     // TODO: the other side currently will send back an ERROR/CLOSE frame from us sending an ERROR/CLOSE frame from this.close().
     // However, out stream gets deleted before we receive that message on the connection.
@@ -309,6 +309,9 @@ class WebSocketStream
         );
       }
     } else if (type === StreamType.DATA) {
+      if (this._readableEnded) {
+        return;
+      }
       if (
         this.readableController.desiredSize != null &&
         data.length > this.readableController.desiredSize
@@ -331,8 +334,15 @@ class WebSocketStream
           reason = await this.codeToReason('recv', errorCode);
         }
         if (shutdown === StreamShutdown.Read) {
+          if (this._readableEnded) {
+            return;
+          }
           await this.signalReadableEnd(isError, reason);
+          this.readableController.close();
         } else if (shutdown === StreamShutdown.Write) {
+          if (this._writableEnded) {
+            return;
+          }
           await this.signalWritableEnd(isError, reason);
         } else {
           never('invalid shutdown type');
@@ -348,7 +358,8 @@ class WebSocketStream
           ),
         );
       }
-    } else {
+    }
+    else {
       never();
     }
   }
@@ -357,7 +368,8 @@ class WebSocketStream
    * Forces the active stream to end early
    */
   public cancel(reason?: any): void {
-    const isError = reason != null;
+    const isError = reason != null && !(reason instanceof errors.ErrorWebSocketStreamClose);
+    reason = reason ?? new errors.ErrorWebSocketStreamCancel();
     // Close the streams with the given error,
     if (!this._readableEnded) {
       this.readableController.error(reason);
@@ -386,10 +398,10 @@ class WebSocketStream
     if (isError) {
       const code = await this.reasonToCode('send', reason);
       await this.streamSend(StreamType.ERROR, StreamShutdown.Write, code);
+      this.readableController.error(reason);
     } else {
       await this.streamSend(StreamType.CLOSE, StreamShutdown.Write);
     }
-    this.readableController.error(reason);
     if (this._readableEnded && this._writableEnded) {
       this.destroyProm.resolveP();
       if (this[status] !== 'destroying') void this.destroy();
@@ -416,10 +428,10 @@ class WebSocketStream
     if (isError) {
       const code = await this.reasonToCode('send', reason);
       await this.streamSend(StreamType.ERROR, StreamShutdown.Read, code);
+      this.writableController.error(reason);
     } else {
       await this.streamSend(StreamType.CLOSE, StreamShutdown.Read);
     }
-    this.writableController.error(reason);
     if (this._readableEnded && this._writableEnded) {
       this.destroyProm.resolveP();
       if (this[status] !== 'destroying') void this.destroy();

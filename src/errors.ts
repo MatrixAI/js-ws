@@ -83,6 +83,14 @@ class ErrorWebSocketStreamDestroyed<T> extends ErrorWebSocketStream<T> {
   static description = 'WebSocket Stream is destroyed';
 }
 
+class ErrorWebSocketStreamClose<T> extends ErrorWebSocketStream<T> {
+  static description = 'WebSocket Stream force close';
+}
+
+class ErrorWebSocketStreamCancel<T> extends ErrorWebSocketStream<T> {
+  static description = 'WebSocket Stream was cancelled without a provided reason';
+}
+
 // Misc
 
 class ErrorWebSocketUndefinedBehaviour<T> extends ErrorWebSocket<T> {
@@ -107,5 +115,7 @@ export {
   ErrorWebSocketStreamReaderParse,
   ErrorWebSocketStreamReaderBufferOverload,
   ErrorWebSocketStreamDestroyed,
+  ErrorWebSocketStreamClose,
+  ErrorWebSocketStreamCancel,
   ErrorWebSocketUndefinedBehaviour,
 };
