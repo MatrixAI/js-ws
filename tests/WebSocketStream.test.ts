@@ -169,7 +169,7 @@ describe(WebSocketStream.name, () => {
   );
   testProp(
     'multiple writes within buffer size',
-    [fc.array(fc.uint8Array())],
+    [fc.array(fc.uint8Array({maxLength: config.clientDefault.streamBufferSize}))],
     async (data) => {
       const [stream1, stream2] = await createStreamPair(
         connection1,
