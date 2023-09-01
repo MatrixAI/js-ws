@@ -626,7 +626,7 @@ export {
   verifyHMAC,
   generateConfig,
   toReadableStream,
-  concatUInt8Array
+  concatUInt8Array,
 };
 
 export type { KeyTypes, TLSConfigs };

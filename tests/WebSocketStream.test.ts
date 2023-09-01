@@ -1,12 +1,12 @@
 import type { StreamId } from '@/types';
+import Logger, { formatting, LogLevel, StreamHandler } from '@matrixai/logger';
+import { fc, testProp } from '@fast-check/jest';
 import WebSocketStream from '@/WebSocketStream';
 import WebSocketConnection from '@/WebSocketConnection';
 import * as events from '@/events';
 import { promise, StreamType } from '@/utils';
-import * as testUtils from './utils';
-import Logger, { formatting, LogLevel, StreamHandler } from "@matrixai/logger";
-import { fc, testProp } from '@fast-check/jest';
 import * as config from '@/config';
+import * as testUtils from './utils';
 
 const logger1 = new Logger('stream 1', LogLevel.WARN, [
   new StreamHandler(
@@ -37,14 +37,17 @@ jest.mock('@/WebSocketConnection', () => {
     instance.streamSend = async (streamId: StreamId, data: Uint8Array) => {
       let stream = instance.connectedConnection!.streamMap.get(streamId);
       if (stream == null) {
-        if (data.at(0) === StreamType.CLOSE || data.at(0) === StreamType.ERROR) {
+        if (
+          data.at(0) === StreamType.CLOSE ||
+          data.at(0) === StreamType.ERROR
+        ) {
           return;
         }
         stream = await WebSocketStream.createWebSocketStream({
           streamId,
           bufferSize: config.clientDefault.streamBufferSize,
           connection: instance.connectedConnection!,
-          logger: logger2
+          logger: logger2,
         });
         instance.connectedConnection!.dispatchEvent(
           new events.WebSocketConnectionStreamEvent({
@@ -78,7 +81,7 @@ describe(WebSocketStream.name, () => {
       streamId: streamIdCounter as StreamId,
       bufferSize: config.clientDefault.streamBufferSize,
       connection: connection1,
-      logger: logger1
+      logger: logger1,
     });
     const createStream2Prom = promise<WebSocketStream>();
     connection2.addEventListener(
@@ -94,9 +97,12 @@ describe(WebSocketStream.name, () => {
   }
   testProp(
     'single write within buffer size',
-    [fc.uint8Array({maxLength: config.clientDefault.streamBufferSize})],
+    [fc.uint8Array({ maxLength: config.clientDefault.streamBufferSize })],
     async (data) => {
-      const [stream1, stream2] = await createStreamPair(connection1, connection2);
+      const [stream1, stream2] = await createStreamPair(
+        connection1,
+        connection2,
+      );
 
       const stream1Readable = stream1.readable;
       const stream2Writable = stream2.writable;
@@ -123,13 +129,16 @@ describe(WebSocketStream.name, () => {
       expect(readChunks).toEqual([data]);
 
       await stream1.destroy();
-    }
+    },
   );
   testProp(
     'single write outside buffer size',
     [fc.uint8Array()],
     async (data) => {
-      const [stream1, stream2] = await createStreamPair(connection1, connection2);
+      const [stream1, stream2] = await createStreamPair(
+        connection1,
+        connection2,
+      );
 
       const stream1Readable = stream1.readable;
       const stream2Writable = stream2.writable;
@@ -156,13 +165,16 @@ describe(WebSocketStream.name, () => {
       expect(testUtils.concatUInt8Array(...readChunks)).toEqual(data);
 
       await stream1.destroy();
-    }
+    },
   );
   testProp(
     'multiple writes within buffer size',
     [fc.array(fc.uint8Array())],
     async (data) => {
-      const [stream1, stream2] = await createStreamPair(connection1, connection2);
+      const [stream1, stream2] = await createStreamPair(
+        connection1,
+        connection2,
+      );
 
       const stream1Readable = stream1.readable;
       const stream2Writable = stream2.writable;
@@ -188,16 +200,21 @@ describe(WebSocketStream.name, () => {
 
       await Promise.all([writeProm, readProm]);
 
-      expect(testUtils.concatUInt8Array(...readChunks)).toEqual(testUtils.concatUInt8Array(...data));
+      expect(testUtils.concatUInt8Array(...readChunks)).toEqual(
+        testUtils.concatUInt8Array(...data),
+      );
 
       await stream1.destroy();
-    }
+    },
   );
   testProp(
     'multiple writes outside buffer size',
     [fc.array(fc.uint8Array())],
     async (data) => {
-      const [stream1, stream2] = await createStreamPair(connection1, connection2);
+      const [stream1, stream2] = await createStreamPair(
+        connection1,
+        connection2,
+      );
 
       const stream1Readable = stream1.readable;
       const stream2Writable = stream2.writable;
@@ -223,9 +240,11 @@ describe(WebSocketStream.name, () => {
 
       await Promise.all([writeProm, readProm]);
 
-      expect(testUtils.concatUInt8Array(...readChunks)).toEqual(testUtils.concatUInt8Array(...data));
+      expect(testUtils.concatUInt8Array(...readChunks)).toEqual(
+        testUtils.concatUInt8Array(...data),
+      );
 
       await stream1.destroy();
-    }
+    },
   );
 });

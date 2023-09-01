@@ -358,8 +358,7 @@ class WebSocketStream
           ),
         );
       }
-    }
-    else {
+    } else {
       never();
     }
   }
@@ -368,7 +367,8 @@ class WebSocketStream
    * Forces the active stream to end early
    */
   public cancel(reason?: any): void {
-    const isError = reason != null && !(reason instanceof errors.ErrorWebSocketStreamClose);
+    const isError =
+      reason != null && !(reason instanceof errors.ErrorWebSocketStreamClose);
     reason = reason ?? new errors.ErrorWebSocketStreamCancel();
     // Close the streams with the given error,
     if (!this._readableEnded) {
@@ -422,7 +422,7 @@ class WebSocketStream
     if (this._writableEnded) return;
     // Indicate that sending side is closed
     this._writableEnded = true;
-    // resolve backpressure blocking promise in case unresolved
+    // Resolve backpressure blocking promise in case unresolved
     this.writableDesiredSizeProm.resolveP();
     // Shutdown the read side of the other stream
     if (isError) {

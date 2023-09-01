@@ -157,7 +157,10 @@ class WebSocketConnection extends EventTarget {
     let stream = this.streamMap.get(streamId);
     if (stream == null) {
       const messageType = message.at(0);
-      if (messageType === StreamType.CLOSE || messageType === StreamType.ERROR) {
+      if (
+        messageType === StreamType.CLOSE ||
+        messageType === StreamType.ERROR
+      ) {
         return;
       }
       stream = await WebSocketStream.createWebSocketStream({

@@ -134,20 +134,23 @@ class WebSocketClient extends EventTarget {
     });
 
     const connectionId = client.connectionMap.allocateId();
-    const connection = await WebSocketConnection.createWebSocketConnection({
-      type: 'client',
-      connectionId,
-      remoteInfo: {
-        host: host_,
-        port: port_,
+    const connection = await WebSocketConnection.createWebSocketConnection(
+      {
+        type: 'client',
+        connectionId,
+        remoteInfo: {
+          host: host_,
+          port: port_,
+        },
+        config: wsConfig,
+        socket: webSocket,
+        verifyCallback,
+        client: client,
       },
-      config: wsConfig,
-      socket: webSocket,
-      verifyCallback,
-      client: client,
-    }, {
-      timer: wsConfig.connectTimeoutTime,
-    });
+      {
+        timer: wsConfig.connectTimeoutTime,
+      },
+    );
     connection.addEventListener(
       'connectionStream',
       client.handleWebSocketConnectionEvents,
@@ -200,7 +203,7 @@ class WebSocketClient extends EventTarget {
       );
       await connection.stop({
         errorMessage: 'cleaning up connections',
-        force
+        force,
       });
     }
     this.dispatchEvent(new events.WebSocketClientDestroyEvent());

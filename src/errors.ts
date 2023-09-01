@@ -88,7 +88,8 @@ class ErrorWebSocketStreamClose<T> extends ErrorWebSocketStream<T> {
 }
 
 class ErrorWebSocketStreamCancel<T> extends ErrorWebSocketStream<T> {
-  static description = 'WebSocket Stream was cancelled without a provided reason';
+  static description =
+    'WebSocket Stream was cancelled without a provided reason';
 }
 
 // Misc

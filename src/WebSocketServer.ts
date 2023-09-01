@@ -67,11 +67,8 @@ class WebSocketServer extends EventTarget {
         }),
       );
     } else if (event instanceof webSocketEvents.WebSocketStreamDestroyEvent) {
-      this.dispatchEvent(
-        new webSocketEvents.WebSocketStreamDestroyEvent()
-      );
-    }
-    else {
+      this.dispatchEvent(new webSocketEvents.WebSocketStreamDestroyEvent());
+    } else {
       utils.never();
     }
   };
@@ -149,7 +146,7 @@ class WebSocketServer extends EventTarget {
       destroyProms.push(
         webSocketConnection.stop({
           errorMessage: 'cleaning up connections',
-          force
+          force,
         }),
       );
     }
