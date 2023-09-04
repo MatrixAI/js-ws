@@ -133,12 +133,14 @@ class WebSocketConnection {
    * Bubble up stream destroy event
    */
   protected handleEventWebSocketStream = (
-    event: EventAll<events.EventWebSocketStream> | EventDefault<events.EventWebSocketStream> | events.EventWebSocketStream,
+    event:
+      | EventAll<events.EventWebSocketStream>
+      | EventDefault<events.EventWebSocketStream>
+      | events.EventWebSocketStream,
   ) => {
     if (event instanceof EventAll || event instanceof EventDefault) {
       this.dispatchEvent(event.detail.clone());
-    }
-    else {
+    } else {
       this.dispatchEvent(event.clone());
     }
   };
@@ -286,16 +288,12 @@ class WebSocketConnection {
     this.resolveClosedP = resolveClosedP;
     this.rejectClosedP = rejectClosedP;
   }
-  public start(
-    ctx?: Partial<ContextTimedInput>,
-  ): PromiseCancellable<void>;
+  public start(ctx?: Partial<ContextTimedInput>): PromiseCancellable<void>;
   @timedCancellable(true, Infinity, errors.ErrorWebSocketConnectionStartTimeOut)
-  public async start(
-    @context ctx: ContextTimed,
-  ): Promise<void> {
+  public async start(@context ctx: ContextTimed): Promise<void> {
     this.logger.info(`Start ${this.constructor.name}`);
     ctx.signal.throwIfAborted();
-    const { p: abortP, rejectP: rejectAbortP }= promise<never>();
+    const { p: abortP, rejectP: rejectAbortP } = promise<never>();
     const abortHandler = () => {
       rejectAbortP(ctx.signal.reason);
     };
@@ -354,10 +352,7 @@ class WebSocketConnection {
 
     // Wait for open
     try {
-      await Promise.race([
-        Promise.all(promises),
-        abortP,
-      ]);
+      await Promise.race([Promise.all(promises), abortP]);
     } catch (e) {
       this.socket.removeAllListeners('error');
       this.socket.removeAllListeners('upgrade');
@@ -388,9 +383,7 @@ class WebSocketConnection {
     this.socket.on('error', this.errorHandler);
 
     if (this.config.keepAliveIntervalTime != null) {
-      this.startKeepAliveIntervalTimer(
-        this.config.keepAliveIntervalTime,
-      );
+      this.startKeepAliveIntervalTimer(this.config.keepAliveIntervalTime);
     }
 
     this.logger.info(`Started ${this.constructor.name}`);

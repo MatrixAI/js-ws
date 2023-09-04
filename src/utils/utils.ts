@@ -125,5 +125,5 @@ export {
   fromStreamId,
   StreamMessageType,
   StreamShutdown,
-  StreamErrorCode
+  StreamErrorCode,
 };

@@ -7,11 +7,12 @@ import type {
   StreamReasonToCode,
   WebSocketConfig,
 } from './types';
+import type { AbstractEvent } from '@matrixai/events';
 import https from 'https';
 import { StartStop, status, ready } from '@matrixai/async-init/dist/StartStop';
 import Logger from '@matrixai/logger';
 import * as ws from 'ws';
-import { AbstractEvent, EventAll, EventDefault } from '@matrixai/events';
+import { EventAll, EventDefault } from '@matrixai/events';
 import * as errors from './errors';
 import * as events from './events';
 import { never, promise } from './utils';
@@ -221,24 +222,22 @@ class WebSocketServer extends EventTarget {
   ) => {
     const httpSocket = request.connection;
     const connectionId = this.connectionMap.allocateId();
-    const connection = new WebSocketConnection(
-      {
-        type: 'server',
-        connectionId: connectionId,
-        remoteInfo: {
-          host: (httpSocket.remoteAddress ?? '') as Host,
-          port: (httpSocket.remotePort ?? 0) as Port,
-        },
-        socket: webSocket,
-        config: this.config,
-        reasonToCode: this.reasonToCode,
-        codeToReason: this.codeToReason,
-        logger: this.logger.getChild(
-          `${WebSocketConnection.name} ${connectionId}`,
-        ),
-        server: this,
+    const connection = new WebSocketConnection({
+      type: 'server',
+      connectionId: connectionId,
+      remoteInfo: {
+        host: (httpSocket.remoteAddress ?? '') as Host,
+        port: (httpSocket.remotePort ?? 0) as Port,
       },
-    );
+      socket: webSocket,
+      config: this.config,
+      reasonToCode: this.reasonToCode,
+      codeToReason: this.codeToReason,
+      logger: this.logger.getChild(
+        `${WebSocketConnection.name} ${connectionId}`,
+      ),
+      server: this,
+    });
 
     await connection.start({
       timer: this.config.connectTimeoutTime,

@@ -54,7 +54,6 @@ class EventWebSocketStreamDestroy extends EventWebSocketStream {}
 
 class EventWebSocketStreamDestroyed extends EventWebSocketStream {}
 
-
 export {
   EventWebSocket,
   EventWebSocketClient,
@@ -77,5 +76,5 @@ export {
   EventWebSocketConnectionError,
   EventWebSocketStream,
   EventWebSocketStreamDestroy,
-  EventWebSocketStreamDestroyed
+  EventWebSocketStreamDestroyed,
 };

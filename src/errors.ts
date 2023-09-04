@@ -71,7 +71,9 @@ class ErrorWebSocketStreamReader<T> extends ErrorWebSocketStream<T> {
   static description = 'WebSocket Stream readable error';
 }
 
-class ErrorWebSocketStreamReadableParse<T> extends ErrorWebSocketStreamReader<T> {
+class ErrorWebSocketStreamReadableParse<
+  T,
+> extends ErrorWebSocketStreamReader<T> {
   static description = 'WebSocket Stream readable message parse failed';
 }
 

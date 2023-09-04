@@ -1,9 +1,10 @@
 import type { Host, Port, VerifyCallback, WebSocketConfig } from './types';
+import type { AbstractEvent } from '@matrixai/events';
 import { createDestroy } from '@matrixai/async-init';
 import Logger from '@matrixai/logger';
 import WebSocket from 'ws';
 import { Validator } from 'ip-num';
-import { AbstractEvent, EventAll, EventDefault } from '@matrixai/events';
+import { EventAll, EventDefault } from '@matrixai/events';
 import * as errors from './errors';
 import WebSocketConnection from './WebSocketConnection';
 import WebSocketConnectionMap from './WebSocketConnectionMap';
@@ -67,8 +68,7 @@ class WebSocketClient extends EventTarget {
           }),
         );
       }
-    }
-    else if (event instanceof events.EventWebSocketConnectionError) {
+    } else if (event instanceof events.EventWebSocketConnectionError) {
       this.dispatchEvent(
         (event as events.EventWebSocketConnectionError).clone(),
       );
@@ -153,21 +153,19 @@ class WebSocketClient extends EventTarget {
     });
 
     const connectionId = client.connectionMap.allocateId();
-    const connection = new WebSocketConnection(
-      {
-        type: 'client',
-        connectionId,
-        remoteInfo: {
-          host: host_,
-          port: port_,
-        },
-        config: wsConfig,
-        socket: webSocket,
-        verifyCallback,
-        client: client,
-      }
-    );
-    await connection.start(      {
+    const connection = new WebSocketConnection({
+      type: 'client',
+      connectionId,
+      remoteInfo: {
+        host: host_,
+        port: port_,
+      },
+      config: wsConfig,
+      socket: webSocket,
+      verifyCallback,
+      client: client,
+    });
+    await connection.start({
       timer: wsConfig.connectTimeoutTime,
     });
     connection.addEventListener(
@@ -179,8 +177,8 @@ class WebSocketClient extends EventTarget {
         );
         client.handleEventWebSocketConnection(event);
       },
-      { once: true }
-    )
+      { once: true },
+    );
     connection.addEventListener(
       EventDefault.name,
       client.handleEventWebSocketConnection,
