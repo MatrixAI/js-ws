@@ -6,6 +6,7 @@ import WebSocketConnection from '@/WebSocketConnection';
 import * as events from '@/events';
 import { promise, StreamMessageType } from '@/utils';
 import * as config from '@/config';
+import * as utils from '@/utils';
 import * as testUtils from './utils';
 
 // Smaller buffer size for the sake of testing
@@ -101,8 +102,60 @@ describe(WebSocketStream.name, () => {
     streamIdCounter++;
     return [stream1, stream2];
   }
+  test('should create stream', async () => {
+    const streams = await createStreamPair(connection1, connection2);
+    expect(streams.length).toEqual(2);
+    for (const stream of streams) {
+      await stream.destroy();
+    }
+  });
+  test('destroying stream should clean up on both ends while streams are used', async () => {
+    const streamsNum = 10;
+
+    let streamCreatedCount = 0;
+    let streamEndedCount = 0;
+    const streamCreationProm = utils.promise();
+    const streamEndedProm = utils.promise();
+
+    const streams = new Array<WebSocketStream>();
+
+    connection2.addEventListener(
+      events.EventWebSocketConnectionStream.name,
+      (event: events.EventWebSocketConnectionStream) => {
+        const stream = event.detail;
+        streamCreatedCount += 1;
+        if (streamCreatedCount >= streamsNum) streamCreationProm.resolveP();
+        stream.addEventListener(
+          events.EventWebSocketStreamDestroyed.name,
+          () => {
+            streamEndedCount += 1;
+            if (streamEndedCount >= streamsNum) streamEndedProm.resolveP();
+          }
+        );
+      }
+    );
+
+    for (let i = 0; i < streamsNum; i++) {
+      const stream = await WebSocketStream.createWebSocketStream({
+        streamId: streamIdCounter as StreamId,
+        bufferSize: STREAM_BUFFER_SIZE,
+        connection: connection1,
+        logger: logger1,
+      });
+      streamIdCounter++;
+      streams.push(stream);
+    }
+    await streamCreationProm.p;
+    await Promise.allSettled(streams.map((stream) => stream.destroy()));
+    await streamEndedProm.p;
+    expect(streamCreatedCount).toEqual(streamsNum);
+    expect(streamEndedCount).toEqual(streamsNum);
+    for (const stream of streams) {
+      await stream.destroy();
+    }
+  });
   testProp(
-    'single write within buffer size',
+    'should send data over stream - single write within buffer size',
     [fc.uint8Array({ maxLength: STREAM_BUFFER_SIZE })],
     async (data) => {
       const [stream1, stream2] = await createStreamPair(
@@ -135,10 +188,11 @@ describe(WebSocketStream.name, () => {
       expect(readChunks).toEqual([data]);
 
       await stream1.destroy();
+      await stream2.destroy();
     },
   );
   testProp(
-    'single write outside buffer size',
+    'should send data over stream - single write outside buffer size',
     [fc.uint8Array({ minLength: STREAM_BUFFER_SIZE + 1 })],
     async (data) => {
       const [stream1, stream2] = await createStreamPair(
@@ -171,10 +225,11 @@ describe(WebSocketStream.name, () => {
       expect(testUtils.concatUInt8Array(...readChunks)).toEqual(data);
 
       await stream1.destroy();
+      await stream2.destroy();
     },
   );
   testProp(
-    'multiple writes within buffer size',
+    'should send data over stream - multiple writes within buffer size',
     [fc.array(fc.uint8Array({ maxLength: STREAM_BUFFER_SIZE }))],
     async (data) => {
       const [stream1, stream2] = await createStreamPair(
@@ -211,10 +266,11 @@ describe(WebSocketStream.name, () => {
       );
 
       await stream1.destroy();
+      await stream2.destroy();
     },
   );
   testProp(
-    'multiple writes outside buffer size',
+    'should send data over stream - multiple writes outside buffer size',
     [fc.array(fc.uint8Array({ minLength: STREAM_BUFFER_SIZE + 1 }))],
     async (data) => {
       const [stream1, stream2] = await createStreamPair(
@@ -251,10 +307,11 @@ describe(WebSocketStream.name, () => {
       );
 
       await stream1.destroy();
+      await stream2.destroy();
     },
   );
   testProp(
-    'multiple writes within and outside buffer size',
+    'should send data over stream - multiple writes within and outside buffer size',
     [
       fc.array(
         fc.oneof(
@@ -298,10 +355,11 @@ describe(WebSocketStream.name, () => {
       );
 
       await stream1.destroy();
+      await stream2.destroy();
     },
   );
   testProp(
-    'simultaneous writes',
+    'should send data over stream - simultaneous multiple writes within and outside buffer size',
     [
       fc.array(
         fc.oneof(
@@ -317,10 +375,7 @@ describe(WebSocketStream.name, () => {
       ),
     ],
     async (...data) => {
-      const streams = await createStreamPair(
-        connection1,
-        connection2,
-      );
+      const streams = await createStreamPair(connection1, connection2);
 
       const readProms: Array<Promise<Array<Uint8Array>>> = [];
       const writeProms: Array<Promise<void>> = [];
