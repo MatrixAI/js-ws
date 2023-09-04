@@ -4,7 +4,6 @@ import type {
   Host,
   RemoteInfo,
   StreamCodeToReason,
-  StreamId,
   StreamReasonToCode,
   VerifyCallback,
   WebSocketConfig,
@@ -13,6 +12,7 @@ import type WebSocketClient from './WebSocketClient';
 import type WebSocketServer from './WebSocketServer';
 import type { DetailedPeerCertificate, TLSSocket } from 'tls';
 import type WebSocketConnectionMap from './WebSocketConnectionMap';
+import type { StreamId } from './message';
 import { startStop } from '@matrixai/async-init';
 import { Lock } from '@matrixai/async-locks';
 import { context, timedCancellable } from '@matrixai/contexts/dist/decorators';
@@ -20,11 +20,12 @@ import Logger from '@matrixai/logger';
 import * as ws from 'ws';
 import { Timer } from '@matrixai/timer';
 import { ready } from '@matrixai/async-init/dist/CreateDestroyStartStop';
-import { EventAll, EventDefault, Evented } from '@matrixai/events';
+import { EventAll, EventDefault } from '@matrixai/events';
 import WebSocketStream from './WebSocketStream';
 import * as errors from './errors';
-import { fromStreamId, promise, StreamMessageType, toStreamId } from './utils';
 import * as events from './events';
+import { generateStreamId, parseStreamId, StreamMessageType } from './message';
+import { promise } from './utils';
 
 const timerCleanupReasonSymbol = Symbol('timerCleanupReasonSymbol');
 
@@ -167,18 +168,31 @@ class WebSocketConnection {
       );
       return;
     }
-    let message: Uint8Array =
+    let remainder: Uint8Array =
       data instanceof ArrayBuffer ? new Uint8Array(data) : data;
 
-    const { data: streamId, remainder } = toStreamId(message);
-    message = remainder;
+    let streamId;
+    try {
+      const { data: parsedStreamId, remainder: postStreamIdRemainder } =
+        parseStreamId(remainder);
+      streamId = parsedStreamId;
+      remainder = postStreamIdRemainder;
+    } catch (e) {
+      // TODO: domain specific error
+      this.dispatchEvent(
+        new events.EventWebSocketConnectionError('parsing StreamId failed', {
+          detail: e,
+        }),
+      );
+      return;
+    }
 
     let stream = this.streamMap.get(streamId);
     if (stream == null) {
-      const messageType = message.at(0);
+      const messageType = remainder.at(0);
       if (
-        messageType === StreamMessageType.CLOSE ||
-        messageType === StreamMessageType.ERROR
+        messageType === StreamMessageType.Close ||
+        messageType === StreamMessageType.Error
       ) {
         return;
       }
@@ -205,7 +219,7 @@ class WebSocketConnection {
       );
     }
 
-    await stream!.streamRecv(message);
+    await stream!.streamRecv(remainder);
   };
 
   protected pingHandler = () => {
@@ -436,7 +450,7 @@ class WebSocketConnection {
    * @internal
    */
   public async streamSend(streamId: StreamId, data: Uint8Array) {
-    const encodedStreamId = fromStreamId(streamId);
+    const encodedStreamId = generateStreamId(streamId);
     const array = new Uint8Array(encodedStreamId.length + data.length);
     array.set(encodedStreamId, 0);
     array.set(data, encodedStreamId.length);

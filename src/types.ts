@@ -27,16 +27,6 @@ type PromiseDeconstructed<T> = {
 type ConnectionId = Opaque<'ConnectionId', number>;
 
 /**
- * VarInt is a 62 bit unsigned integer
- */
-type VarInt = Opaque<'VarInt', bigint>;
-
-/**
- * StreamId is a VarInt
- */
-type StreamId = VarInt;
-
-/**
  * Host is always an IP address
  */
 type Host = Opaque<'Host', string>;
@@ -108,8 +98,6 @@ export type {
   Callback,
   PromiseDeconstructed,
   ConnectionId,
-  VarInt,
-  StreamId,
   Host,
   Hostname,
   Port,

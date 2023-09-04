@@ -1,13 +1,13 @@
-import type { StreamId } from '@/types';
+import type { StreamId } from '@/message';
 import Logger, { formatting, LogLevel, StreamHandler } from '@matrixai/logger';
 import { fc, testProp } from '@fast-check/jest';
 import WebSocketStream from '@/WebSocketStream';
 import WebSocketConnection from '@/WebSocketConnection';
 import * as events from '@/events';
-import { promise, StreamMessageType } from '@/utils';
-import * as config from '@/config';
+import { promise } from '@/utils';
 import * as utils from '@/utils';
-import * as testUtils from './utils';
+import * as messageUtils from '@/message/utils';
+import { StreamMessageType } from '@/message';
 
 // Smaller buffer size for the sake of testing
 const STREAM_BUFFER_SIZE = 64;
@@ -42,8 +42,8 @@ jest.mock('@/WebSocketConnection', () => {
       let stream = instance.connectedConnection!.streamMap.get(streamId);
       if (stream == null) {
         if (
-          data.at(0) === StreamMessageType.CLOSE ||
-          data.at(0) === StreamMessageType.ERROR
+          data.at(0) === StreamMessageType.Close ||
+          data.at(0) === StreamMessageType.Error
         ) {
           return;
         }
@@ -130,9 +130,9 @@ describe(WebSocketStream.name, () => {
           () => {
             streamEndedCount += 1;
             if (streamEndedCount >= streamsNum) streamEndedProm.resolveP();
-          }
+          },
         );
-      }
+      },
     );
 
     for (let i = 0; i < streamsNum; i++) {
@@ -222,7 +222,7 @@ describe(WebSocketStream.name, () => {
 
       await Promise.all([writeProm, readProm]);
 
-      expect(testUtils.concatUInt8Array(...readChunks)).toEqual(data);
+      expect(messageUtils.concatUInt8Array(...readChunks)).toEqual(data);
 
       await stream1.destroy();
       await stream2.destroy();
@@ -261,8 +261,8 @@ describe(WebSocketStream.name, () => {
 
       await Promise.all([writeProm, readProm]);
 
-      expect(testUtils.concatUInt8Array(...readChunks)).toEqual(
-        testUtils.concatUInt8Array(...data),
+      expect(messageUtils.concatUInt8Array(...readChunks)).toEqual(
+        messageUtils.concatUInt8Array(...data),
       );
 
       await stream1.destroy();
@@ -302,8 +302,8 @@ describe(WebSocketStream.name, () => {
 
       await Promise.all([writeProm, readProm]);
 
-      expect(testUtils.concatUInt8Array(...readChunks)).toEqual(
-        testUtils.concatUInt8Array(...data),
+      expect(messageUtils.concatUInt8Array(...readChunks)).toEqual(
+        messageUtils.concatUInt8Array(...data),
       );
 
       await stream1.destroy();
@@ -350,8 +350,8 @@ describe(WebSocketStream.name, () => {
 
       await Promise.all([writeProm, readProm]);
 
-      expect(testUtils.concatUInt8Array(...readChunks)).toEqual(
-        testUtils.concatUInt8Array(...data),
+      expect(messageUtils.concatUInt8Array(...readChunks)).toEqual(
+        messageUtils.concatUInt8Array(...data),
       );
 
       await stream1.destroy();
@@ -406,8 +406,8 @@ describe(WebSocketStream.name, () => {
 
       data.reverse();
       for (const [i, readResult] of readResults.entries()) {
-        expect(testUtils.concatUInt8Array(...readResult)).toEqual(
-          testUtils.concatUInt8Array(...data[i]),
+        expect(messageUtils.concatUInt8Array(...readResult)).toEqual(
+          messageUtils.concatUInt8Array(...data[i]),
         );
       }
 

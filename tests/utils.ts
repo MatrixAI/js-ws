@@ -599,17 +599,6 @@ function toReadableStream<T>(iterator: IterableIterator<T>) {
   });
 }
 
-function concatUInt8Array(...arrays: Array<Uint8Array>) {
-  const totalLength = arrays.reduce((acc, val) => acc + val.length, 0);
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const arr of arrays) {
-    result.set(arr, offset);
-    offset += arr.length;
-  }
-  return result;
-}
-
 export {
   sleep,
   randomBytes,
@@ -626,7 +615,6 @@ export {
   verifyHMAC,
   generateConfig,
   toReadableStream,
-  concatUInt8Array,
 };
 
 export type { KeyTypes, TLSConfigs };

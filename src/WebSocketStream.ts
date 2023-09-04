@@ -1,24 +1,18 @@
-import type {
-  StreamCodeToReason,
-  StreamId,
-  StreamReasonToCode,
-  VarInt,
-} from './types';
+import type { StreamCodeToReason, StreamReasonToCode } from './types';
 import type WebSocketConnection from './WebSocketConnection';
+import type { StreamId, StreamMessage, VarInt } from './message';
 import { CreateDestroy, status } from '@matrixai/async-init/dist/CreateDestroy';
 import Logger from '@matrixai/logger';
-import { Evented } from '@matrixai/events';
+import { promise } from './utils';
+import * as errors from './errors';
+import * as events from './events';
 import {
-  fromVarInt,
-  never,
-  promise,
+  generateStreamMessage,
+  parseStreamMessage,
   StreamErrorCode,
   StreamMessageType,
   StreamShutdown,
-  toVarInt,
-} from './utils';
-import * as errors from './errors';
-import * as events from './events';
+} from './message';
 
 interface WebSocketStream extends CreateDestroy {}
 /**
@@ -116,7 +110,10 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
             return;
           }
           // Send ACK on every read as there will be more usable space on the buffer.
-          await this.streamSend(StreamMessageType.ACK, controller.desiredSize!);
+          await this.streamSend({
+            type: StreamMessageType.Ack,
+            payload: controller.desiredSize!,
+          });
         },
         cancel: async (reason) => {
           this.logger.debug(`readable aborted with [${reason.message}]`);
@@ -158,7 +155,10 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       }
       // Decrement the desired size by the amount of bytes written
       this.writableDesiredSize -= bytesWritten;
-      await this.streamSend(StreamMessageType.DATA, data);
+      await this.streamSend({
+        type: StreamMessageType.Data,
+        payload: data,
+      });
 
       if (isChunkable) {
         await writeHandler(chunk.subarray(bytesWritten), controller);
@@ -200,7 +200,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     this.logger.info(`Destroy ${this.constructor.name}`);
     // Force close any open streams
     this.writableDesiredSizeProm.resolveP();
-    this.cancel(new errors.ErrorWebSocketStreamClose());
+    await this.cancel(new errors.ErrorWebSocketStreamClose());
     // Removing stream from the connection's stream map
     // TODO: the other side currently will send back an ERROR/CLOSE frame from us sending an ERROR/CLOSE frame from this.close().
     // However, out stream gets deleted before we receive that message on the connection.
@@ -210,72 +210,8 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     this.logger.info(`Destroyed ${this.constructor.name}`);
   }
 
-  /**
-   * Send an ACK frame with a payloadSize.
-   * @param code - ACK
-   * @param payloadSize - The number of bytes that the receiver can accept.
-   */
-  protected async streamSend(
-    type: StreamMessageType.ACK,
-    payloadSize: number,
-  ): Promise<void>;
-  /**
-   * Send a DATA frame with a payload on the stream.
-   * @param code - DATA
-   * @param data - The payload to send.
-   */
-  protected async streamSend(
-    type: StreamMessageType.DATA,
-    data: Uint8Array,
-  ): Promise<void>;
-  /**
-   * Send an ERROR frame with a payload on the stream.
-   * @param code - CLOSE
-   * @param shutdown - Signifies whether the ReadableStream or the WritableStream has been shutdown.
-   */
-  protected async streamSend(
-    type: StreamMessageType.ERROR,
-    shutdown: StreamShutdown,
-    code: VarInt,
-  ): Promise<void>;
-  /**
-   * Send a CLOSE frame with a payload on the stream.
-   * @param code - CLOSE
-   * @param shutdown - Signifies whether the ReadableStream or the WritableStream has been shutdown.
-   */
-  protected async streamSend(
-    type: StreamMessageType.CLOSE,
-    shutdown: StreamShutdown,
-  ): Promise<void>;
-  protected async streamSend(
-    type: StreamMessageType,
-    data_?: Uint8Array | number,
-    code?: VarInt,
-  ): Promise<void> {
-    let data: Uint8Array | undefined;
-    if (type === StreamMessageType.ACK && typeof data_ === 'number') {
-      data = new Uint8Array(4);
-      const dv = new DataView(data.buffer);
-      dv.setUint32(0, data_, false);
-    } else if (type === StreamMessageType.DATA) {
-      data = data_ as Uint8Array;
-    } else if (type === StreamMessageType.ERROR) {
-      const errorCode = fromVarInt(code!);
-      data = new Uint8Array(1 + errorCode.length);
-      const dv = new DataView(data.buffer);
-      dv.setUint8(0, data_ as StreamShutdown);
-      data.set(errorCode, 1);
-    } else if (type === StreamMessageType.CLOSE) {
-      data = new Uint8Array([data_ as StreamShutdown]);
-    } else {
-      never();
-    }
-    const arrayLength = 1 + (data?.length ?? 0);
-    const array = new Uint8Array(arrayLength);
-    array.set([type], 0);
-    if (data != null) {
-      array.set(data, 1);
-    }
+  protected async streamSend(message: StreamMessage): Promise<void> {
+    const array = generateStreamMessage(message);
     await this.connection.streamSend(this.streamId, array);
   }
 
@@ -294,37 +230,32 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
           cause: new RangeError(),
         }),
       );
+      return;
     }
-    const type = message[0] as StreamMessageType;
-    const data = message.subarray(1);
-    const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
-    if (type === StreamMessageType.ACK) {
-      try {
-        const bufferSize = dv.getUint32(0, false);
-        this.writableDesiredSize = bufferSize;
-        this.writableDesiredSizeProm.resolveP();
-        this.logger.debug(
-          `received ACK, writableDesiredSize is now reset to ${bufferSize} bytes`,
-        );
-      } catch (e) {
-        this.logger.debug(`received malformed ACK, closing stream`);
-        await this.signalReadableEnd(
-          true,
-          new errors.ErrorWebSocketStreamReadableParse(
-            'ACK message did not contain a valid buffer size',
-            {
-              cause: e,
-            },
-          ),
-        );
-      }
-    } else if (type === StreamMessageType.DATA) {
+
+    let parsedMessage: StreamMessage;
+    try {
+      parsedMessage = parseStreamMessage(message);
+    } catch (err) {
+      await this.signalReadableEnd(
+        true,
+        new errors.ErrorWebSocketStreamReadableParse(err.message, {
+          cause: err,
+        }),
+      );
+      return;
+    }
+
+    if (parsedMessage.type === StreamMessageType.Ack) {
+      this.writableDesiredSize = parsedMessage.payload;
+      this.writableDesiredSizeProm.resolveP();
+    } else if (parsedMessage.type === StreamMessageType.Data) {
       if (this._readableEnded) {
         return;
       }
       if (
         this.readableController.desiredSize != null &&
-        data.length > this.readableController.desiredSize
+        parsedMessage.payload.length > this.readableController.desiredSize
       ) {
         await this.signalReadableEnd(
           true,
@@ -332,59 +263,50 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
         );
         return;
       }
-      this.readableController.enqueue(data);
-    } else if (
-      type === StreamMessageType.ERROR ||
-      type === StreamMessageType.CLOSE
-    ) {
-      try {
-        const shutdown = dv.getUint8(0) as StreamShutdown;
-        const isError = type === StreamMessageType.ERROR;
-        let reason: any;
-        if (type === StreamMessageType.ERROR) {
-          const errorCode = toVarInt(data.subarray(1)).data;
-          switch (errorCode) {
-            case BigInt(StreamErrorCode.ErrorReadableStreamParse):
-              reason = new errors.ErrorWebSocketStreamReadableParse(
-                'receiver was unable to parse a sent message',
-              );
-              break;
-            case BigInt(StreamErrorCode.ErrorReadableStreamBufferOverflow):
-              reason = new errors.ErrorWebSocketStreamReadableBufferOverload(
-                'receiver was unable to accept a sent message',
-              );
-              break;
-            default:
-              reason = await this.codeToReason('recv', errorCode);
-          }
-        }
-        if (shutdown === StreamShutdown.Read) {
-          if (this._readableEnded) {
-            return;
-          }
-          await this.signalReadableEnd(isError, reason);
-          this.readableController.close();
-        } else if (shutdown === StreamShutdown.Write) {
-          if (this._writableEnded) {
-            return;
-          }
-          await this.signalWritableEnd(isError, reason);
-        } else {
-          never('invalid shutdown type');
-        }
-      } catch (e) {
-        await this.signalReadableEnd(
-          true,
-          new errors.ErrorWebSocketStreamReadableParse(
-            'ERROR/CLOSE message did not contain a valid payload',
-            {
-              cause: e,
-            },
-          ),
-        );
+      this.readableController.enqueue(parsedMessage.payload);
+    } else if (parsedMessage.type === StreamMessageType.Error) {
+      const { shutdown, code } = parsedMessage.payload;
+      let reason: any;
+      switch (code) {
+        case BigInt(StreamErrorCode.ErrorReadableStreamParse):
+          reason = new errors.ErrorWebSocketStreamReadableParse(
+            'receiver was unable to parse a sent message',
+          );
+          break;
+        case BigInt(StreamErrorCode.ErrorReadableStreamBufferOverflow):
+          reason = new errors.ErrorWebSocketStreamReadableBufferOverload(
+            'receiver was unable to accept a sent message',
+          );
+          break;
+        default:
+          reason = await this.codeToReason('recv', code);
       }
-    } else {
-      never();
+      if (shutdown === StreamShutdown.Read) {
+        if (this._readableEnded) {
+          return;
+        }
+        await this.signalReadableEnd(true, reason);
+        this.readableController.close();
+      } else if (shutdown === StreamShutdown.Write) {
+        if (this._writableEnded) {
+          return;
+        }
+        await this.signalWritableEnd(true, reason);
+      }
+    } else if (parsedMessage.type === StreamMessageType.Close) {
+      const shutdown = parsedMessage.payload;
+      if (shutdown === StreamShutdown.Read) {
+        if (this._readableEnded) {
+          return;
+        }
+        await this.signalReadableEnd(false);
+        this.readableController.close();
+      } else if (shutdown === StreamShutdown.Write) {
+        if (this._writableEnded) {
+          return;
+        }
+        await this.signalWritableEnd(false);
+      }
     }
   }
 
@@ -433,14 +355,19 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       } else {
         code = (await this.reasonToCode('send', reason)) as VarInt;
       }
-      await this.streamSend(
-        StreamMessageType.ERROR,
-        StreamShutdown.Write,
-        code,
-      );
+      await this.streamSend({
+        type: StreamMessageType.Error,
+        payload: {
+          shutdown: StreamShutdown.Read,
+          code,
+        },
+      });
       this.readableController.error(reason);
     } else {
-      await this.streamSend(StreamMessageType.CLOSE, StreamShutdown.Write);
+      await this.streamSend({
+        type: StreamMessageType.Close,
+        payload: StreamShutdown.Write,
+      });
     }
     if (this._readableEnded && this._writableEnded) {
       this.destroyProm.resolveP();
@@ -478,10 +405,19 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       } else {
         code = (await this.reasonToCode('send', reason)) as VarInt;
       }
-      await this.streamSend(StreamMessageType.ERROR, StreamShutdown.Read, code);
+      await this.streamSend({
+        type: StreamMessageType.Error,
+        payload: {
+          shutdown: StreamShutdown.Read,
+          code,
+        },
+      });
       this.writableController.error(reason);
     } else {
-      await this.streamSend(StreamMessageType.CLOSE, StreamShutdown.Read);
+      await this.streamSend({
+        type: StreamMessageType.Close,
+        payload: StreamShutdown.Read,
+      });
     }
     if (this._readableEnded && this._writableEnded) {
       this.destroyProm.resolveP();
