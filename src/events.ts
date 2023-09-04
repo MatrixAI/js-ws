@@ -10,6 +10,8 @@ abstract class EventWebSocketClient<T = null> extends EventWebSocket<T> {}
 
 class EventWebSocketClientDestroy extends EventWebSocketClient {}
 
+class EventWebSocketClientDestroyed extends EventWebSocketClient {}
+
 class EventWebSocketClientError extends EventWebSocketClient<Error> {}
 
 // Server events
@@ -20,7 +22,11 @@ class EventWebSocketServerConnection extends EventWebSocketServer<WebSocketConne
 
 class EventWebSocketServerStart extends EventWebSocketServer {}
 
+class EventWebSocketServerStarted extends EventWebSocketServer {}
+
 class EventWebSocketServerStop extends EventWebSocketServer {}
+
+class EventWebSocketServerStopped extends EventWebSocketServer {}
 
 class EventWebSocketServerError extends EventWebSocketServer<Error> {}
 
@@ -30,7 +36,13 @@ abstract class EventWebSocketConnection<T = null> extends EventWebSocket<T> {}
 
 class EventWebSocketConnectionStream extends EventWebSocketConnection<WebSocketStream> {}
 
+class EventWebSocketConnectionStart extends EventWebSocketConnection {}
+
+class EventWebSocketConnectionStarted extends EventWebSocketConnection {}
+
 class EventWebSocketConnectionStop extends EventWebSocketConnection {}
+
+class EventWebSocketConnectionStopped extends EventWebSocketConnection {}
 
 class EventWebSocketConnectionError extends EventWebSocketConnection<Error> {}
 
@@ -40,20 +52,30 @@ abstract class EventWebSocketStream<T = null> extends EventWebSocket<T> {}
 
 class EventWebSocketStreamDestroy extends EventWebSocketStream {}
 
+class EventWebSocketStreamDestroyed extends EventWebSocketStream {}
+
+
 export {
   EventWebSocket,
   EventWebSocketClient,
   EventWebSocketClientError,
   EventWebSocketClientDestroy,
+  EventWebSocketClientDestroyed,
   EventWebSocketServer,
   EventWebSocketServerConnection,
   EventWebSocketServerStart,
+  EventWebSocketServerStarted,
   EventWebSocketServerStop,
+  EventWebSocketServerStopped,
   EventWebSocketServerError,
   EventWebSocketConnection,
   EventWebSocketConnectionStream,
+  EventWebSocketConnectionStart,
+  EventWebSocketConnectionStarted,
   EventWebSocketConnectionStop,
+  EventWebSocketConnectionStopped,
   EventWebSocketConnectionError,
   EventWebSocketStream,
   EventWebSocketStreamDestroy,
+  EventWebSocketStreamDestroyed
 };

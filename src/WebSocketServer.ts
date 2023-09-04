@@ -8,10 +8,10 @@ import type {
   WebSocketConfig,
 } from './types';
 import https from 'https';
-import { startStop, status } from '@matrixai/async-init';
+import { StartStop, status, ready } from '@matrixai/async-init/dist/StartStop';
 import Logger from '@matrixai/logger';
 import * as ws from 'ws';
-import { EventAll, EventDefault } from '@matrixai/events';
+import { AbstractEvent, EventAll, EventDefault } from '@matrixai/events';
 import * as errors from './errors';
 import * as events from './events';
 import { never, promise } from './utils';
@@ -19,18 +19,33 @@ import WebSocketConnection from './WebSocketConnection';
 import { serverDefault } from './config';
 import WebSocketConnectionMap from './WebSocketConnectionMap';
 
+interface WebSocketServer extends StartStop {}
 /**
  * You must provide an error handler `addEventListener('error')`.
  * Otherwise, errors will just be ignored.
  *
  * Events:
- * - connectionStream - when new stream is created from a connection
- * - connectionError - connection error event
- * - connectionDestroy - when connection is destroyed
- * - streamDestroy - when stream is destroyed
+ * - {@link events.EventWebSocketServerStart},
+ * - {@link events.EventWebSocketServerStarted},
+ * - {@link events.EventWebSocketServerStop},
+ * - {@link events.EventWebSocketServerStopped},
+ * - {@link events.EventWebSocketServerConnection}
+ * - {@link events.EventWebSocketServerError}
+ * - {@link events.EventWebSocketConnectionStream}
+ * - {@link events.EventWebSocketConnectionStart}
+ * - {@link events.EventWebSocketConnectionStarted}
+ * - {@link events.EventWebSocketConnectionStop}
+ * - {@link events.EventWebSocketConnectionStopped}
+ * - {@link events.EventWebSocketConnectionError} - can occur due to a timeout too
+ * - {@link events.EventWebSocketStreamDestroy}
+ * - {@link events.EventWebSocketStreamDestroyed}
  */
-interface WebSocketServer extends startStop.StartStop {}
-@startStop.StartStop()
+@StartStop({
+  eventStart: events.EventWebSocketServerStart,
+  eventStarted: events.EventWebSocketServerStarted,
+  eventStop: events.EventWebSocketServerStop,
+  eventStopped: events.EventWebSocketServerStopped,
+})
 class WebSocketServer extends EventTarget {
   protected logger: Logger;
   protected config: WebSocketConfig;
@@ -44,12 +59,13 @@ class WebSocketServer extends EventTarget {
   protected _port: number;
   protected _host: string;
 
-  protected handleWebSocketConnectionEvents = (
+  protected handleWebSocketConnection = (
     event:
-      | events.EventWebSocketConnection
-      | EventAll<events.EventWebSocketConnection>,
+      | AbstractEvent
+      | EventDefault<AbstractEvent>
+      | EventAll<AbstractEvent>,
   ) => {
-    if (event instanceof EventAll) {
+    if (event instanceof EventAll || event instanceof EventDefault) {
       this.dispatchEvent(event.detail.clone());
     } else {
       this.dispatchEvent(event.clone());
@@ -118,7 +134,6 @@ class WebSocketServer extends EventTarget {
     this._port = address.port;
     this.logger.debug(`Listening on port ${this._port}`);
     this._host = address.address ?? '127.0.0.1';
-    this.dispatchEvent(new events.EventWebSocketServerStart());
     this.logger.info(`Started ${this.constructor.name}`);
   }
 
@@ -162,22 +177,20 @@ class WebSocketServer extends EventTarget {
     this.webSocketServer.off('error', this.errorHandler);
     this.server.off('error', this.errorHandler);
     this.server.on('request', this.requestHandler);
-
-    this.dispatchEvent(new events.EventWebSocketServerStop());
     this.logger.info(`Stopped ${this.constructor.name}`);
   }
 
-  @startStop.ready(new errors.ErrorWebSocketServerNotRunning())
+  @ready(new errors.ErrorWebSocketServerNotRunning())
   public getPort(): number {
     return this._port;
   }
 
-  @startStop.ready(new errors.ErrorWebSocketServerNotRunning())
+  @ready(new errors.ErrorWebSocketServerNotRunning())
   public getHost(): string {
     return this._host;
   }
 
-  @startStop.ready(new errors.ErrorWebSocketServerNotRunning())
+  @ready(new errors.ErrorWebSocketServerNotRunning())
   public updateConfig(
     config: Partial<WebSocketConfig> & {
       key?: string;
@@ -208,7 +221,7 @@ class WebSocketServer extends EventTarget {
   ) => {
     const httpSocket = request.connection;
     const connectionId = this.connectionMap.allocateId();
-    const connection = await WebSocketConnection.createWebSocketConnection(
+    const connection = new WebSocketConnection(
       {
         type: 'server',
         connectionId: connectionId,
@@ -225,27 +238,28 @@ class WebSocketServer extends EventTarget {
         ),
         server: this,
       },
-      {
-        timer: this.config.connectTimeoutTime,
-      },
     );
+
+    await connection.start({
+      timer: this.config.connectTimeoutTime,
+    });
 
     // Handling connection events
     connection.addEventListener(
-      events.EventWebSocketConnectionStop.name,
-      (event: events.EventWebSocketConnectionStop) => {
+      events.EventWebSocketConnectionStopped.name,
+      (event: events.EventWebSocketConnectionStopped) => {
         connection.removeEventListener(
-          EventDefault.name,
-          this.handleWebSocketConnectionEvents,
+          EventAll.name,
+          this.handleWebSocketConnection,
         );
-        this.handleWebSocketConnectionEvents(event);
+        this.handleWebSocketConnection(event);
       },
       { once: true },
     );
 
     connection.addEventListener(
       EventDefault.name,
-      this.handleWebSocketConnectionEvents,
+      this.handleWebSocketConnection,
     );
 
     this.dispatchEvent(

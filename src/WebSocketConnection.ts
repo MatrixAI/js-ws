@@ -20,7 +20,7 @@ import Logger from '@matrixai/logger';
 import * as ws from 'ws';
 import { Timer } from '@matrixai/timer';
 import { ready } from '@matrixai/async-init/dist/CreateDestroyStartStop';
-import { Evented } from '@matrixai/events';
+import { EventAll, EventDefault, Evented } from '@matrixai/events';
 import WebSocketStream from './WebSocketStream';
 import * as errors from './errors';
 import { fromStreamId, promise, StreamMessageType, toStreamId } from './utils';
@@ -28,23 +28,30 @@ import * as events from './events';
 
 const timerCleanupReasonSymbol = Symbol('timerCleanupReasonSymbol');
 
+interface WebSocketConnection extends startStop.StartStop {}
 /**
  * Think of this as equivalent to `net.Socket`.
  * This is one-to-one with the ws.WebSocket.
  * Errors here are emitted to the connection only.
  * Not to the server.
  *
- * Events (events are executed post-facto):
- * - connectionStream
- * - connectionStop
- * - connectionError - can occur due to a timeout too
- * - streamDestroy
+ * Events:
+ * - {@link events.EventWebSocketConnectionStream}
+ * - {@link events.EventWebSocketConnectionStart}
+ * - {@link events.EventWebSocketConnectionStarted}
+ * - {@link events.EventWebSocketConnectionStop}
+ * - {@link events.EventWebSocketConnectionStopped}
+ * - {@link events.EventWebSocketConnectionError} - can occur due to a timeout too
+ * - {@link events.EventWebSocketStreamDestroy}
+ * - {@link events.EventWebSocketStreamDestroyed}
  */
-interface WebSocketConnection extends startStop.StartStop {}
-interface WebSocketConnection extends Evented {}
-@startStop.StartStop()
-@Evented()
-class WebSocketConnection extends EventTarget {
+@startStop.StartStop({
+  eventStart: events.EventWebSocketConnectionStart,
+  eventStarted: events.EventWebSocketConnectionStarted,
+  eventStop: events.EventWebSocketConnectionStop,
+  eventStopped: events.EventWebSocketConnectionStopped,
+})
+class WebSocketConnection {
   /**
    * This determines when it is a client or server connection.
    */
@@ -125,10 +132,15 @@ class WebSocketConnection extends EventTarget {
   /**
    * Bubble up stream destroy event
    */
-  protected handleEventWebSocketStreamDestroy = (
-    event: events.EventWebSocketStreamDestroy,
+  protected handleEventWebSocketStream = (
+    event: EventAll<events.EventWebSocketStream> | EventDefault<events.EventWebSocketStream> | events.EventWebSocketStream,
   ) => {
-    this.dispatchEvent(event.clone());
+    if (event instanceof EventAll || event instanceof EventDefault) {
+      this.dispatchEvent(event.detail.clone());
+    }
+    else {
+      this.dispatchEvent(event.clone());
+    }
   };
 
   /**
@@ -176,7 +188,12 @@ class WebSocketConnection extends EventTarget {
       });
       stream.addEventListener(
         events.EventWebSocketStreamDestroy.name,
-        this.handleEventWebSocketStreamDestroy,
+        this.handleEventWebSocketStream,
+        { once: true },
+      );
+      stream.addEventListener(
+        events.EventWebSocketStreamDestroyed.name,
+        this.handleEventWebSocketStream,
         { once: true },
       );
       this.dispatchEvent(
@@ -210,89 +227,6 @@ class WebSocketConnection extends EventTarget {
     );
   };
 
-  public static createWebSocketConnection(
-    args:
-      | {
-          type: 'client';
-          connectionId: number;
-          remoteInfo: RemoteInfo;
-          config: WebSocketConfig;
-          socket: ws.WebSocket;
-          server?: undefined;
-          client?: WebSocketClient;
-          reasonToCode?: StreamReasonToCode;
-          codeToReason?: StreamCodeToReason;
-          verifyCallback?: VerifyCallback;
-          logger?: Logger;
-        }
-      | {
-          type: 'server';
-          connectionId: number;
-          remoteInfo: RemoteInfo;
-          config: WebSocketConfig;
-          socket: ws.WebSocket;
-          server?: WebSocketServer;
-          client?: undefined;
-          reasonToCode?: StreamReasonToCode;
-          codeToReason?: StreamCodeToReason;
-          verifyCallback?: undefined;
-          logger?: Logger;
-        },
-    ctx?: Partial<ContextTimedInput>,
-  ): PromiseCancellable<WebSocketConnection>;
-  @timedCancellable(true, Infinity, errors.ErrorWebSocketConnectionStartTimeOut)
-  public static async createWebSocketConnection(
-    args:
-      | {
-          type: 'client';
-          connectionId: number;
-          remoteInfo: RemoteInfo;
-          config: WebSocketConfig;
-          socket: ws.WebSocket;
-          server?: undefined;
-          client?: WebSocketClient;
-          reasonToCode?: StreamReasonToCode;
-          codeToReason?: StreamCodeToReason;
-          verifyCallback?: VerifyCallback;
-          logger?: Logger;
-        }
-      | {
-          type: 'server';
-          connectionId: number;
-          remoteInfo: RemoteInfo;
-          config: WebSocketConfig;
-          socket: ws.WebSocket;
-          server?: WebSocketServer;
-          client?: undefined;
-          reasonToCode?: StreamReasonToCode;
-          codeToReason?: StreamCodeToReason;
-          verifyCallback?: undefined;
-          logger?: Logger;
-        },
-    @context ctx: ContextTimed,
-  ): Promise<WebSocketConnection> {
-    // Setting up abort/cancellation logic
-    const abortProm = promise<never>();
-    const abortHandler = () => {
-      abortProm.rejectP(ctx.signal.reason);
-    };
-    ctx.signal.addEventListener('abort', abortHandler);
-    const connection = new this(args);
-    try {
-      await Promise.race([connection.start(), abortProm.p]);
-    } catch (e) {
-      await connection.stop();
-      throw e;
-    } finally {
-      ctx.signal.removeEventListener('abort', abortHandler);
-    }
-    if (connection.config.keepAliveIntervalTime != null) {
-      connection.startKeepAliveIntervalTimer(
-        connection.config.keepAliveIntervalTime,
-      );
-    }
-    return connection;
-  }
   public constructor({
     type,
     connectionId,
@@ -332,7 +266,6 @@ class WebSocketConnection extends EventTarget {
         verifyCallback?: undefined;
         logger?: Logger;
       }) {
-    super();
     this.logger = logger ?? new Logger(`${this.constructor.name}`);
     this.connectionId = connectionId;
     this.socket = socket;
@@ -353,8 +286,21 @@ class WebSocketConnection extends EventTarget {
     this.resolveClosedP = resolveClosedP;
     this.rejectClosedP = rejectClosedP;
   }
-  public async start(): Promise<void> {
+  public start(
+    ctx?: Partial<ContextTimedInput>,
+  ): PromiseCancellable<void>;
+  @timedCancellable(true, Infinity, errors.ErrorWebSocketConnectionStartTimeOut)
+  public async start(
+    @context ctx: ContextTimed,
+  ): Promise<void> {
     this.logger.info(`Start ${this.constructor.name}`);
+    ctx.signal.throwIfAborted();
+    const { p: abortP, rejectP: rejectAbortP }= promise<never>();
+    const abortHandler = () => {
+      rejectAbortP(ctx.signal.reason);
+    };
+    ctx.signal.addEventListener('abort', abortHandler);
+
     const promises: Array<Promise<any>> = [];
 
     const connectProm = promise<void>();
@@ -408,7 +354,10 @@ class WebSocketConnection extends EventTarget {
 
     // Wait for open
     try {
-      await Promise.all(promises);
+      await Promise.race([
+        Promise.all(promises),
+        abortP,
+      ]);
     } catch (e) {
       this.socket.removeAllListeners('error');
       this.socket.removeAllListeners('upgrade');
@@ -417,6 +366,7 @@ class WebSocketConnection extends EventTarget {
       this.socket.terminate();
       throw e;
     } finally {
+      ctx.signal.removeEventListener('abort', abortHandler);
       this.socket.removeAllListeners('upgrade');
       this.socket.off('open', openHandler);
       this.socket.off('error', openErrorHandler);
@@ -436,6 +386,12 @@ class WebSocketConnection extends EventTarget {
     this.socket.on('ping', this.pingHandler);
     this.socket.on('pong', this.pongHandler);
     this.socket.on('error', this.errorHandler);
+
+    if (this.config.keepAliveIntervalTime != null) {
+      this.startKeepAliveIntervalTimer(
+        this.config.keepAliveIntervalTime,
+      );
+    }
 
     this.logger.info(`Started ${this.constructor.name}`);
   }
@@ -461,7 +417,12 @@ class WebSocketConnection extends EventTarget {
       });
       stream.addEventListener(
         events.EventWebSocketStreamDestroy.name,
-        this.handleEventWebSocketStreamDestroy,
+        this.handleEventWebSocketStream,
+        { once: true },
+      );
+      stream.addEventListener(
+        events.EventWebSocketStreamDestroyed.name,
+        this.handleEventWebSocketStream,
         { once: true },
       );
       // Ok the stream is opened and working
@@ -545,7 +506,6 @@ class WebSocketConnection extends EventTarget {
       this.parentInstance.connectionMap.delete(this.connectionId);
     }
 
-    this.dispatchEvent(new events.EventWebSocketConnectionStop());
     this.logger.info(`Stopped ${this.constructor.name}`);
   }
 

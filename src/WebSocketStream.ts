@@ -15,10 +15,17 @@ import {
 import * as errors from './errors';
 import * as events from './events';
 
+
 interface WebSocketStream extends CreateDestroy {}
-interface WebSocketStream extends Evented {}
-@CreateDestroy()
-@Evented()
+/**
+ * Events:
+ * - {@link events.EventWebSocketStreamDestroy}
+ * - {@link events.EventWebSocketStreamDestroyed}
+ */
+@CreateDestroy({
+  eventDestroy: events.EventWebSocketStreamDestroy,
+  eventDestroyed: events.EventWebSocketStreamDestroyed,
+})
 class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   public streamId: StreamId;
   public readable: ReadableStream<Uint8Array>;
@@ -196,9 +203,6 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     // So the connection will infinitely create streams with the same streamId when it receives the ERROR/CLOSE frame.
     // I'm dealing with this by just filtering out ERROR/CLOSE frames in the connection's onMessage handler, but there might be a better way to do this.
     this.connection.streamMap.delete(this.streamId);
-    this.dispatchEvent(
-      new events.EventWebSocketStreamDestroy({ bubbles: true }),
-    );
     this.logger.info(`Destroyed ${this.constructor.name}`);
   }
 

@@ -3,7 +3,7 @@ import { createDestroy } from '@matrixai/async-init';
 import Logger from '@matrixai/logger';
 import WebSocket from 'ws';
 import { Validator } from 'ip-num';
-import { EventAll } from '@matrixai/events';
+import { AbstractEvent, EventAll, EventDefault } from '@matrixai/events';
 import * as errors from './errors';
 import WebSocketConnection from './WebSocketConnection';
 import WebSocketConnectionMap from './WebSocketConnectionMap';
@@ -12,7 +12,27 @@ import * as events from './events';
 import * as utils from './utils';
 
 interface WebSocketClient extends createDestroy.CreateDestroy {}
-@createDestroy.CreateDestroy()
+/**
+ * You must provide an error handler `addEventListener('error')`.
+ * Otherwise, errors will just be ignored.
+ *
+ * Events:
+ * - {@link events.EventWebSocketClientDestroy}
+ * - {@link events.EventWebSocketClientDestroyed}
+ * - {@link events.EventWebSocketClientError}
+ * - {@link events.EventWebSocketConnectionStream}
+ * - {@link events.EventWebSocketConnectionStart}
+ * - {@link events.EventWebSocketConnectionStarted}
+ * - {@link events.EventWebSocketConnectionStop}
+ * - {@link events.EventWebSocketConnectionStopped}
+ * - {@link events.EventWebSocketConnectionError} - can occur due to a timeout too
+ * - {@link events.EventWebSocketStreamDestroy}
+ * - {@link events.EventWebSocketStreamDestroyed}
+ */
+@createDestroy.CreateDestroy({
+  eventDestroy: events.EventWebSocketClientDestroy,
+  eventDestroyed: events.EventWebSocketClientDestroyed,
+})
 class WebSocketClient extends EventTarget {
   protected logger: Logger;
 
@@ -23,15 +43,32 @@ class WebSocketClient extends EventTarget {
   protected address: string;
 
   protected handleEventWebSocketConnection = async (
-    event_: EventAll | Event,
+    event_: EventAll<AbstractEvent> | AbstractEvent,
   ) => {
-    let event: Event;
+    let event: AbstractEvent;
     if (event_ instanceof EventAll) {
       event = event_.detail;
     } else {
       event = event_;
     }
-    if (event instanceof events.EventWebSocketConnectionError) {
+
+    this.dispatchEvent(event.clone());
+
+    if (event instanceof events.EventWebSocketConnectionStopped) {
+      try {
+        // Force destroy means don't destroy gracefully
+        await this.destroy({
+          force: true,
+        });
+      } catch (e) {
+        this.dispatchEvent(
+          new events.EventWebSocketClientError({
+            detail: e.detail,
+          }),
+        );
+      }
+    }
+    else if (event instanceof events.EventWebSocketConnectionError) {
       this.dispatchEvent(
         (event as events.EventWebSocketConnectionError).clone(),
       );
@@ -47,27 +84,6 @@ class WebSocketClient extends EventTarget {
           }),
         );
       }
-    } else if (event instanceof events.EventWebSocketConnectionStop) {
-      try {
-        // Force destroy means don't destroy gracefully
-        await this.destroy({
-          force: true,
-        });
-      } catch (e) {
-        this.dispatchEvent(
-          new events.EventWebSocketClientError({
-            detail: e.detail,
-          }),
-        );
-      }
-    } else if (event instanceof events.EventWebSocketConnectionStream) {
-      this.dispatchEvent(
-        (event as events.EventWebSocketConnectionStream).clone(),
-      );
-    } else if (event instanceof events.EventWebSocketStreamDestroy) {
-      this.dispatchEvent((event as events.EventWebSocketStreamDestroy).clone());
-    } else {
-      utils.never();
     }
   };
 
@@ -137,7 +153,7 @@ class WebSocketClient extends EventTarget {
     });
 
     const connectionId = client.connectionMap.allocateId();
-    const connection = await WebSocketConnection.createWebSocketConnection(
+    const connection = new WebSocketConnection(
       {
         type: 'client',
         connectionId,
@@ -149,13 +165,24 @@ class WebSocketClient extends EventTarget {
         socket: webSocket,
         verifyCallback,
         client: client,
-      },
-      {
-        timer: wsConfig.connectTimeoutTime,
-      },
+      }
     );
+    await connection.start(      {
+      timer: wsConfig.connectTimeoutTime,
+    });
     connection.addEventListener(
-      EventAll.name,
+      events.EventWebSocketConnectionStopped.name,
+      (event: events.EventWebSocketConnectionStopped) => {
+        connection.removeEventListener(
+          EventAll.name,
+          client.handleEventWebSocketConnection,
+        );
+        client.handleEventWebSocketConnection(event);
+      },
+      { once: true }
+    )
+    connection.addEventListener(
+      EventDefault.name,
       client.handleEventWebSocketConnection,
     );
     client._connection = connection;
@@ -185,7 +212,6 @@ class WebSocketClient extends EventTarget {
         force,
       });
     }
-    this.dispatchEvent(new events.EventWebSocketClientDestroy());
     this.logger.info(`Destroyed ${this.constructor.name}`);
   }
 }
