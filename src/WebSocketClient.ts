@@ -10,7 +10,6 @@ import WebSocketConnection from './WebSocketConnection';
 import WebSocketConnectionMap from './WebSocketConnectionMap';
 import { clientDefault } from './config';
 import * as events from './events';
-import * as utils from './utils';
 
 interface WebSocketClient extends createDestroy.CreateDestroy {}
 /**
@@ -170,12 +169,12 @@ class WebSocketClient extends EventTarget {
     });
     connection.addEventListener(
       events.EventWebSocketConnectionStopped.name,
-      (event: events.EventWebSocketConnectionStopped) => {
+      async (event: events.EventWebSocketConnectionStopped) => {
         connection.removeEventListener(
           EventAll.name,
           client.handleEventWebSocketConnection,
         );
-        client.handleEventWebSocketConnection(event);
+        await client.handleEventWebSocketConnection(event);
       },
       { once: true },
     );

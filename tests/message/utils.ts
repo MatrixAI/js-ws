@@ -1,10 +1,6 @@
 import type { StreamId, VarInt } from '@/message';
 import { fc } from '@fast-check/jest';
-import {
-  ConnectionMessage,
-  StreamMessageType,
-  StreamShutdown,
-} from '@/message';
+import { StreamMessageType, StreamShutdown } from '@/message';
 
 const varIntArb = fc.bigInt({
   min: 0n,
