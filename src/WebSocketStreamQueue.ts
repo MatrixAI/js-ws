@@ -38,9 +38,8 @@ class WebSocketStreamQueue {
     const oldData = this.head?.data;
     const newHead = this.head?.next;
     if (this.head === this.tail) {
-      delete this.tail;
+      this.tail = undefined;
     }
-    delete this.head;
     this.head = newHead;
     this._count = this._count === 0 ? 0 : this._count - 1;
     this._byteLength -= oldData?.byteLength ?? 0;
@@ -51,8 +50,8 @@ class WebSocketStreamQueue {
     this._byteLength = 0;
     this._length = 0;
     this._count = 0;
-    delete this.head;
-    delete this.tail;
+    this.head = undefined;
+    this.tail = undefined;
   }
 }
 
