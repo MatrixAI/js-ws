@@ -169,21 +169,21 @@ describe(WebSocketStream.name, () => {
       const writer = stream2Writable.getWriter();
       const reader = stream1Readable.getReader();
 
-      const writeProm = (async () => {
+      const writeF = async () => {
         await writer.write(data);
         await writer.close();
-      })();
+      };
 
       const readChunks: Array<Uint8Array> = [];
-      const readProm = (async () => {
+      const readF = async () => {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           readChunks.push(value);
         }
-      })();
+      };
 
-      await Promise.all([writeProm, readProm]);
+      await Promise.all([writeF(), readF()]);
 
       expect(readChunks).toEqual([data]);
 
@@ -206,21 +206,21 @@ describe(WebSocketStream.name, () => {
       const writer = stream2Writable.getWriter();
       const reader = stream1Readable.getReader();
 
-      const writeProm = (async () => {
+      const writeF = async () => {
         await writer.write(data);
         await writer.close();
-      })();
+      };
 
       const readChunks: Array<Uint8Array> = [];
-      const readProm = (async () => {
+      const readF = async () => {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           readChunks.push(value);
         }
-      })();
+      };
 
-      await Promise.all([writeProm, readProm]);
+      await Promise.all([writeF(), readF()]);
 
       expect(messageUtils.concatUInt8Array(...readChunks)).toEqual(data);
 
@@ -243,23 +243,23 @@ describe(WebSocketStream.name, () => {
       const writer = stream2Writable.getWriter();
       const reader = stream1Readable.getReader();
 
-      const writeProm = (async () => {
+      const writeF = async () => {
         for (const chunk of data) {
           await writer.write(chunk);
         }
         await writer.close();
-      })();
+      };
 
       const readChunks: Array<Uint8Array> = [];
-      const readProm = (async () => {
+      const readProm = async () => {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           readChunks.push(value);
         }
-      })();
+      };
 
-      await Promise.all([writeProm, readProm]);
+      await Promise.all([writeF(), readProm()]);
 
       expect(messageUtils.concatUInt8Array(...readChunks)).toEqual(
         messageUtils.concatUInt8Array(...data),
@@ -284,23 +284,23 @@ describe(WebSocketStream.name, () => {
       const writer = stream2Writable.getWriter();
       const reader = stream1Readable.getReader();
 
-      const writeProm = (async () => {
+      const writeF = async () => {
         for (const chunk of data) {
           await writer.write(chunk);
         }
         await writer.close();
-      })();
+      };
 
       const readChunks: Array<Uint8Array> = [];
-      const readProm = (async () => {
+      const readF = async () => {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           readChunks.push(value);
         }
-      })();
+      };
 
-      await Promise.all([writeProm, readProm]);
+      await Promise.all([writeF(), readF()]);
 
       expect(messageUtils.concatUInt8Array(...readChunks)).toEqual(
         messageUtils.concatUInt8Array(...data),
@@ -332,23 +332,23 @@ describe(WebSocketStream.name, () => {
       const writer = stream2Writable.getWriter();
       const reader = stream1Readable.getReader();
 
-      const writeProm = (async () => {
+      const writeF = async () => {
         for (const chunk of data) {
           await writer.write(chunk);
         }
         await writer.close();
-      })();
+      };
 
       const readChunks: Array<Uint8Array> = [];
-      const readProm = (async () => {
+      const readF = async () => {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           readChunks.push(value);
         }
-      })();
+      };
 
-      await Promise.all([writeProm, readProm]);
+      await Promise.all([writeF(), readF()]);
 
       expect(messageUtils.concatUInt8Array(...readChunks)).toEqual(
         messageUtils.concatUInt8Array(...data),
@@ -383,13 +383,13 @@ describe(WebSocketStream.name, () => {
       for (const [i, stream] of streams.entries()) {
         const reader = stream.readable.getReader();
         const writer = stream.writable.getWriter();
-        const writeProm = (async () => {
+        const writeF = async () => {
           for (const chunk of data[i]) {
             await writer.write(chunk);
           }
           await writer.close();
-        })();
-        const readProm = (async () => {
+        };
+        const readF = async () => {
           const readChunks: Array<Uint8Array> = [];
           while (true) {
             const { done, value } = await reader.read();
@@ -397,9 +397,9 @@ describe(WebSocketStream.name, () => {
             readChunks.push(value);
           }
           return readChunks;
-        })();
-        readProms.push(readProm);
-        writeProms.push(writeProm);
+        };
+        readProms.push(readF());
+        writeProms.push(writeF());
       }
       await Promise.all(writeProms);
       const readResults = await Promise.all(readProms);
