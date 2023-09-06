@@ -318,15 +318,8 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
           reason = await this.codeToReason('recv', code);
       }
       if (shutdown === StreamShutdown.Read) {
-        if (this._readableEnded) {
-          return;
-        }
         await this.signalReadableEnd(true, reason);
-        this.readableController.close();
       } else if (shutdown === StreamShutdown.Write) {
-        if (this._writableEnded) {
-          return;
-        }
         await this.signalWritableEnd(true, reason);
       }
     } else if (parsedMessage.type === StreamMessageType.Close) {
