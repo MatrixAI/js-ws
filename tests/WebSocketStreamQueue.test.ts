@@ -32,6 +32,9 @@ describe(WebSocketStreamQueue.name, () => {
         result.push(queue.dequeue()!);
       }
       expect(result).toEqual(array);
+      expect(queue.count).toBe(0)
+      expect(queue.byteLength).toBe(0);
+      expect(queue.length).toBe(0);
     }
   );
 });
