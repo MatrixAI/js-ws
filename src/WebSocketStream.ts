@@ -48,7 +48,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
 
   protected readableQueue: WebSocketStreamQueue = new WebSocketStreamQueue();
   protected readableQueueBufferSize = 0;
-  protected readableBufferReadable = promise<void>();
+  protected readableBufferReady = promise<void>();
   protected writableDesiredSize = 0;
   protected writableDesiredSizeProm = promise<void>();
 
@@ -129,15 +129,22 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
             return;
           }
 
+          // reset the promise before a read from the queue to wait until the queue has items
           if (this.readableQueue.count === 0) {
-            this.readableBufferReadable.resolveP();
-            this.readableBufferReadable = promise<void>();
+            this.readableBufferReady.resolveP();
+            this.readableBufferReady = promise<void>();
           }
-          await this.readableBufferReadable.p;
+          await this.readableBufferReady.p;
 
+          // data will be null in the case of stream destruction before the readable buffer is blocked
+          // we're going to just enqueue an empty buffer in case it is null for some other reason, so that the next read is able to complete
           const data = this.readableQueue.dequeue();
-          const readBytes = data!.length;
-          controller.enqueue(data!);
+          if (data == null) {
+            controller.enqueue(new Uint8Array(0));
+            return;
+          }
+          const readBytes = data.length;
+          controller.enqueue(data);
 
           this.logger.debug(`${readBytes} bytes have been pushed onto stream buffer`)
 
@@ -296,7 +303,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
         return;
       }
       this.readableQueue.queue(parsedMessage.payload);
-      this.readableBufferReadable.resolveP();
+      this.readableBufferReady.resolveP();
     } else if (parsedMessage.type === StreamMessageType.Error) {
       const { shutdown, code } = parsedMessage.payload;
       let reason: any;
@@ -374,6 +381,8 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     if (this._readableEnded) return;
     // Indicate that receiving side is closed
     this._readableEnded = true;
+    // Resolve readable promise in case blocking
+    this.readableBufferReady.resolveP();
     // Shutdown the write side of the other stream
     if (isError) {
       let code: VarInt;
