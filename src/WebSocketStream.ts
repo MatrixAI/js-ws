@@ -13,6 +13,13 @@ import {
   StreamMessageType,
   StreamShutdown,
 } from './message';
+import {
+  ReadableStream,
+  WritableStream,
+  CountQueuingStrategy,
+  ReadableByteStreamController,
+} from 'stream/web';
+import WebSocketStreamQueue from './WebSocketStreamQueue';
 
 interface WebSocketStream extends CreateDestroy {}
 /**
@@ -36,9 +43,12 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   protected connection: WebSocketConnection;
   protected reasonToCode: StreamReasonToCode;
   protected codeToReason: StreamCodeToReason;
-  protected readableController: ReadableStreamController<Uint8Array>;
+  protected readableController: ReadableStreamDefaultController;
   protected writableController: WritableStreamDefaultController;
 
+  protected readableQueue: WebSocketStreamQueue = new WebSocketStreamQueue();
+  protected readableQueueBufferSize = 0;
+  protected readableBufferReadable = promise<void>();
   protected writableDesiredSize = 0;
   protected writableDesiredSizeProm = promise<void>();
 
@@ -95,6 +105,10 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     this.reasonToCode = reasonToCode;
     this.codeToReason = codeToReason;
 
+    this.readableQueueBufferSize = bufferSize;
+
+    let initAckSent = false;
+
     this.readable = new ReadableStream<Uint8Array>(
       {
         start: async (controller) => {
@@ -105,14 +119,31 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
           if (this._readableEnded) {
             return;
           }
-          // If desiredSize is less than or equal to 0, it means that the buffer is still full after a read
-          if (controller.desiredSize != null && controller.desiredSize <= 0) {
+
+          if (!initAckSent) {
+            await this.streamSend({
+              type: StreamMessageType.Ack,
+              payload: bufferSize,
+            });
+            initAckSent = true;
             return;
           }
-          // Send ACK on every read as there will be more usable space on the buffer.
+
+          if (this.readableQueue.count === 0) {
+            this.readableBufferReadable.resolveP();
+            this.readableBufferReadable = promise<void>();
+          }
+          await this.readableBufferReadable.p;
+
+          const data = this.readableQueue.dequeue();
+          const readBytes = data!.length;
+          controller.enqueue(data!);
+
+          this.logger.debug(`${readBytes} bytes have been pushed onto stream buffer`)
+
           await this.streamSend({
             type: StreamMessageType.Ack,
-            payload: controller.desiredSize!,
+            payload: readBytes,
           });
         },
         cancel: async (reason) => {
@@ -120,9 +151,9 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
           await this.signalReadableEnd(true, reason);
         },
       },
-      new ByteLengthQueuingStrategy({
-        highWaterMark: bufferSize,
-      }),
+      {
+        highWaterMark: 1,
+      }
     );
 
     const writeHandler = async (
@@ -155,6 +186,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       }
       // Decrement the desired size by the amount of bytes written
       this.writableDesiredSize -= bytesWritten;
+      this.logger.debug(`writableDesiredSize is now ${this.writableDesiredSize} due to write`);
       await this.streamSend({
         type: StreamMessageType.Data,
         payload: data,
@@ -247,15 +279,15 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     }
 
     if (parsedMessage.type === StreamMessageType.Ack) {
-      this.writableDesiredSize = parsedMessage.payload;
+      this.writableDesiredSize += parsedMessage.payload;
       this.writableDesiredSizeProm.resolveP();
+      this.logger.debug(`writableDesiredSize is now ${this.writableDesiredSize} due to ACK`);
     } else if (parsedMessage.type === StreamMessageType.Data) {
       if (this._readableEnded) {
         return;
       }
       if (
-        this.readableController.desiredSize != null &&
-        parsedMessage.payload.length > this.readableController.desiredSize
+        parsedMessage.payload.length > (this.readableQueueBufferSize - this.readableQueue.length)
       ) {
         await this.signalReadableEnd(
           true,
@@ -263,7 +295,8 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
         );
         return;
       }
-      this.readableController.enqueue(parsedMessage.payload);
+      this.readableQueue.queue(parsedMessage.payload);
+      this.readableBufferReadable.resolveP();
     } else if (parsedMessage.type === StreamMessageType.Error) {
       const { shutdown, code } = parsedMessage.payload;
       let reason: any;
@@ -369,6 +402,8 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
         payload: StreamShutdown.Write,
       });
     }
+    // clear the readable queue
+    this.readableQueue.clear();
     if (this._readableEnded && this._writableEnded) {
       this.destroyProm.resolveP();
       if (this[status] !== 'destroying') await this.destroy();
