@@ -2,6 +2,7 @@ export { default as WebSocketServer } from './WebSocketServer';
 export { default as WebSocketClient } from './WebSocketClient';
 export { default as WebSocketConnection } from './WebSocketConnection';
 export { default as WebSocketStream } from './WebSocketStream';
+export { default as WebSocketStreamQueue } from './WebSocketStreamQueue';
 
 export * as types from './types';
 export * as utils from './utils';
