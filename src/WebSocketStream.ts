@@ -163,53 +163,49 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       }
     );
 
-    const writeHandler = async (
-      chunk: Uint8Array,
-      controller: WritableStreamDefaultController,
-    ) => {
-      // Do not bother to write or wait for ACK if the writable has ended
-      if (this._writableEnded) {
-        return;
-      }
-      await this.writableDesiredSizeProm.p;
-      this.logger.debug(
-        `${chunk.length} bytes need to be written into a receiver buffer of ${this.writableDesiredSize} bytes`,
-      );
-      let data: Uint8Array;
-      const isChunkable = chunk.length > this.writableDesiredSize;
-      if (isChunkable) {
-        this.logger.debug(
-          `this chunk will be split into sizes of ${this.writableDesiredSize} bytes`,
-        );
-        data = chunk.subarray(0, this.writableDesiredSize);
-      } else {
-        data = chunk;
-      }
-      const bytesWritten = data.length;
-      if (this.writableDesiredSize === bytesWritten) {
-        this.logger.debug(`this chunk will trigger receiver to send an ACK`);
-        // Reset the promise to wait for another ACK
-        this.writableDesiredSizeProm = promise();
-      }
-      // Decrement the desired size by the amount of bytes written
-      this.writableDesiredSize -= bytesWritten;
-      this.logger.debug(`writableDesiredSize is now ${this.writableDesiredSize} due to write`);
-      await this.streamSend({
-        type: StreamMessageType.Data,
-        payload: data,
-      });
-
-      if (isChunkable) {
-        await writeHandler(chunk.subarray(bytesWritten), controller);
-      }
-    };
-
     this.writable = new WritableStream(
       {
         start: (controller) => {
           this.writableController = controller;
         },
-        write: writeHandler,
+        write: async (chunk) => {
+          while (chunk.length > 0) {
+            // Do not bother to write or wait for ACK if the writable has ended
+            if (this._writableEnded) {
+              return;
+            }
+            this.logger.debug(
+              `${chunk.length} bytes need to be written into a receiver buffer of ${this.writableDesiredSize} bytes`,
+            );
+
+            await this.writableDesiredSizeProm.p;
+
+            // chunking
+            let data: Uint8Array;
+            if (chunk.length > this.writableDesiredSize) {
+              this.logger.debug(
+                `this chunk will be split into sizes of ${this.writableDesiredSize} bytes`,
+              );
+            }
+            // .subarray parameters begin and end are clamped to the size of the Uint8Array
+            data = chunk.subarray(0, this.writableDesiredSize);
+
+            const bytesWritten = data.length;
+            if (this.writableDesiredSize === bytesWritten) {
+              this.logger.debug(`this chunk will trigger receiver to send an ACK`);
+              // Reset the promise to wait for another ACK
+              this.writableDesiredSizeProm = promise();
+            }
+            // Decrement the desired size by the amount of bytes written
+            this.writableDesiredSize -= bytesWritten;
+            this.logger.debug(`writableDesiredSize is now ${this.writableDesiredSize} due to write`);
+            await this.streamSend({
+              type: StreamMessageType.Data,
+              payload: data,
+            });
+            chunk = chunk.subarray(bytesWritten);
+          }
+        },
         close: async () => {
           await this.signalWritableEnd();
         },
