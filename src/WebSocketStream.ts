@@ -379,6 +379,8 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     this._readableEnded = true;
     // Resolve readable promise in case blocking
     this.readableBufferReady.resolveP();
+    // clear the readable queue
+    this.readableQueue.clear();
     // Shutdown the write side of the other stream
     if (isError) {
       let code: VarInt;
@@ -407,8 +409,6 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
         payload: StreamShutdown.Write,
       });
     }
-    // clear the readable queue
-    this.readableQueue.clear();
     if (this._readableEnded && this._writableEnded) {
       this.destroyProm.resolveP();
       if (this[status] !== 'destroying') await this.destroy();
