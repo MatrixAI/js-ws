@@ -60,30 +60,27 @@ async function main() {
     verifyCallback: async () => {},
   });
 
+  const stream = await client.connection.streamNew();
+  const writer = stream.writable.getWriter();
+
+  const readProm = (async () => {
+    // Consume data
+    for await (const _ of stream.readable) {
+      // Do nothing, only consume
+    }
+  })();
+
   // Running benchmark
   const summary = await b.suite(
     summaryName(__filename),
     b.add('send 1KiB of data over stream', async () => {
-      const stream = await client.connection.streamNew();
-      await Promise.all([
-        (async () => {
-          // Consume data
-          for await (const _ of stream.readable) {
-            // Do nothing, only consume
-          }
-        })(),
-        (async () => {
-          // Write data
-          const writer = stream.writable.getWriter();
-          await writer.write(data1KiB);
-          await writer.close();
-        })(),
-      ]);
+      await writer.write(data1KiB);
     }),
     ...suiteCommon,
   );
   await wsServer.stop({ force: true });
   await client.destroy({ force: true });
+  await readProm;
   return summary;
 }
 
