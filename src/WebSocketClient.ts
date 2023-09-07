@@ -163,6 +163,9 @@ class WebSocketClient extends EventTarget {
       socket: webSocket,
       verifyCallback,
       client: client,
+      logger: logger.getChild(
+        `${WebSocketConnection.name} ${connectionId}`,
+      ),
     });
     await connection.start({
       timer: wsConfig.connectTimeoutTime,
