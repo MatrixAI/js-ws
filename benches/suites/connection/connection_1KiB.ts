@@ -33,7 +33,6 @@ async function main() {
       (conn as any).messageHandler = async () => {
         //Do nothing
       };
-      console.log((conn as any).messageHandler.toString());
     },
   );
   await wsServer.start({
@@ -50,7 +49,7 @@ async function main() {
   const summary = await b.suite(
     summaryName(__filename),
     b.add('send 1KiB of data over connection', async () => {
-      await client.connection.streamSend(0n as any, data1KiB);
+      await client.connection.send(data1KiB);
     }),
     ...suiteCommon,
   );
