@@ -40,7 +40,7 @@ async function main() {
   // Running benchmark
   const summary = await b.suite(
     summaryName(__filename),
-    b.add('send 1Kib of data over ws', async () => {
+    b.add('send 1KiB of data over ws', async () => {
       const sendProm = promise();
       client.send(data1KiB, () => {
         sendProm.resolveP();

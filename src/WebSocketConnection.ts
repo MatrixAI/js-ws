@@ -457,7 +457,7 @@ class WebSocketConnection {
 
     try {
       const sendProm = promise<void>();
-      this.socket.send(array, (err) => {
+      this.socket.send(array, { binary: true }, (err) => {
         if (err == null) sendProm.resolveP();
         else sendProm.rejectP(err);
       });

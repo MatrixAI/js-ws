@@ -63,7 +63,7 @@ async function main() {
   // Running benchmark
   const summary = await b.suite(
     summaryName(__filename),
-    b.add('send 1Kib of data over stream', async () => {
+    b.add('send 1KiB of data over stream', async () => {
       const stream = await client.connection.streamNew();
       await Promise.all([
         (async () => {

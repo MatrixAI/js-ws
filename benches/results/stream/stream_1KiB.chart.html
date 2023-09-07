@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="X-UA-Compatible" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.5.1/dist/chart.min.js"></script>
-    <title>baseline.baseline_1KB</title>
+    <title>stream.stream_1KiB</title>
     <style>
       body {
         margin: 0;
@@ -28,7 +28,7 @@
   </head>
   <body>
     <div class="container">
-      <canvas id="chart1694071165478" width="16" height="9"></canvas>
+      <canvas id="chart1694072107897" width="16" height="9"></canvas>
     </div>
     <script>
       const format = (num) => {
@@ -51,16 +51,16 @@
           chunked.map((chunk) => chunk.join('')).join(' ') + fractionStr
         )
       }
-      const ctx1694071165478 = document
-        .getElementById('chart1694071165478')
+      const ctx1694072107897 = document
+        .getElementById('chart1694072107897')
         .getContext('2d')
-      const chart1694071165478 = new Chart(ctx1694071165478, {
+      const chart1694072107897 = new Chart(ctx1694072107897, {
         type: 'bar',
         data: {
-          labels: ["send 1Kib of data over ws"],
+          labels: ["send 1KiB of data over stream"],
           datasets: [
             {
-              data: [30108],
+              data: [438],
               backgroundColor: ["hsl(120, 85%, 55%)"],
               borderColor: ["hsl(120, 85%, 55%)"],
               borderWidth: 2,
@@ -72,7 +72,7 @@
           plugins: {
             title: {
               display: true,
-              text: 'baseline.baseline_1KB',
+              text: 'stream.stream_1KiB',
               font: { size: 20 },
               padding: 20,
             },
