@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="X-UA-Compatible" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.5.1/dist/chart.min.js"></script>
-    <title>baseline_tcp.baseline_tcp_1KiB</title>
+    <title>connection.connection_1KiB</title>
     <style>
       body {
         margin: 0;
@@ -28,7 +28,7 @@
   </head>
   <body>
     <div class="container">
-      <canvas id="chart1694077225441" width="16" height="9"></canvas>
+      <canvas id="chart1694077238808" width="16" height="9"></canvas>
     </div>
     <script>
       const format = (num) => {
@@ -51,16 +51,16 @@
           chunked.map((chunk) => chunk.join('')).join(' ') + fractionStr
         )
       }
-      const ctx1694077225441 = document
-        .getElementById('chart1694077225441')
+      const ctx1694077238808 = document
+        .getElementById('chart1694077238808')
         .getContext('2d')
-      const chart1694077225441 = new Chart(ctx1694077225441, {
+      const chart1694077238808 = new Chart(ctx1694077238808, {
         type: 'bar',
         data: {
-          labels: ["send 1KiB of data over ws"],
+          labels: ["send 1KiB of data over connection"],
           datasets: [
             {
-              data: [377058],
+              data: [5450],
               backgroundColor: ["hsl(120, 85%, 55%)"],
               borderColor: ["hsl(120, 85%, 55%)"],
               borderWidth: 2,
@@ -72,7 +72,7 @@
           plugins: {
             title: {
               display: true,
-              text: 'baseline_tcp.baseline_tcp_1KiB',
+              text: 'connection.connection_1KiB',
               font: { size: 20 },
               padding: 20,
             },
