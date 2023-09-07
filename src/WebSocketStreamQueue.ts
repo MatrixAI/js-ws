@@ -19,7 +19,7 @@ class WebSocketStreamQueue {
    * The combined length of the queued `Uint8Array`s.
    */
   public get length(): Readonly<number> {
-    return this._length
+    return this._length;
   }
   /**
    * The number of queued `Uint8Array`.
@@ -35,19 +35,19 @@ class WebSocketStreamQueue {
   }
   public queue(data: Uint8Array): void {
     const item = {
-      data
+      data,
     };
-    // if there is no head, then this is the first item in the queue
+    // If there is no head, then this is the first item in the queue
     if (this.head == null) {
       this.head = item;
     }
-    // if the tail exists, then set the next item on the tail to the new item
+    // If the tail exists, then set the next item on the tail to the new item
     if (this.tail != null) {
       this.tail.next = item;
     }
-    // set the tail to the new item
+    // Set the tail to the new item
     this.tail = item;
-    // update the byteLength, length, and count
+    // Update the byteLength, length, and count
     this._byteLength += data.byteLength;
     this._length += data.length;
     this._count++;
@@ -57,15 +57,15 @@ class WebSocketStreamQueue {
    * If the queue is empty, then undefined is returned.
    */
   public dequeue(): Uint8Array | undefined {
-    // get the data of the head
+    // Get the data of the head
     const oldData = this.head?.data;
     const newHead = this.head?.next;
-    // if the head and the tail are the same, then the queue is either empty or only have one item
+    // If the head and the tail are the same, then the queue is either empty or only have one item
     if (this.head === this.tail) {
       this.tail = undefined;
     }
     this.head = newHead;
-    // decrement the count, but don't let it go below 0 in case the queue is empty
+    // Decrement the count, but don't let it go below 0 in case the queue is empty
     this._count = this._count === 0 ? 0 : this._count - 1;
     this._byteLength -= oldData?.byteLength ?? 0;
     this._length -= oldData?.length ?? 0;
@@ -75,7 +75,7 @@ class WebSocketStreamQueue {
     this._byteLength = 0;
     this._length = 0;
     this._count = 0;
-    // clearing head and tail should cause the garbage collector to clean up all the items in the queue
+    // Clearing head and tail should cause the garbage collector to clean up all the items in the queue
     this.head = undefined;
     this.tail = undefined;
   }
@@ -84,6 +84,6 @@ class WebSocketStreamQueue {
 type WebSocketStreamQueueItem = {
   data: Uint8Array;
   next?: WebSocketStreamQueueItem;
-}
+};
 
 export default WebSocketStreamQueue;

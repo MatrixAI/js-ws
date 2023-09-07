@@ -517,7 +517,7 @@ describe(WebSocketStream.name, () => {
 
     await Promise.all([writer.close(), stream1.writable.close()]);
   });
-  // test('stream can error when blocked on data', async () => {
+  // Test('stream can error when blocked on data', async () => {
   //   const [stream1, stream2] = await createStreamPair();
 
   //   const message = new Uint8Array(STREAM_BUFFER_SIZE * 2);
