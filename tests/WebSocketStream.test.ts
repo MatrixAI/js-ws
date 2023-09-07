@@ -9,7 +9,9 @@ import * as utils from '@/utils';
 import * as messageUtils from '@/message/utils';
 import { StreamMessageType } from '@/message';
 
-type StreamOptions = Partial<Parameters<typeof WebSocketStream.createWebSocketStream>[0]>;
+type StreamOptions = Partial<
+  Parameters<typeof WebSocketStream.createWebSocketStream>[0]
+>;
 
 // Smaller buffer size for the sake of testing
 const STREAM_BUFFER_SIZE = 64;
@@ -54,7 +56,7 @@ jest.mock('@/WebSocketConnection', () => {
           bufferSize: STREAM_BUFFER_SIZE,
           connection: instance.connectedConnection!,
           logger: logger2,
-          ...streamOptions
+          ...streamOptions,
         });
         instance.connectedConnection!.dispatchEvent(
           new events.EventWebSocketConnectionStream({
@@ -78,7 +80,9 @@ describe(WebSocketStream.name, () => {
     streamIdCounter = 0n;
   });
 
-  async function createConnectionPair(streamOptions: StreamOptions = {}): Promise<[WebSocketConnection, WebSocketConnection]> {
+  async function createConnectionPair(
+    streamOptions: StreamOptions = {},
+  ): Promise<[WebSocketConnection, WebSocketConnection]> {
     const connection1 = new (WebSocketConnection as any)(streamOptions);
     const connection2 = new (WebSocketConnection as any)(streamOptions);
     (connection1 as any).connectTo(connection2);
@@ -95,7 +99,7 @@ describe(WebSocketStream.name, () => {
       bufferSize: STREAM_BUFFER_SIZE,
       connection: connection1,
       logger: logger1,
-      ...streamOptions
+      ...streamOptions,
     });
     const createStream2Prom = promise<WebSocketStream>();
     connection2.addEventListener(
@@ -111,7 +115,9 @@ describe(WebSocketStream.name, () => {
   }
 
   async function createStreamPair(streamOptions: StreamOptions = {}) {
-    const [connection1, connection2] = await createConnectionPair(streamOptions);
+    const [connection1, connection2] = await createConnectionPair(
+      streamOptions,
+    );
     return createStreamPairFrom(connection1, connection2, streamOptions);
   }
 
@@ -168,30 +174,31 @@ describe(WebSocketStream.name, () => {
       await stream.destroy();
     }
   });
-  test(
-    'should propagate errors over stream for writable',
-    async () => {
-      const testReason = Symbol('TestReason');
-      const codeToReason = (type, code: bigint) => {
-        switch (code) {
-          case 4002n:
-            return testReason;
-          default:
-            return new Error(`${type.toString()} ${code.toString()}`);
-        }
-      };
-      const reasonToCode = (type, reason) => {
-        if (reason === testReason) return 4002n;
-        return 0n;
-      };
-      const [stream1, stream2] = await createStreamPair({ codeToReason, reasonToCode });
+  test('should propagate errors over stream for writable', async () => {
+    const testReason = Symbol('TestReason');
+    const codeToReason = (type, code: bigint) => {
+      switch (code) {
+        case 4002n:
+          return testReason;
+        default:
+          return new Error(`${type.toString()} ${code.toString()}`);
+      }
+    };
+    const reasonToCode = (type, reason) => {
+      if (reason === testReason) return 4002n;
+      return 0n;
+    };
+    const [stream1, stream2] = await createStreamPair({
+      codeToReason,
+      reasonToCode,
+    });
 
-      const stream1Readable = stream1.readable;
-      const stream2Writable = stream2.writable;
-      await stream2Writable.abort(testReason);
-      await expect(stream1Readable.getReader().read()).rejects.toBe(testReason);
-    }
-  );
+    const stream1Readable = stream1.readable;
+    const stream2Writable = stream2.writable;
+    await stream2Writable.abort(testReason);
+    await expect(stream1Readable.getReader().read()).rejects.toBe(testReason);
+    await expect(stream2Writable.getWriter().write()).rejects.toBe(testReason);
+  });
   testProp(
     'should send data over stream - single write within buffer size',
     [fc.uint8Array({ maxLength: STREAM_BUFFER_SIZE })],
@@ -440,4 +447,92 @@ describe(WebSocketStream.name, () => {
       }
     },
   );
+  test('streams can be cancelled after data sent', async () => {
+    const cancelReason = Symbol('CancelReason');
+    const codeToReason = (type, code: bigint) => {
+      switch (code) {
+        case 4001n:
+          return cancelReason;
+        default:
+          return new Error(`${type.toString()} ${code.toString()}`);
+      }
+    };
+    const reasonToCode = (_type, reason) => {
+      if (reason === cancelReason) return 4001n;
+      return 0n;
+    };
+    const [_stream1, stream2] = await createStreamPair({
+      codeToReason,
+      reasonToCode,
+    });
+
+    const writer = stream2.writable.getWriter();
+    await writer.write(new Uint8Array(2));
+    writer.releaseLock();
+    await stream2.cancel(cancelReason);
+
+    await expect(stream2.readable.getReader().read()).rejects.toBe(
+      cancelReason,
+    );
+    await expect(stream2.writable.getWriter().write()).rejects.toBe(
+      cancelReason,
+    );
+  });
+  test('streams can be cancelled with no data sent', async () => {
+    const cancelReason = Symbol('CancelReason');
+    const codeToReason = (type, code: bigint) => {
+      switch (code) {
+        case 4001n:
+          return cancelReason;
+        default:
+          return new Error(`${type.toString()} ${code.toString()}`);
+      }
+    };
+    const reasonToCode = (_type, reason) => {
+      if (reason === cancelReason) return 4001n;
+      return 0n;
+    };
+    const [_stream1, stream2] = await createStreamPair({
+      codeToReason,
+      reasonToCode,
+    });
+
+    await stream2.cancel(cancelReason);
+
+    await expect(stream2.readable.getReader().read()).rejects.toBe(
+      cancelReason,
+    );
+    await expect(stream2.writable.getWriter().write()).rejects.toBe(
+      cancelReason,
+    );
+  });
+  test('streams can be cancelled concurrently after data sent', async () => {
+    const [stream1, stream2] = await createStreamPair();
+
+    const writer = stream2.writable.getWriter();
+    await writer.write(new Uint8Array(2));
+
+    const reader = stream1.readable.getReader();
+    reader.releaseLock();
+
+    await Promise.all([writer.close(), stream1.writable.close()]);
+  });
+  // test('stream can error when blocked on data', async () => {
+  //   const [stream1, stream2] = await createStreamPair();
+
+  //   const message = new Uint8Array(STREAM_BUFFER_SIZE * 2);
+
+  //   const stream1Writer = stream1.writable.getWriter();
+  //   void stream1Writer.write(message);
+  //   stream1Writer.releaseLock();
+
+  //   const stream2Writer = stream2.writable.getWriter();
+  //   void stream2Writer.write(message);
+  //   stream2Writer.releaseLock();
+
+  //   await Promise.all([
+  //     stream1Writer.abort(Error('some error')),
+  //     stream1Writer.abort(Error('some error')),
+  //   ]);
+  // });
 });
