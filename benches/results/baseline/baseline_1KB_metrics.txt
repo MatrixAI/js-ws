@@ -1,0 +1,8 @@
+# TYPE baseline.baseline_1KB_ops gauge
+baseline.baseline_1KB_ops{name="send 1Kib of data over ws"} 30108
+
+# TYPE baseline.baseline_1KB_margin gauge
+baseline.baseline_1KB_margin{name="send 1Kib of data over ws"} 2.73
+
+# TYPE baseline.baseline_1KB_samples counter
+baseline.baseline_1KB_samples{name="send 1Kib of data over ws"} 75

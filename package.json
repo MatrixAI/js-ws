@@ -23,10 +23,11 @@
     "build": "shx rm -rf ./dist && tsc -p ./tsconfig.build.json",
     "ts-node": "ts-node",
     "test": "jest",
-    "lint": "eslint '{src,tests,scripts}/**/*.{js,ts}'",
-    "lintfix": "eslint '{src,tests,scripts}/**/*.{js,ts}' --fix",
+    "lint": "eslint '{src,tests,scripts,benches}/**/*.{js,ts}'",
+    "lintfix": "eslint '{src,tests,scripts,benches}/**/*.{js,ts}' --fix",
     "lint-shell": "find ./src ./tests ./scripts -type f -regextype posix-extended -regex '.*\\.(sh)' -exec shellcheck {} +",
-    "docs": "shx rm -rf ./docs && typedoc --gitRevision master --tsconfig ./tsconfig.build.json --out ./docs src"
+    "docs": "shx rm -rf ./docs && typedoc --gitRevision master --tsconfig ./tsconfig.build.json --out ./docs src",
+    "bench": "rimraf ./benches/results && ts-node ./benches"
   },
   "dependencies": {
     "@matrixai/async-cancellable": "^1.1.1",
@@ -56,6 +57,7 @@
     "@types/ws": "^8.5.5",
     "@typescript-eslint/eslint-plugin": "^5.45.1",
     "@typescript-eslint/parser": "^5.45.1",
+    "benny": "^3.7.1",
     "eslint": "^8.15.0",
     "eslint-config-prettier": "^8.5.0",
     "eslint-plugin-import": "^2.26.0",
@@ -66,6 +68,7 @@
     "prettier": "^2.6.2",
     "semver": "^7.3.7",
     "shx": "^0.3.4",
+    "systeminformation": "^5.21.4",
     "ts-jest": "^28.0.5",
     "ts-node": "^10.9.1",
     "tsconfig-paths": "^3.9.0",
