@@ -1,26 +1,26 @@
 # TYPE baseline_tcp.baseline_tcp_1KiB_ops gauge
-baseline_tcp.baseline_tcp_1KiB_ops{name="send 1KiB of data over ws"} 29374
+baseline_tcp.baseline_tcp_1KiB_ops{name="send 1KiB of data over ws"} 408160
 
 # TYPE baseline_tcp.baseline_tcp_1KiB_margin gauge
-baseline_tcp.baseline_tcp_1KiB_margin{name="send 1KiB of data over ws"} 1.9
+baseline_tcp.baseline_tcp_1KiB_margin{name="send 1KiB of data over ws"} 2.84
 
 # TYPE baseline_tcp.baseline_tcp_1KiB_samples counter
-baseline_tcp.baseline_tcp_1KiB_samples{name="send 1KiB of data over ws"} 80
+baseline_tcp.baseline_tcp_1KiB_samples{name="send 1KiB of data over ws"} 77
 
 # TYPE baseline_websocket.baseline_websocket_1KiB_ops gauge
-baseline_websocket.baseline_websocket_1KiB_ops{name="send 1KiB of data over ws"} 29078
+baseline_websocket.baseline_websocket_1KiB_ops{name="send 1KiB of data over ws"} 28526
 
 # TYPE baseline_websocket.baseline_websocket_1KiB_margin gauge
-baseline_websocket.baseline_websocket_1KiB_margin{name="send 1KiB of data over ws"} 2.97
+baseline_websocket.baseline_websocket_1KiB_margin{name="send 1KiB of data over ws"} 2.29
 
 # TYPE baseline_websocket.baseline_websocket_1KiB_samples counter
-baseline_websocket.baseline_websocket_1KiB_samples{name="send 1KiB of data over ws"} 75
+baseline_websocket.baseline_websocket_1KiB_samples{name="send 1KiB of data over ws"} 78
 
 # TYPE stream.stream_1KiB_ops gauge
-stream.stream_1KiB_ops{name="send 1KiB of data over stream"} 438
+stream.stream_1KiB_ops{name="send 1KiB of data over stream"} 432
 
 # TYPE stream.stream_1KiB_margin gauge
-stream.stream_1KiB_margin{name="send 1KiB of data over stream"} 4.99
+stream.stream_1KiB_margin{name="send 1KiB of data over stream"} 4.26
 
 # TYPE stream.stream_1KiB_samples counter
-stream.stream_1KiB_samples{name="send 1KiB of data over stream"} 78
+stream.stream_1KiB_samples{name="send 1KiB of data over stream"} 72

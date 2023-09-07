@@ -1,8 +1,8 @@
 # TYPE baseline_websocket.baseline_websocket_1KiB_ops gauge
-baseline_websocket.baseline_websocket_1KiB_ops{name="send 1KiB of data over ws"} 29078
+baseline_websocket.baseline_websocket_1KiB_ops{name="send 1KiB of data over ws"} 28526
 
 # TYPE baseline_websocket.baseline_websocket_1KiB_margin gauge
-baseline_websocket.baseline_websocket_1KiB_margin{name="send 1KiB of data over ws"} 2.97
+baseline_websocket.baseline_websocket_1KiB_margin{name="send 1KiB of data over ws"} 2.29
 
 # TYPE baseline_websocket.baseline_websocket_1KiB_samples counter
-baseline_websocket.baseline_websocket_1KiB_samples{name="send 1KiB of data over ws"} 75
+baseline_websocket.baseline_websocket_1KiB_samples{name="send 1KiB of data over ws"} 78
