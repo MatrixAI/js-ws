@@ -12,7 +12,7 @@ import type WebSocketClient from './WebSocketClient';
 import type WebSocketServer from './WebSocketServer';
 import type { DetailedPeerCertificate, TLSSocket } from 'tls';
 import type WebSocketConnectionMap from './WebSocketConnectionMap';
-import type { StreamId } from './message';
+import { concatUInt8Array, StreamId } from './message';
 import { startStop } from '@matrixai/async-init';
 import { Lock } from '@matrixai/async-locks';
 import { context, timedCancellable } from '@matrixai/contexts/dist/decorators';
@@ -446,7 +446,14 @@ class WebSocketConnection {
    * Send data on the WebSocket
    * @internal
    */
-  public async send(array: Uint8Array) {
+  public async send(data: Uint8Array | Array<Uint8Array>) {
+    let array: Uint8Array;
+    if (ArrayBuffer.isView(data)) {
+      array = data;
+    }
+    else {
+      array = concatUInt8Array(...data);
+    }
     try {
       const sendProm = promise<void>();
       this.socket.send(array, { binary: true }, (err) => {

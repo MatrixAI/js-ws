@@ -283,7 +283,9 @@ function generateStreamMessageErrorPayload(errorPayload: {
   return array;
 }
 
-function generateStreamMessage(input: StreamMessage) {
+function generateStreamMessage(input: StreamMessage, concat?: true): Uint8Array;
+function generateStreamMessage(input: StreamMessage, concat: false): Array<Uint8Array>;
+function generateStreamMessage(input: StreamMessage, concat = true) {
   const generatedType = generateStreamMessageType(input.type);
   let generatedPayload: Uint8Array;
   if (input.type === StreamMessageType.Ack) {
@@ -296,6 +298,9 @@ function generateStreamMessage(input: StreamMessage) {
     generatedPayload = generateStreamMessageErrorPayload(input.payload);
   } else {
     never();
+  }
+  if (!concat) {
+    return [generatedType, generatedPayload];
   }
   return concatUInt8Array(generatedType, generatedPayload);
 }

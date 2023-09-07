@@ -42,7 +42,14 @@ jest.mock('@/WebSocketConnection', () => {
       connectedConnection.connectedConnection = instance;
     };
     instance.streamMap = new Map<StreamId, WebSocketStream>();
-    instance.send = async (data: Uint8Array) => {
+    instance.send = async (array: Uint8Array | Array<Uint8Array>) => {
+      let data: Uint8Array;
+      if (ArrayBuffer.isView(array)) {
+        data = array;
+      }
+      else {
+        data = messageUtils.concatUInt8Array(...array);
+      }
       const { data: streamId, remainder } = messageUtils.parseStreamId(data);
       let stream = instance.connectedConnection!.streamMap.get(streamId);
       if (stream == null) {

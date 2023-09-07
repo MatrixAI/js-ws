@@ -252,10 +252,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   }
 
   protected async streamSend(message: StreamMessage): Promise<void> {
-    const encodedMessage = generateStreamMessage(message);
-    const array = new Uint8Array(this.encodedStreamId.length + encodedMessage.length);
-    array.set(this.encodedStreamId, 0);
-    array.set(encodedMessage, this.encodedStreamId.length);
+    const array: Array<Uint8Array> = [this.encodedStreamId, ...generateStreamMessage(message, false)];
     await this.connection.send(array);
   }
 
