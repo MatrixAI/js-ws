@@ -391,7 +391,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       await this.streamSend({
         type: StreamMessageType.Error,
         payload: {
-          shutdown: StreamShutdown.Read,
+          shutdown: StreamShutdown.Write,
           code,
         },
       });
