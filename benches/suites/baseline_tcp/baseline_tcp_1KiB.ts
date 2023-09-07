@@ -1,10 +1,8 @@
 import type { Host } from '../../../src/types';
-import * as https from 'https';
+import * as net from 'net';
 import b from 'benny';
 import { promise } from '@/utils';
 import { suiteCommon, summaryName } from '../../utils';
-import * as testsUtils from '../../../tests/utils';
-import * as net from 'net';
 
 async function main() {
   // Setting up initial state
@@ -14,7 +12,7 @@ async function main() {
   const listenProm = promise();
 
   const server = net.createServer((socket) => {
-    // noop to drop the data
+    // Noop to drop the data
     socket.on('data', () => {});
   });
   server.listen(0, host, listenProm.resolveP);
@@ -25,10 +23,13 @@ async function main() {
 
   const connectProm = promise();
 
-  const client = net.createConnection({
-    port: address.port,
-    host
-  }, connectProm.resolveP);
+  const client = net.createConnection(
+    {
+      port: address.port,
+      host,
+    },
+    connectProm.resolveP,
+  );
 
   await connectProm.p;
 
