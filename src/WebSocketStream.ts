@@ -1,6 +1,6 @@
 import type { StreamCodeToReason, StreamReasonToCode } from './types';
 import type WebSocketConnection from './WebSocketConnection';
-import type { StreamId, StreamMessage, VarInt } from './message';
+import { concatUInt8Array, generateStreamId, StreamId, StreamMessage, VarInt } from './message';
 import {
   ReadableStream,
   WritableStream,
@@ -32,6 +32,7 @@ interface WebSocketStream extends CreateDestroy {}
 })
 class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   public streamId: StreamId;
+  public encodedStreamId: Uint8Array;
   public readable: ReadableStream<Uint8Array>;
   public writable: WritableStream<Uint8Array>;
 
@@ -100,6 +101,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   }) {
     this.logger = logger;
     this.streamId = streamId;
+    this.encodedStreamId = generateStreamId(streamId);
     this.connection = connection;
     this.reasonToCode = reasonToCode;
     this.codeToReason = codeToReason;
@@ -250,8 +252,11 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   }
 
   protected async streamSend(message: StreamMessage): Promise<void> {
-    const array = generateStreamMessage(message);
-    await this.connection.streamSend(this.streamId, array);
+    const encodedMessage = generateStreamMessage(message);
+    const array = new Uint8Array(this.encodedStreamId.length + encodedMessage.length);
+    array.set(this.encodedStreamId, 0);
+    array.set(encodedMessage, this.encodedStreamId.length);
+    await this.connection.send(array);
   }
 
   /**

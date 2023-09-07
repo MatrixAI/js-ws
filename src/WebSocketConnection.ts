@@ -443,18 +443,10 @@ class WebSocketConnection {
   }
 
   /**
-   * Send data to the other side of the connection with a streamId.
-   * This will not will not error out, but will rather close the connection assuming any further communication is expected to fail.
-   * @param streamId - The stream id to send the data on
-   * @param data - The data to send, this will include the stream message type.
+   * Send data on the WebSocket
    * @internal
    */
-  public async streamSend(streamId: StreamId, data: Uint8Array) {
-    const encodedStreamId = generateStreamId(streamId);
-    const array = new Uint8Array(encodedStreamId.length + data.length);
-    array.set(encodedStreamId, 0);
-    array.set(data, encodedStreamId.length);
-
+  public async send(array: Uint8Array) {
     try {
       const sendProm = promise<void>();
       this.socket.send(array, { binary: true }, (err) => {

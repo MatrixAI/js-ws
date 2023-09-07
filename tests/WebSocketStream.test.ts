@@ -33,7 +33,7 @@ jest.mock('@/WebSocketConnection', () => {
     const instance = new EventTarget() as EventTarget & {
       connectedConnection: WebSocketConnection | undefined;
       connectTo: (connection: WebSocketConnection) => void;
-      streamSend: (streamId: StreamId, data: Uint8Array) => Promise<void>;
+      send: (data: Uint8Array) => Promise<void>;
       streamMap: Map<StreamId, WebSocketStream>;
     };
     instance.connectedConnection = undefined;
@@ -42,12 +42,14 @@ jest.mock('@/WebSocketConnection', () => {
       connectedConnection.connectedConnection = instance;
     };
     instance.streamMap = new Map<StreamId, WebSocketStream>();
-    instance.streamSend = async (streamId: StreamId, data: Uint8Array) => {
+    instance.send = async (data: Uint8Array) => {
+      const { data: streamId, remainder } = messageUtils.parseStreamId(data);
       let stream = instance.connectedConnection!.streamMap.get(streamId);
       if (stream == null) {
+        const type = remainder.at(0);
         if (
-          data.at(0) === StreamMessageType.Close ||
-          data.at(0) === StreamMessageType.Error
+          type === StreamMessageType.Close ||
+          type === StreamMessageType.Error
         ) {
           return;
         }
@@ -64,7 +66,7 @@ jest.mock('@/WebSocketConnection', () => {
           }),
         );
       }
-      await stream.streamRecv(data);
+      await stream.streamRecv(remainder);
     };
     return instance;
   });
