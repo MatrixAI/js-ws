@@ -9,6 +9,8 @@ import * as utils from '@/utils';
 import * as messageUtils from '@/message/utils';
 import { StreamMessageType } from '@/message';
 
+type StreamOptions = Partial<Parameters<typeof WebSocketStream.createWebSocketStream>[0]>;
+
 // Smaller buffer size for the sake of testing
 const STREAM_BUFFER_SIZE = 64;
 
@@ -25,7 +27,7 @@ const logger2 = new Logger('stream 2', LogLevel.WARN, [
 ]);
 
 jest.mock('@/WebSocketConnection', () => {
-  return jest.fn().mockImplementation(() => {
+  return jest.fn().mockImplementation((streamOptions: StreamOptions = {}) => {
     const instance = new EventTarget() as EventTarget & {
       connectedConnection: WebSocketConnection | undefined;
       connectTo: (connection: WebSocketConnection) => void;
@@ -52,6 +54,7 @@ jest.mock('@/WebSocketConnection', () => {
           bufferSize: STREAM_BUFFER_SIZE,
           connection: instance.connectedConnection!,
           logger: logger2,
+          ...streamOptions
         });
         instance.connectedConnection!.dispatchEvent(
           new events.EventWebSocketConnectionStream({
@@ -68,27 +71,31 @@ jest.mock('@/WebSocketConnection', () => {
 const connectionMock = jest.mocked(WebSocketConnection, true);
 
 describe(WebSocketStream.name, () => {
-  let connection1: WebSocketConnection;
-  let connection2: WebSocketConnection;
   let streamIdCounter = 0n;
 
   beforeEach(async () => {
     connectionMock.mockClear();
     streamIdCounter = 0n;
-    connection1 = new (WebSocketConnection as any)();
-    connection2 = new (WebSocketConnection as any)();
-    (connection1 as any).connectTo(connection2);
   });
 
-  async function createStreamPair(
+  async function createConnectionPair(streamOptions: StreamOptions = {}): Promise<[WebSocketConnection, WebSocketConnection]> {
+    const connection1 = new (WebSocketConnection as any)(streamOptions);
+    const connection2 = new (WebSocketConnection as any)(streamOptions);
+    (connection1 as any).connectTo(connection2);
+    return [connection1, connection2];
+  }
+
+  async function createStreamPairFrom(
     connection1: WebSocketConnection,
     connection2: WebSocketConnection,
-  ) {
+    streamOptions: StreamOptions = {},
+  ): Promise<[WebSocketStream, WebSocketStream]> {
     const stream1 = await WebSocketStream.createWebSocketStream({
       streamId: streamIdCounter as StreamId,
       bufferSize: STREAM_BUFFER_SIZE,
       connection: connection1,
       logger: logger1,
+      ...streamOptions
     });
     const createStream2Prom = promise<WebSocketStream>();
     connection2.addEventListener(
@@ -102,14 +109,21 @@ describe(WebSocketStream.name, () => {
     streamIdCounter++;
     return [stream1, stream2];
   }
+
+  async function createStreamPair(streamOptions: StreamOptions = {}) {
+    const [connection1, connection2] = await createConnectionPair(streamOptions);
+    return createStreamPairFrom(connection1, connection2, streamOptions);
+  }
+
   test('should create stream', async () => {
-    const streams = await createStreamPair(connection1, connection2);
+    const streams = await createStreamPair();
     expect(streams.length).toEqual(2);
     for (const stream of streams) {
       await stream.destroy();
     }
   });
   test('destroying stream should clean up on both ends while streams are used', async () => {
+    const [connection1, connection2] = await createConnectionPair();
     const streamsNum = 10;
 
     let streamCreatedCount = 0;
@@ -154,14 +168,36 @@ describe(WebSocketStream.name, () => {
       await stream.destroy();
     }
   });
+  test(
+    'should propagate errors over stream for writable',
+    async () => {
+      const testReason = Symbol('TestReason');
+      const codeToReason = (type, code: bigint) => {
+        switch (code) {
+          case 4002n:
+            return testReason;
+          default:
+            return new Error(`${type.toString()} ${code.toString()}`);
+        }
+      };
+      const reasonToCode = (type, reason) => {
+        if (reason === testReason) return 4002n;
+        return 0n;
+      };
+      const [stream1, stream2] = await createStreamPair({ codeToReason, reasonToCode });
+
+      const stream1Readable = stream1.readable;
+      const stream2Writable = stream2.writable;
+      await stream2Writable.abort(testReason);
+      await expect(stream1Readable.getReader().read()).rejects.toBe(testReason);
+    }
+  );
   testProp(
     'should send data over stream - single write within buffer size',
     [fc.uint8Array({ maxLength: STREAM_BUFFER_SIZE })],
     async (data) => {
-      const [stream1, stream2] = await createStreamPair(
-        connection1,
-        connection2,
-      );
+      data = new Uint8Array(0);
+      const [stream1, stream2] = await createStreamPair();
 
       const stream1Readable = stream1.readable;
       const stream2Writable = stream2.writable;
@@ -195,10 +231,7 @@ describe(WebSocketStream.name, () => {
     'should send data over stream - single write outside buffer size',
     [fc.uint8Array({ minLength: STREAM_BUFFER_SIZE + 1 })],
     async (data) => {
-      const [stream1, stream2] = await createStreamPair(
-        connection1,
-        connection2,
-      );
+      const [stream1, stream2] = await createStreamPair();
 
       const stream1Readable = stream1.readable;
       const stream2Writable = stream2.writable;
@@ -232,10 +265,7 @@ describe(WebSocketStream.name, () => {
     'should send data over stream - multiple writes within buffer size',
     [fc.array(fc.uint8Array({ maxLength: STREAM_BUFFER_SIZE }))],
     async (data) => {
-      const [stream1, stream2] = await createStreamPair(
-        connection1,
-        connection2,
-      );
+      const [stream1, stream2] = await createStreamPair();
 
       const stream1Readable = stream1.readable;
       const stream2Writable = stream2.writable;
@@ -273,10 +303,7 @@ describe(WebSocketStream.name, () => {
     'should send data over stream - multiple writes outside buffer size',
     [fc.array(fc.uint8Array({ minLength: STREAM_BUFFER_SIZE + 1 }))],
     async (data) => {
-      const [stream1, stream2] = await createStreamPair(
-        connection1,
-        connection2,
-      );
+      const [stream1, stream2] = await createStreamPair();
 
       const stream1Readable = stream1.readable;
       const stream2Writable = stream2.writable;
@@ -321,10 +348,7 @@ describe(WebSocketStream.name, () => {
       ),
     ],
     async (data) => {
-      const [stream1, stream2] = await createStreamPair(
-        connection1,
-        connection2,
-      );
+      const [stream1, stream2] = await createStreamPair();
 
       const stream1Readable = stream1.readable;
       const stream2Writable = stream2.writable;
@@ -375,7 +399,7 @@ describe(WebSocketStream.name, () => {
       ),
     ],
     async (...data) => {
-      const streams = await createStreamPair(connection1, connection2);
+      const streams = await createStreamPair();
 
       const readProms: Array<Promise<Array<Uint8Array>>> = [];
       const writeProms: Array<Promise<void>> = [];
