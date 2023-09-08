@@ -138,7 +138,9 @@ class WebSocketServer extends EventTarget {
     this.logger.info(`Started ${this.constructor.name}`);
   }
 
-  public async stop({ force = false }: { force?: boolean }): Promise<void> {
+  public async stop({
+    force = false,
+  }: { force?: boolean } = {}): Promise<void> {
     this.logger.info(`Stopping ${this.constructor.name}`);
     const destroyProms: Array<Promise<void>> = [];
     for (const webSocketConnection of this.connectionMap.values()) {
@@ -200,15 +202,11 @@ class WebSocketServer extends EventTarget {
     },
   ): void {
     const tlsServer = this.server as tls.Server;
-    tlsServer.setSecureContext({
-      key: config.key,
-      cert: config.cert,
-      ca: config.ca,
-    });
     const wsConfig = {
       ...this.config,
       ...config,
     };
+    tlsServer.setSecureContext(wsConfig);
     this.config = wsConfig;
   }
 

@@ -462,6 +462,13 @@ class WebSocketConnection {
       });
       await sendProm.p;
     } catch (err) {
+      if (
+        this[startStop.status] == null ||
+        this[startStop.status] === 'stopping'
+      ) {
+        this.logger.debug('send error but already stopping');
+        return;
+      }
       await this.stop({
         force: true,
         errorCode: 1006,

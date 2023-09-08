@@ -241,7 +241,6 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   public async destroy() {
     this.logger.info(`Destroy ${this.constructor.name}`);
     // Force close any open streams
-    this.writableDesiredSizeProm.resolveP();
     await this.cancel(new errors.ErrorWebSocketStreamClose());
     // Removing stream from the connection's stream map
     // TODO: the other side currently will send back an ERROR/CLOSE frame from us sending an ERROR/CLOSE frame from this.close().
