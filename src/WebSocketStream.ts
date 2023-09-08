@@ -1,4 +1,8 @@
-import type { ConnectionMetadata, StreamCodeToReason, StreamReasonToCode } from './types';
+import type {
+  ConnectionMetadata,
+  StreamCodeToReason,
+  StreamReasonToCode,
+} from './types';
 import type WebSocketConnection from './WebSocketConnection';
 import type { StreamId, StreamMessage, VarInt } from './message';
 import {
@@ -6,7 +10,11 @@ import {
   WritableStream,
   CountQueuingStrategy,
 } from 'stream/web';
-import { CreateDestroy, status, ready } from '@matrixai/async-init/dist/CreateDestroy';
+import {
+  CreateDestroy,
+  status,
+  ready,
+} from '@matrixai/async-init/dist/CreateDestroy';
 import Logger from '@matrixai/logger';
 import { generateStreamId } from './message';
 import { promise } from './utils';
