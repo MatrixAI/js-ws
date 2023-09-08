@@ -12,7 +12,7 @@ import type WebSocketClient from './WebSocketClient';
 import type WebSocketServer from './WebSocketServer';
 import type { DetailedPeerCertificate, TLSSocket } from 'tls';
 import type WebSocketConnectionMap from './WebSocketConnectionMap';
-import { concatUInt8Array, StreamId } from './message';
+import type { StreamId } from './message';
 import { startStop } from '@matrixai/async-init';
 import { Lock } from '@matrixai/async-locks';
 import { context, timedCancellable } from '@matrixai/contexts/dist/decorators';
@@ -21,10 +21,11 @@ import * as ws from 'ws';
 import { Timer } from '@matrixai/timer';
 import { ready } from '@matrixai/async-init/dist/CreateDestroyStartStop';
 import { EventAll, EventDefault } from '@matrixai/events';
+import { concatUInt8Array } from './message';
 import WebSocketStream from './WebSocketStream';
 import * as errors from './errors';
 import * as events from './events';
-import { generateStreamId, parseStreamId, StreamMessageType } from './message';
+import { parseStreamId, StreamMessageType } from './message';
 import { promise } from './utils';
 
 const timerCleanupReasonSymbol = Symbol('timerCleanupReasonSymbol');
@@ -450,8 +451,7 @@ class WebSocketConnection {
     let array: Uint8Array;
     if (ArrayBuffer.isView(data)) {
       array = data;
-    }
-    else {
+    } else {
       array = concatUInt8Array(...data);
     }
     try {

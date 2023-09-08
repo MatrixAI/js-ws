@@ -1,6 +1,6 @@
 import type { StreamCodeToReason, StreamReasonToCode } from './types';
 import type WebSocketConnection from './WebSocketConnection';
-import { concatUInt8Array, generateStreamId, StreamId, StreamMessage, VarInt } from './message';
+import type { StreamId, StreamMessage, VarInt } from './message';
 import {
   ReadableStream,
   WritableStream,
@@ -8,6 +8,7 @@ import {
 } from 'stream/web';
 import { CreateDestroy, status } from '@matrixai/async-init/dist/CreateDestroy';
 import Logger from '@matrixai/logger';
+import { generateStreamId } from './message';
 import { promise } from './utils';
 import * as errors from './errors';
 import * as events from './events';
@@ -252,7 +253,10 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   }
 
   protected async streamSend(message: StreamMessage): Promise<void> {
-    const array: Array<Uint8Array> = [this.encodedStreamId, ...generateStreamMessage(message, false)];
+    const array: Array<Uint8Array> = [
+      this.encodedStreamId,
+      ...generateStreamMessage(message, false),
+    ];
     await this.connection.send(array);
   }
 

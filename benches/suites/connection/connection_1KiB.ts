@@ -31,7 +31,7 @@ async function main() {
     async (e: events.EventWebSocketServerConnection) => {
       const conn = e.detail;
       (conn as any).messageHandler = async () => {
-        //Do nothing
+        // Do nothing
       };
     },
   );

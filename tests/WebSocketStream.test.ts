@@ -46,8 +46,7 @@ jest.mock('@/WebSocketConnection', () => {
       let data: Uint8Array;
       if (ArrayBuffer.isView(array)) {
         data = array;
-      }
-      else {
+      } else {
         data = messageUtils.concatUInt8Array(...array);
       }
       const { data: streamId, remainder } = messageUtils.parseStreamId(data);

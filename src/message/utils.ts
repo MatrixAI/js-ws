@@ -284,7 +284,10 @@ function generateStreamMessageErrorPayload(errorPayload: {
 }
 
 function generateStreamMessage(input: StreamMessage, concat?: true): Uint8Array;
-function generateStreamMessage(input: StreamMessage, concat: false): Array<Uint8Array>;
+function generateStreamMessage(
+  input: StreamMessage,
+  concat: false,
+): Array<Uint8Array>;
 function generateStreamMessage(input: StreamMessage, concat = true) {
   const generatedType = generateStreamMessageType(input.type);
   let generatedPayload: Uint8Array;
