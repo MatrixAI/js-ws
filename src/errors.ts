@@ -67,17 +67,17 @@ class ErrorWebSocketStream<T> extends ErrorWebSocket<T> {
   static description = 'WebSocket Stream error';
 }
 
-class ErrorWebSocketStreamReader<T> extends ErrorWebSocketStream<T> {
-  static description = 'WebSocket Stream readable error';
+class ErrorWebSocketStreamUnknown<T> extends ErrorWebSocketStream<T> {
+  static description = 'WebSocket Stream unknown error';
 }
 
-class ErrorWebSocketStreamReadableParse<
-  T,
-> extends ErrorWebSocketStreamReader<T> {
+class ErrorWebSocketStreamReadableParse<T> extends ErrorWebSocketStream<T> {
   static description = 'WebSocket Stream readable message parse failed';
 }
 
-class ErrorWebSocketStreamReadableBufferOverload<T> extends ErrorWebSocket<T> {
+class ErrorWebSocketStreamReadableBufferOverload<
+  T,
+> extends ErrorWebSocketStream<T> {
   static description = 'WebSocket Stream readable buffer has overloaded';
 }
 
@@ -114,7 +114,7 @@ export {
   ErrorWebSocketConnectionKeepAliveTimeOut,
   ErrorWebSocketConnectionSocket,
   ErrorWebSocketStream,
-  ErrorWebSocketStreamReader,
+  ErrorWebSocketStreamUnknown,
   ErrorWebSocketStreamReadableParse,
   ErrorWebSocketStreamReadableBufferOverload,
   ErrorWebSocketStreamDestroyed,

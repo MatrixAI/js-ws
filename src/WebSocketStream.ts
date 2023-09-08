@@ -317,6 +317,11 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       const { shutdown, code } = parsedMessage.payload;
       let reason: any;
       switch (code) {
+        case BigInt(StreamErrorCode.Unknown):
+          reason = new errors.ErrorWebSocketStreamUnknown(
+            'receiver encountered an unknown error',
+          );
+          break;
         case BigInt(StreamErrorCode.ErrorReadableStreamParse):
           reason = new errors.ErrorWebSocketStreamReadableParse(
             'receiver was unable to parse a sent message',
@@ -390,7 +395,9 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     // Shutdown the write side of the other stream
     if (isError) {
       let code: VarInt;
-      if (reason instanceof errors.ErrorWebSocketStreamReadableParse) {
+      if (reason instanceof errors.ErrorWebSocketStreamUnknown) {
+        code = BigInt(StreamErrorCode.Unknown) as VarInt;
+      } else if (reason instanceof errors.ErrorWebSocketStreamReadableParse) {
         code = BigInt(StreamErrorCode.ErrorReadableStreamParse) as VarInt;
       } else if (
         reason instanceof errors.ErrorWebSocketStreamReadableBufferOverload
