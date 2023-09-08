@@ -1,5 +1,4 @@
 import type { Host } from '../../../src/types';
-import type * as ws from 'ws';
 import b from 'benny';
 import Logger, { formatting, LogLevel, StreamHandler } from '@matrixai/logger';
 import { suiteCommon, summaryName } from '../../utils';
@@ -31,7 +30,8 @@ async function main() {
     events.EventWebSocketServerConnection.name,
     async (e: events.EventWebSocketServerConnection) => {
       const conn = e.detail;
-      ((conn as any).socket as ws.WebSocket).removeAllListeners('message');
+      // @ts-ignore: protected property
+      conn.socket.removeAllListeners('message');
     },
   );
   await wsServer.start({
