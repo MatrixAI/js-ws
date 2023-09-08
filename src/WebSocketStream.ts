@@ -34,7 +34,23 @@ interface WebSocketStream extends CreateDestroy {}
 class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   public streamId: StreamId;
   public encodedStreamId: Uint8Array;
+  /**
+   * Errors:
+   * - {@link errors.ErrorWebSocketStreamClose} - This will happen if the stream is closed with {@link WebSocketStream.destroy} or if the WebSocketConnection was closed.
+   * - {@link errors.ErrorWebSocketStreamCancel} - This will happen if the stream is closed with {@link WebSocketStream.cancel}
+   * - {@link errors.ErrorWebSocketStreamUnknown} - Unknown error
+   * - {@link errors.ErrorWebSocketStreamReadableBufferOverload} - This will happen when the readable buffer is overloaded
+   * - {@link errors.ErrorWebSocketStreamReadableParse} - This will happen when the ReadableStream cannot parse an incoming message
+   */
   public readable: ReadableStream<Uint8Array>;
+  /**
+   * Errors:
+   * - {@link errors.ErrorWebSocketStreamClose} - This will happen if the stream is closed with {@link WebSocketStream.destroy} or if the WebSocketConnection was closed.
+   * - {@link errors.ErrorWebSocketStreamCancel} - This will happen if the stream is closed with {@link WebSocketStream.cancel}
+   * - {@link errors.ErrorWebSocketStreamUnknown} - Unknown error
+   * - {@link errors.ErrorWebSocketStreamReadableBufferOverload} - This will happen when the receiving ReadableStream's buffer is overloaded
+   * - {@link errors.ErrorWebSocketStreamReadableParse} - This will happen when the receiving ReadableStream cannot parse a sent message
+   */
   public writable: WritableStream<Uint8Array>;
 
   protected _readableEnded = false;
