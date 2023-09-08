@@ -1,7 +1,9 @@
 import type { PromiseCancellable } from '@matrixai/async-cancellable';
 import type { ContextTimed, ContextTimedInput } from '@matrixai/contexts';
 import type {
+  ConnectionMetadata,
   Host,
+  Port,
   RemoteInfo,
   StreamCodeToReason,
   StreamReasonToCode,
@@ -129,7 +131,11 @@ class WebSocketConnection {
     connectionMap: WebSocketConnectionMap;
   };
   protected logger: Logger;
-  protected _remoteHost: Host;
+  protected remoteHost: Host;
+  protected remotePort: Port;
+  protected localHost?: Host;
+  protected localPort?: Port;
+  protected peerCert?: DetailedPeerCertificate;
 
   /**
    * Bubble up stream destroy event
@@ -244,6 +250,17 @@ class WebSocketConnection {
     );
   };
 
+  @startStop.ready(new errors.ErrorWebSocketConnectionNotRunning())
+  public meta(): ConnectionMetadata {
+    return {
+      localHost: this.localHost,
+      localPort: this.localPort,
+      remoteHost: this.remoteHost,
+      remotePort: this.remotePort,
+      peerCert: this.peerCert,
+    };
+  }
+
   public constructor({
     type,
     connectionId,
@@ -289,7 +306,8 @@ class WebSocketConnection {
     this.config = config;
     this.type = type;
     this.parentInstance = server ?? client!;
-    this._remoteHost = remoteInfo.host;
+    this.remoteHost = remoteInfo.host;
+    this.remotePort = remoteInfo.port;
     this.reasonToCode = reasonToCode;
     this.codeToReason = codeToReason;
     this.verifyCallback = verifyCallback;
@@ -337,13 +355,7 @@ class WebSocketConnection {
     promises.push(connectProm.p);
 
     if (this.type === 'client') {
-      const authenticateProm = promise<{
-        localHost: string;
-        localPort: number;
-        remoteHost: string;
-        remotePort: number;
-        peerCert: DetailedPeerCertificate;
-      }>();
+      const authenticateProm = promise<void>();
       this.socket.once('upgrade', async (request) => {
         const tlsSocket = request.socket as TLSSocket;
         const peerCert = tlsSocket.getPeerCertificate(true);
@@ -351,13 +363,12 @@ class WebSocketConnection {
           if (this.verifyCallback != null) {
             await this.verifyCallback(peerCert);
           }
-          authenticateProm.resolveP({
-            localHost: request.connection.localAddress ?? '',
-            localPort: request.connection.localPort ?? 0,
-            remoteHost: request.connection.remoteAddress ?? '',
-            remotePort: request.connection.remotePort ?? 0,
-            peerCert,
-          });
+          this.localHost = request.connection.localAddress as Host;
+          this.localPort = request.connection.localPort as Port;
+          this.remoteHost = request.connection.remoteAddress as Host;
+          this.remotePort = request.connection.remotePort as Port;
+          this.peerCert = peerCert;
+          authenticateProm.resolveP();
         } catch (e) {
           authenticateProm.rejectP(e);
         }

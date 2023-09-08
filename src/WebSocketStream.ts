@@ -1,4 +1,4 @@
-import type { StreamCodeToReason, StreamReasonToCode } from './types';
+import type { ConnectionMetadata, StreamCodeToReason, StreamReasonToCode } from './types';
 import type WebSocketConnection from './WebSocketConnection';
 import type { StreamId, StreamMessage, VarInt } from './message';
 import {
@@ -6,7 +6,7 @@ import {
   WritableStream,
   CountQueuingStrategy,
 } from 'stream/web';
-import { CreateDestroy, status } from '@matrixai/async-init/dist/CreateDestroy';
+import { CreateDestroy, status, ready } from '@matrixai/async-init/dist/CreateDestroy';
 import Logger from '@matrixai/logger';
 import { generateStreamId } from './message';
 import { promise } from './utils';
@@ -242,14 +242,31 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     );
   }
 
+  /**
+   * Returns connection data for the connection this stream is on.
+   */
+  @ready(new errors.ErrorWebSocketStreamDestroyed())
+  public get meta(): ConnectionMetadata {
+    return this.connection.meta();
+  }
+
+  /**
+   * Returns true if the readable has closed.
+   */
   public get readableEnded(): boolean {
     return this._readableEnded;
   }
 
+  /**
+   * Returns true if the writable has closed.
+   */
   public get writableEnded(): boolean {
     return this.writableEnded;
   }
 
+  /**
+   * A promise that resolves once this `WebSocketStream` has ended.
+   */
   public get destroyedP() {
     return this.destroyProm.p;
   }

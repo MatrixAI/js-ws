@@ -14,7 +14,7 @@ import * as testsUtils from './utils';
 // });
 
 describe(WebSocketClient.name, () => {
-  const logger = new Logger('websocket test', LogLevel.DEBUG, [
+  const logger = new Logger('websocket test', LogLevel.WARN, [
     new StreamHandler(
       formatting.format`${formatting.level}:${formatting.keys}:${formatting.msg}`,
     ),

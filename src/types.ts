@@ -69,11 +69,11 @@ type StreamCodeToReason = (
 ) => any | PromiseLike<any>;
 
 type ConnectionMetadata = {
-  localHost: string;
-  localPort: number;
+  localHost?: string;
+  localPort?: number;
   remoteHost: string;
   remotePort: number;
-  peerCert: DetailedPeerCertificate;
+  peerCert?: DetailedPeerCertificate;
 };
 
 type VerifyCallback = (peerCert: DetailedPeerCertificate) => Promise<void>;
