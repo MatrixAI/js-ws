@@ -462,10 +462,7 @@ class WebSocketConnection {
       });
       await sendProm.p;
     } catch (err) {
-      if (
-        this[startStop.status] == null ||
-        this[startStop.status] === 'stopping'
-      ) {
+      if (this[startStop.status] === 'stopping') {
         this.logger.debug('send error but already stopping');
         return;
       }

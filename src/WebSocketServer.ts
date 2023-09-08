@@ -270,7 +270,7 @@ class WebSocketServer extends EventTarget {
    * Used to trigger stopping if the underlying server fails
    */
   protected closeHandler = async () => {
-    if (this[status] == null || this[status] === 'stopping') {
+    if (this[status] === 'stopping') {
       this.logger.debug('close event but already stopping');
       return;
     }

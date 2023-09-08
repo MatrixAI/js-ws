@@ -1,12 +1,12 @@
 import * as crypto from 'crypto';
 import Logger, { formatting, LogLevel, StreamHandler } from '@matrixai/logger';
+import { status } from '@matrixai/async-init';
 import * as events from '@/events';
 import WebSocketClient from '@/WebSocketClient';
 import WebSocketServer from '@/WebSocketServer';
 import * as utils from '@/utils';
-import * as testsUtils from './utils';
-import { status } from '@matrixai/async-init';
 import * as errors from '@/errors';
+import * as testsUtils from './utils';
 
 // Process.on('unhandledRejection', (reason) => {
 //   console.log(reason); // log the reason including the stack trace
@@ -14,7 +14,7 @@ import * as errors from '@/errors';
 // });
 
 describe(WebSocketClient.name, () => {
-  const logger = new Logger('websocket test', LogLevel.WARN, [
+  const logger = new Logger('websocket test', LogLevel.DEBUG, [
     new StreamHandler(
       formatting.format`${formatting.level}:${formatting.keys}:${formatting.msg}`,
     ),
@@ -137,8 +137,9 @@ describe(WebSocketClient.name, () => {
 
     await server.stop({ force: true });
 
-    await expect(reader.read()).rejects.toThrowError(errors.ErrorWebSocketStreamClose);
-
+    await expect(reader.read()).rejects.toThrowError(
+      errors.ErrorWebSocketStreamClose,
+    );
   });
   test('handles multiple connections', async () => {
     const conns = 10;
@@ -150,12 +151,9 @@ describe(WebSocketClient.name, () => {
     });
     await server.start({ host: ipv4Host });
 
-    server.addEventListener(
-      events.EventWebSocketServerConnection.name,
-      () => {
-        serverConns++;
-      }
-    );
+    server.addEventListener(events.EventWebSocketServerConnection.name, () => {
+      serverConns++;
+    });
 
     const clients: Array<WebSocketClient> = [];
     for (let i = 0; i < conns; i++) {
@@ -186,7 +184,7 @@ describe(WebSocketClient.name, () => {
     // @ts-ignore: protected property
     server.server.close(() => {
       closeP.resolveP();
-    })
+    });
     await closeP.p;
 
     // The webSocketServer should stop itself
@@ -203,7 +201,7 @@ describe(WebSocketClient.name, () => {
     // @ts-ignore: protected property
     server.webSocketServer.close(() => {
       closeP.resolveP();
-    })
+    });
     await closeP.p;
 
     // The webSocketServer should stop itself
