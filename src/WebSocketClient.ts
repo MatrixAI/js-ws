@@ -125,11 +125,11 @@ class WebSocketClient extends EventTarget {
       ...config,
     };
 
-    let host_: Host;
+    let host_: string;
     if (Validator.isValidIPv4String(host)[0]) {
-      host_ = host as Host;
+      host_ = host;
     } else if (Validator.isValidIPv6String(host)[0]) {
-      host_ = `[${host}]` as Host;
+      host_ = `[${host}]`;
     } else {
       throw new errors.ErrorWebSocketClientInvalidHost();
     }
@@ -156,7 +156,7 @@ class WebSocketClient extends EventTarget {
       type: 'client',
       connectionId,
       remoteInfo: {
-        host: host_,
+        host: host as Host,
         port: port_,
       },
       config: wsConfig,
