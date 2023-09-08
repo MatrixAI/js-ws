@@ -196,11 +196,7 @@ class WebSocketConnection {
 
     let stream = this.streamMap.get(streamId);
     if (stream == null) {
-      const messageType = remainder.at(0);
-      if (
-        messageType === StreamMessageType.Close ||
-        messageType === StreamMessageType.Error
-      ) {
+      if (remainder.at(0) !== StreamMessageType.Ack) {
         return;
       }
       stream = await WebSocketStream.createWebSocketStream({
