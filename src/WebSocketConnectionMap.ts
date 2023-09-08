@@ -2,7 +2,7 @@ import type WebSocketConnection from './WebSocketConnection';
 import Counter from 'resource-counter';
 
 class WebSocketConnectionMap extends Map<number, WebSocketConnection> {
-  counter: Counter<number>;
+  protected counter: Counter<number>;
   public constructor() {
     super();
     this.counter = new Counter(0);
