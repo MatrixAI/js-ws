@@ -8,7 +8,10 @@ import type { StreamId, StreamMessage, VarInt } from './message';
 import {
   ReadableStream,
   WritableStream,
+  ReadableWritablePair,
   CountQueuingStrategy,
+  WritableStreamDefaultController,
+  ReadableStreamDefaultController,
 } from 'stream/web';
 import {
   CreateDestroy,
@@ -357,17 +360,17 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       const { shutdown, code } = parsedMessage.payload;
       let reason: any;
       switch (code) {
-        case BigInt(StreamErrorCode.Unknown):
+        case StreamErrorCode.Unknown:
           reason = new errors.ErrorWebSocketStreamUnknown(
             'receiver encountered an unknown error',
           );
           break;
-        case BigInt(StreamErrorCode.ErrorReadableStreamParse):
+        case StreamErrorCode.ErrorReadableStreamParse:
           reason = new errors.ErrorWebSocketStreamReadableParse(
             'receiver was unable to parse a sent message',
           );
           break;
-        case BigInt(StreamErrorCode.ErrorReadableStreamBufferOverflow):
+        case StreamErrorCode.ErrorReadableStreamBufferOverflow:
           reason = new errors.ErrorWebSocketStreamReadableBufferOverload(
             'receiver was unable to accept a sent message',
           );
@@ -436,15 +439,13 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     if (isError) {
       let code: VarInt;
       if (reason instanceof errors.ErrorWebSocketStreamUnknown) {
-        code = BigInt(StreamErrorCode.Unknown) as VarInt;
+        code = StreamErrorCode.Unknown;
       } else if (reason instanceof errors.ErrorWebSocketStreamReadableParse) {
-        code = BigInt(StreamErrorCode.ErrorReadableStreamParse) as VarInt;
+        code = StreamErrorCode.ErrorReadableStreamParse;
       } else if (
         reason instanceof errors.ErrorWebSocketStreamReadableBufferOverload
       ) {
-        code = BigInt(
-          StreamErrorCode.ErrorReadableStreamBufferOverflow,
-        ) as VarInt;
+        code = StreamErrorCode.ErrorReadableStreamBufferOverflow;
       } else {
         code = (await this.reasonToCode('send', reason)) as VarInt;
       }
@@ -488,13 +489,11 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     if (isError) {
       let code: VarInt;
       if (reason instanceof errors.ErrorWebSocketStreamReadableParse) {
-        code = BigInt(StreamErrorCode.ErrorReadableStreamParse) as VarInt;
+        code = StreamErrorCode.ErrorReadableStreamParse;
       } else if (
         reason instanceof errors.ErrorWebSocketStreamReadableBufferOverload
       ) {
-        code = BigInt(
-          StreamErrorCode.ErrorReadableStreamBufferOverflow,
-        ) as VarInt;
+        code = StreamErrorCode.ErrorReadableStreamBufferOverflow;
       } else {
         code = (await this.reasonToCode('send', reason)) as VarInt;
       }

@@ -22,11 +22,11 @@ const enum StreamShutdown {
   Write = 1,
 }
 
-const enum StreamErrorCode {
-  Unknown = 0,
-  ErrorReadableStreamParse = 1,
-  ErrorReadableStreamBufferOverflow = 2,
-}
+const StreamErrorCode = {
+  Unknown: 0n as VarInt,
+  ErrorReadableStreamParse: 1n as VarInt,
+  ErrorReadableStreamBufferOverflow: 2n as VarInt,
+} as const;
 
 // Misc
 
