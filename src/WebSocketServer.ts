@@ -49,7 +49,11 @@ interface WebSocketServer extends StartStop {}
 })
 class WebSocketServer extends EventTarget {
   protected logger: Logger;
-  protected config: WebSocketConfig;
+  protected config: WebSocketConfig  & {
+    key: string;
+    cert: string;
+    ca?: string;
+  };
   protected server: https.Server;
   protected webSocketServer: ws.WebSocketServer;
   protected reasonToCode: StreamReasonToCode | undefined;
@@ -113,8 +117,9 @@ class WebSocketServer extends EventTarget {
   } = {}): Promise<void> {
     this.logger.info(`Starting ${this.constructor.name}`);
     this.server = https.createServer({
-      ...this.config,
-      requestTimeout: this.config.connectTimeoutTime,
+      key: this.config.key,
+      cert: this.config.cert,
+      ca: this.config.ca,
     });
     this.webSocketServer = new ws.WebSocketServer({
       server: this.server,

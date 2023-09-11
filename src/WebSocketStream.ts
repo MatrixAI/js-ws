@@ -47,7 +47,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   public encodedStreamId: Uint8Array;
   /**
    * Errors:
-   * - {@link errors.ErrorWebSocketStreamClose} - This will happen if the stream is closed with {@link WebSocketStream.destroy} or if the WebSocketConnection was closed.
+   * - {@link errors.ErrorWebSocketStreamClose} - This will happen if the stream is closed with {@link WebSocketStream.destroy} or if the {@link WebSocketConnection} was closed.
    * - {@link errors.ErrorWebSocketStreamCancel} - This will happen if the stream is closed with {@link WebSocketStream.cancel}
    * - {@link errors.ErrorWebSocketStreamUnknown} - Unknown error
    * - {@link errors.ErrorWebSocketStreamReadableBufferOverload} - This will happen when the readable buffer is overloaded
@@ -56,7 +56,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   public readable: ReadableStream<Uint8Array>;
   /**
    * Errors:
-   * - {@link errors.ErrorWebSocketStreamClose} - This will happen if the stream is closed with {@link WebSocketStream.destroy} or if the WebSocketConnection was closed.
+   * - {@link errors.ErrorWebSocketStreamClose} - This will happen if the stream is closed with {@link WebSocketStream.destroy} or if the {@link WebSocketConnection} was closed.
    * - {@link errors.ErrorWebSocketStreamCancel} - This will happen if the stream is closed with {@link WebSocketStream.cancel}
    * - {@link errors.ErrorWebSocketStreamUnknown} - Unknown error
    * - {@link errors.ErrorWebSocketStreamReadableBufferOverload} - This will happen when the receiving ReadableStream's buffer is overloaded
@@ -287,10 +287,10 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     // Force close any open streams
     await this.cancel(new errors.ErrorWebSocketStreamClose());
     // Removing stream from the connection's stream map
-    // TODO: the other side currently will send back an ERROR/CLOSE frame from us sending an ERROR/CLOSE frame from this.close().
+    // The other side currently will send back an ERROR/CLOSE frame from us sending an ERROR/CLOSE frame from this.close().
     // However, out stream gets deleted before we receive that message on the connection.
     // So the connection will infinitely create streams with the same streamId when it receives the ERROR/CLOSE frame.
-    // I'm dealing with this by just filtering out ERROR/CLOSE frames in the connection's onMessage handler, but there might be a better way to do this.
+    // I'm dealing with this by just making that only an ACK message can initiate a stream creation.
     this.connection.streamMap.delete(this.streamId);
     this.logger.info(`Destroyed ${this.constructor.name}`);
   }
