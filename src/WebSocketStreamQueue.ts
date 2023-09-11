@@ -1,7 +1,9 @@
-// WebSocketStreamQueue can have 3 states regarding the head and the tail
-// if (head == null && head === tail) then the queue is empty
-// if (head != null && head === tail) then the queue has 1 item
-// if (head != null && head !== tail) then the queue has 2 or more items
+/**
+ * WebSocketStreamQueue can have 3 states regarding the head and the tail:
+ * - if (head == null && head === tail) then the queue is empty
+ * - if (head != null && head === tail) then the queue has 1 item
+ * - if (head != null && head !== tail) then the queue has 2 or more items
+ */
 class WebSocketStreamQueue {
   protected head?: WebSocketStreamQueueItem;
   protected tail?: WebSocketStreamQueueItem;
