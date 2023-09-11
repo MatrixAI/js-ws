@@ -28,7 +28,7 @@ import WebSocketStream from './WebSocketStream';
 import * as errors from './errors';
 import * as events from './events';
 import { parseStreamId, StreamMessageType } from './message';
-import { promise } from './utils';
+import { ConnectionErrorCode, promise } from './utils';
 
 const timerCleanupReasonSymbol = Symbol('timerCleanupReasonSymbol');
 
@@ -170,7 +170,7 @@ class WebSocketConnection {
     if (!isBinary || data instanceof Array) {
       this.dispatchEvent(
         new events.EventWebSocketConnectionError({
-          detail: new errors.ErrorWebSocketUndefinedBehaviour() as Error,
+          detail: new errors.ErrorWebSocketUndefinedBehaviour(),
         }),
       );
       return;
@@ -236,7 +236,7 @@ class WebSocketConnection {
   protected errorHandler = (err: Error) => {
     this.dispatchEvent(
       new events.EventWebSocketConnectionError({
-        detail: new errors.ErrorWebSocketConnectionSocket(
+        detail: new errors.ErrorWebSocketConnectionInternal(
           'An error occurred on the underlying WebSocket instance.',
           {
             cause: err,
@@ -475,7 +475,7 @@ class WebSocketConnection {
       }
       await this.stop({
         force: true,
-        errorCode: 1006,
+        errorCode: ConnectionErrorCode.AbnormalClosure,
         errorMessage: 'connection was unable to send data',
       });
     }
@@ -533,7 +533,7 @@ class WebSocketConnection {
       this.dispatchEvent(
         new events.EventWebSocketConnectionError({
           detail:
-            new errors.ErrorWebSocketConnectionKeepAliveTimeOut() as Error,
+            new errors.ErrorWebSocketConnectionKeepAliveTimeOut(),
         }),
       );
       if (this[startStop.running] && this[startStop.status] !== 'stopping') {

@@ -57,9 +57,23 @@ class ErrorWebSocketConnectionKeepAliveTimeOut<
   static description = 'WebSocket Connection reached idle timeout';
 }
 
-class ErrorWebSocketConnectionSocket<T> extends ErrorWebSocketConnection<T> {
-  static description = 'WebSocket Connection underlying websocket error';
+class ErrorWebSocketConnectionInternal<T> extends ErrorWebSocketConnection<T> {
+  static description = 'WebSocket Connection internal error';
 }
+
+/**
+ * Note that TlsFail error codes are documented here:
+ * https://github.com/google/boringssl/blob/master/include/openssl/ssl.h
+ * This can mean local closure of any code!
+ */
+class ErrorWebSocketConnectionLocal<T> extends ErrorWebSocketConnection<T> {
+  static description = 'WebSocket Connection local error';
+}
+
+class ErrorWebSocketConnectionPeer<T> extends ErrorWebSocketConnection<T> {
+  static description = 'WebSocket Connection peer error';
+}
+
 
 // Stream
 
@@ -112,7 +126,9 @@ export {
   ErrorWebSocketConnectionNotRunning,
   ErrorWebSocketConnectionStartTimeOut,
   ErrorWebSocketConnectionKeepAliveTimeOut,
-  ErrorWebSocketConnectionSocket,
+  ErrorWebSocketConnectionLocal,
+  ErrorWebSocketConnectionPeer,
+  ErrorWebSocketConnectionInternal,
   ErrorWebSocketStream,
   ErrorWebSocketStreamUnknown,
   ErrorWebSocketStreamReadableParse,

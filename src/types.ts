@@ -1,11 +1,6 @@
 import type { DetailedPeerCertificate } from 'tls';
 
-/**
- * Opaque types are wrappers of existing types
- * that require smart constructors
- */
-type Opaque<K, T> = T & { readonly [brand]: K };
-declare const brand: unique symbol;
+// Async
 
 /**
  * Generic callback
@@ -23,6 +18,15 @@ type PromiseDeconstructed<T> = {
   resolveP: (value: T | PromiseLike<T>) => void;
   rejectP: (reason?: any) => void;
 };
+
+// Opaque
+
+/**
+ * Opaque types are wrappers of existing types
+ * that require smart constructors
+ */
+type Opaque<K, T> = T & { readonly [brand]: K };
+declare const brand: unique symbol;
 
 type ConnectionId = Opaque<'ConnectionId', number>;
 
@@ -45,6 +49,8 @@ type Port = Opaque<'Port', number>;
  * Combination of `<HOST>:<PORT>`
  */
 type Address = Opaque<'Address', string>;
+
+// Misc
 
 type RemoteInfo = {
   host: Host;
