@@ -9,7 +9,7 @@ import type {
 } from './types';
 import type { AbstractEvent } from '@matrixai/events';
 import https from 'https';
-import { StartStop, status, ready } from '@matrixai/async-init/dist/StartStop';
+import { StartStop, status, running, ready } from '@matrixai/async-init/dist/StartStop';
 import Logger from '@matrixai/logger';
 import * as ws from 'ws';
 import { EventAll, EventDefault } from '@matrixai/events';
@@ -275,12 +275,9 @@ class WebSocketServer extends EventTarget {
    * Used to trigger stopping if the underlying server fails
    */
   protected closeHandler = async () => {
-    if (this[status] === 'stopping') {
-      this.logger.debug('close event but already stopping');
-      return;
+    if (this[running] && this[status] !== 'stopping') {
+      await this.stop({ force: true });
     }
-    this.logger.debug('close event, forcing stop');
-    await this.stop({ force: true });
   };
 
   /**
