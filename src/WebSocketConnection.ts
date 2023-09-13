@@ -581,6 +581,15 @@ class WebSocketConnection {
     } else {
       this.closeLocally = true;
       this.socket.close(errorCode, errorMessage);
+      this.dispatchEvent(
+        new events.EventWebSocketConnectionClose({
+          detail: {
+            type: 'local',
+            errorCode,
+            reason: errorMessage,
+          }
+        })
+      );
     }
     await this.closedP;
     this.socket.off('message', this.handleSocketMessage);
