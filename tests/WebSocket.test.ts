@@ -231,7 +231,10 @@ describe(WebSocketClient.name, () => {
 
     const closeProm = utils.promise<any>();
 
-    client.connection.addEventListener(events.EventWebSocketConnectionClose.name, closeProm.resolveP);
+    client.connection.addEventListener(
+      events.EventWebSocketConnectionClose.name,
+      closeProm.resolveP,
+    );
 
     await client.destroy();
 

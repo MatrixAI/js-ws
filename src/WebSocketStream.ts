@@ -5,13 +5,15 @@ import type {
 } from './types';
 import type WebSocketConnection from './WebSocketConnection';
 import type { StreamId, StreamMessage, VarInt } from './message';
+import type {
+  ReadableWritablePair,
+  WritableStreamDefaultController,
+  ReadableStreamDefaultController,
+} from 'stream/web';
 import {
   ReadableStream,
   WritableStream,
-  ReadableWritablePair,
   CountQueuingStrategy,
-  WritableStreamDefaultController,
-  ReadableStreamDefaultController,
 } from 'stream/web';
 import {
   CreateDestroy,

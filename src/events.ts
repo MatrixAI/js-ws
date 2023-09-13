@@ -1,7 +1,12 @@
 import type WebSocketStream from './WebSocketStream';
 import type WebSocketConnection from './WebSocketConnection';
+import type {
+  ErrorWebSocketConnectionInternal,
+  ErrorWebSocketConnectionKeepAliveTimeOut,
+  ErrorWebSocketConnectionLocal,
+  ErrorWebSocketConnectionPeer,
+} from './errors';
 import { AbstractEvent } from '@matrixai/events';
-import type { ErrorWebSocketConnectionInternal, ErrorWebSocketConnectionKeepAliveTimeOut, ErrorWebSocketConnectionLocal, ErrorWebSocketConnectionPeer } from './errors';
 
 abstract class EventWebSocket<T = null> extends AbstractEvent<T> {}
 
@@ -53,13 +58,12 @@ class EventWebSocketConnectionError extends EventWebSocketConnection<
 > {}
 
 class EventWebSocketConnectionClose extends EventWebSocketConnection<
-  {
-    type: 'local' | 'peer';
-    errorCode: number;
-    reason: string;
-  }
-  |
-  { type: 'timeout' }
+  | {
+      type: 'local' | 'peer';
+      errorCode: number;
+      reason: string;
+    }
+  | { type: 'timeout' }
 > {}
 
 // Stream events

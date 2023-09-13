@@ -1,5 +1,5 @@
 import type { ConnectionMessage, StreamMessage } from '@/message';
-import { fc, testProp } from '@fast-check/jest';
+import { testProp } from '@fast-check/jest';
 import {
   generateConnectionMessage,
   generateStreamId,

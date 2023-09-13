@@ -74,7 +74,6 @@ class ErrorWebSocketConnectionPeer<T> extends ErrorWebSocketConnection<T> {
   static description = 'WebSocket Connection peer error';
 }
 
-
 // Stream
 
 class ErrorWebSocketStream<T> extends ErrorWebSocket<T> {

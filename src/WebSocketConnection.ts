@@ -153,14 +153,16 @@ class WebSocketConnection {
     }
   };
 
-  protected handleEventWebSocketConnectionError = (evt: events.EventWebSocketConnectionError) => {
+  protected handleEventWebSocketConnectionError = (
+    evt: events.EventWebSocketConnectionError,
+  ) => {
     const error = evt.detail;
     this.logger.error(
-      `${error.name}${
-        'description' in error ? `: ${error.description}` : ''
-      }${error.message !== undefined ? `- ${error.message}` : ''}`,
+      `${error.name}${'description' in error ? `: ${error.description}` : ''}${
+        error.message !== undefined ? `- ${error.message}` : ''
+      }`,
     );
-  }
+  };
 
   protected handleEventWebSocketConnectionClose = async () => {
     if (this[startStop.running] && this[startStop.status] !== 'stopping') {
@@ -169,7 +171,7 @@ class WebSocketConnection {
         force: true,
       });
     }
-  }
+  };
 
   protected closeLocally: boolean = false;
   protected closedP: Promise<void>;
@@ -180,7 +182,10 @@ class WebSocketConnection {
     | ((peerCert: DetailedPeerCertificate) => Promise<void>)
     | undefined;
 
-  protected handleSocketMessage = async (data: ws.RawData, isBinary: boolean) => {
+  protected handleSocketMessage = async (
+    data: ws.RawData,
+    isBinary: boolean,
+  ) => {
     if (!isBinary || data instanceof Array) {
       this.dispatchEvent(
         new events.EventWebSocketConnectionError({
@@ -249,18 +254,18 @@ class WebSocketConnection {
 
   protected handleSocketClose = (errorCode: number, reason: Buffer) => {
     this.resolveClosedP();
-    // if this connection isn't closed by the peer, we don't need to event that it's closed
+    // If this connection isn't closed by the peer, we don't need to event that it's closed
     if (this.closeLocally) {
       return;
     }
     this.dispatchEvent(
       new events.EventWebSocketConnectionClose({
         detail: {
-          type: "peer",
+          type: 'peer',
           errorCode,
-          reason: reason.toString('utf-8')
-        }
-      })
+          reason: reason.toString('utf-8'),
+        },
+      }),
     );
   };
 
@@ -269,12 +274,9 @@ class WebSocketConnection {
     const reason = 'An error occurred on the underlying WebSocket instance';
     this.dispatchEvent(
       new events.EventWebSocketConnectionError({
-        detail: new errors.ErrorWebSocketConnectionInternal(
-          reason,
-          {
-            cause: err,
-          },
-        ),
+        detail: new errors.ErrorWebSocketConnectionInternal(reason, {
+          cause: err,
+        }),
       }),
     );
     this.closeLocally = true;
@@ -284,10 +286,10 @@ class WebSocketConnection {
         detail: {
           type: 'local',
           errorCode,
-          reason
-        }
-      })
-    )
+          reason,
+        },
+      }),
+    );
   };
 
   @startStop.ready(new errors.ErrorWebSocketConnectionNotRunning())
@@ -421,7 +423,7 @@ class WebSocketConnection {
       await Promise.race([Promise.all(promises), abortP]);
     } catch (e) {
       this.socket.off('open', openHandler);
-      // upgrade only exists on the ws library, we can use removeAllListeners without worrying
+      // Upgrade only exists on the ws library, we can use removeAllListeners without worrying
       this.socket.removeAllListeners('upgrade');
       // Close the ws if it's open at this stage
       this.socket.close(ConnectionErrorCode.ProtocolError);
@@ -431,7 +433,7 @@ class WebSocketConnection {
       throw e;
     } finally {
       ctx.signal.removeEventListener('abort', abortHandler);
-      // upgrade has already been removed by being called once or by the catch
+      // Upgrade has already been removed by being called once or by the catch
       this.socket.off('error', openErrorHandler);
     }
 
@@ -451,12 +453,12 @@ class WebSocketConnection {
     this.addEventListener(
       events.EventWebSocketConnectionError.name,
       this.handleEventWebSocketConnectionError,
-      { once: true }
+      { once: true },
     );
     this.addEventListener(
       events.EventWebSocketConnectionClose.name,
       this.handleEventWebSocketConnectionClose,
-      { once: true }
+      { once: true },
     );
 
     this.logger.info(`Started ${this.constructor.name}`);
@@ -526,7 +528,7 @@ class WebSocketConnection {
       }
       this.closeLocally = true;
       const errorCode = ConnectionErrorCode.AbnormalClosure;
-      const reason = "connection was unable to send data";
+      const reason = 'connection was unable to send data';
       this.socket.close(errorCode, reason);
       this.dispatchEvent(
         new events.EventWebSocketConnectionClose({
@@ -534,10 +536,10 @@ class WebSocketConnection {
             type: 'local',
             errorCode,
             reason,
-          }
-        })
+          },
+        }),
       );
-      // will not wait for close, happens asynchronously
+      // Will not wait for close, happens asynchronously
     }
   }
 
@@ -551,14 +553,14 @@ class WebSocketConnection {
     force?: boolean;
   } = {}) {
     this.logger.info(`Stop ${this.constructor.name}`);
-    // remove event listeners before possible event dispatching to avoid recursion
+    // Remove event listeners before possible event dispatching to avoid recursion
     this.removeEventListener(
       events.EventWebSocketConnectionError.name,
-      this.handleEventWebSocketConnectionError
+      this.handleEventWebSocketConnectionError,
     );
     this.removeEventListener(
       events.EventWebSocketConnectionClose.name,
-      this.handleEventWebSocketConnectionClose
+      this.handleEventWebSocketConnectionClose,
     );
     this.stopKeepAliveIntervalTimer();
 
@@ -587,8 +589,8 @@ class WebSocketConnection {
             type: 'local',
             errorCode,
             reason: errorMessage,
-          }
-        })
+          },
+        }),
       );
     }
     await this.closedP;
@@ -615,15 +617,14 @@ class WebSocketConnection {
       }
       this.dispatchEvent(
         new events.EventWebSocketConnectionError({
-          detail:
-            new errors.ErrorWebSocketConnectionKeepAliveTimeOut(),
+          detail: new errors.ErrorWebSocketConnectionKeepAliveTimeOut(),
         }),
       );
       this.dispatchEvent(
         new events.EventWebSocketConnectionClose({
           detail: {
             type: 'timeout',
-          }
+          },
         }),
       );
     };

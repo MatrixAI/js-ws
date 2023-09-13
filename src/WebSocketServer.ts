@@ -9,7 +9,12 @@ import type {
 } from './types';
 import type { AbstractEvent } from '@matrixai/events';
 import https from 'https';
-import { StartStop, status, running, ready } from '@matrixai/async-init/dist/StartStop';
+import {
+  StartStop,
+  status,
+  running,
+  ready,
+} from '@matrixai/async-init/dist/StartStop';
 import Logger from '@matrixai/logger';
 import * as ws from 'ws';
 import { EventAll, EventDefault } from '@matrixai/events';
@@ -50,7 +55,7 @@ interface WebSocketServer extends StartStop {}
 })
 class WebSocketServer extends EventTarget {
   protected logger: Logger;
-  protected config: WebSocketConfig  & {
+  protected config: WebSocketConfig & {
     key: string;
     cert: string;
     ca?: string;
