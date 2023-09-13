@@ -52,6 +52,16 @@ class EventWebSocketConnectionError extends EventWebSocketConnection<
   | ErrorWebSocketConnectionInternal<unknown>
 > {}
 
+class EventWebSocketConnectionClose extends EventWebSocketConnection<
+  {
+    type: 'local' | 'peer';
+    errorCode: number;
+    reason: string;
+  }
+  |
+  { type: 'timeout' }
+> {}
+
 // Stream events
 
 abstract class EventWebSocketStream<T = null> extends EventWebSocket<T> {}
@@ -80,6 +90,7 @@ export {
   EventWebSocketConnectionStop,
   EventWebSocketConnectionStopped,
   EventWebSocketConnectionError,
+  EventWebSocketConnectionClose,
   EventWebSocketStream,
   EventWebSocketStreamDestroy,
   EventWebSocketStreamDestroyed,

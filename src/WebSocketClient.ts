@@ -26,6 +26,7 @@ interface WebSocketClient extends createDestroy.CreateDestroy {}
  * - {@link events.EventWebSocketConnectionStop}
  * - {@link events.EventWebSocketConnectionStopped}
  * - {@link events.EventWebSocketConnectionError} - can occur due to a timeout too
+ * - {@link events.EventWebSocketConnectionClose}
  * - {@link events.EventWebSocketStreamDestroy}
  * - {@link events.EventWebSocketStreamDestroyed}
  */
