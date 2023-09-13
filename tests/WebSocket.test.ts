@@ -207,4 +207,39 @@ describe(WebSocketClient.name, () => {
     // The webSocketServer should stop itself
     expect(server[status]).toBe(null);
   });
+  test('connection dispatches correct close event', async () => {
+    const connectionProm = utils.promise();
+
+    const server = new WebSocketServer({
+      config: tlsConfigServer,
+      logger,
+    });
+    await server.start({ host: ipv4Host });
+
+    server.addEventListener(events.EventWebSocketServerConnection.name, () => {
+      connectionProm.resolveP();
+    });
+
+    const client = await WebSocketClient.createWebSocketClient({
+      host: server.getHost(),
+      port: server.getPort(),
+      logger,
+      verifyCallback: async () => {
+        // Noop
+      },
+    });
+
+    const closeProm = utils.promise<any>();
+
+    client.connection.addEventListener(events.EventWebSocketConnectionClose.name, closeProm.resolveP);
+
+    await client.destroy();
+
+    const closeDetail = (await closeProm.p).detail;
+
+    expect(closeDetail.type).toEqual('local');
+    expect(closeDetail.errorCode).toBe(utils.ConnectionErrorCode.Normal);
+
+    await server.stop();
+  });
 });
