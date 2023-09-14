@@ -82,7 +82,16 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   protected writableDesiredSize = 0;
   protected writableDesiredSizeProm = promise<void>();
 
-  protected destroyProm = promise<void>();
+  // This can only be resolved, and never rejected
+  // This is because we cannot fail to destroy
+  // If the destroy never occurred, then we just
+  protected _closedP: Promise<void>;
+
+  // Any errors that occurs within the streams
+  // Translates to the streams being closed
+  // Thus this will always be resolved even if there's an error
+  // As long as there are closures on both streams
+  protected resolveClosedP: () => void;
 
   public static async createWebSocketStream({
     streamId,
@@ -109,7 +118,6 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       codeToReason,
       logger,
     });
-    connection.streamMap.set(streamId, stream);
     logger.info(`Created ${this.name}`);
     return stream;
   }
@@ -137,6 +145,10 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     this.codeToReason = codeToReason;
 
     this.readableQueueBufferSize = bufferSize;
+
+    const { p: closedP, resolveP: resolveClosedP } = promise();
+    this._closedP = closedP;
+    this.resolveClosedP = resolveClosedP;
 
     let initAckSent = false;
 
@@ -280,8 +292,8 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   /**
    * A promise that resolves once this `WebSocketStream` has ended.
    */
-  public get destroyedP() {
-    return this.destroyProm.p;
+  public get closedP() {
+    return this._closedP;
   }
 
   public async destroy() {
@@ -293,7 +305,6 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     // However, out stream gets deleted before we receive that message on the connection.
     // So the connection will infinitely create streams with the same streamId when it receives the ERROR/CLOSE frame.
     // I'm dealing with this by just making that only an ACK message can initiate a stream creation.
-    this.connection.streamMap.delete(this.streamId);
     this.logger.info(`Destroyed ${this.constructor.name}`);
   }
 
@@ -466,7 +477,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       });
     }
     if (this._readableEnded && this._writableEnded) {
-      this.destroyProm.resolveP();
+      this.resolveClosedP();
       if (this[status] !== 'destroying') await this.destroy();
     }
     this.logger.debug(`readable ended`);
@@ -514,7 +525,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       });
     }
     if (this._readableEnded && this._writableEnded) {
-      this.destroyProm.resolveP();
+      this.resolveClosedP();
       if (this[status] !== 'destroying') await this.destroy();
     }
     this.logger.debug(`writable ended`);

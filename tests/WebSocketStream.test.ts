@@ -28,20 +28,38 @@ const logger2 = new Logger('stream 2', LogLevel.WARN, [
   ),
 ]);
 
+let streamIdCounter = 0n;
+
 jest.mock('@/WebSocketConnection', () => {
   return jest.fn().mockImplementation((streamOptions: StreamOptions = {}) => {
     const instance = new EventTarget() as EventTarget & {
-      connectedConnection: WebSocketConnection | undefined;
+      peerConnection: WebSocketConnection | undefined;
       connectTo: (connection: WebSocketConnection) => void;
       send: (data: Uint8Array) => Promise<void>;
+      streamNew: () => Promise<WebSocketStream>;
       streamMap: Map<StreamId, WebSocketStream>;
     };
-    instance.connectedConnection = undefined;
-    instance.connectTo = (connectedConnection: any) => {
-      instance.connectedConnection = connectedConnection;
-      connectedConnection.connectedConnection = instance;
+    instance.peerConnection = undefined;
+    instance.connectTo = (peerConnection: any) => {
+      instance.peerConnection = peerConnection;
+      peerConnection.peerConnection = instance;
     };
     instance.streamMap = new Map<StreamId, WebSocketStream>();
+    instance.streamNew = async () => {
+      const stream = await WebSocketStream.createWebSocketStream({
+        streamId: streamIdCounter as StreamId,
+        bufferSize: STREAM_BUFFER_SIZE,
+        connection: instance as any,
+        logger: logger1,
+        ...streamOptions,
+      });
+      stream.addEventListener(events.EventWebSocketStreamDestroyed.name, () => {
+        instance.streamMap.delete(stream.streamId);
+      }, { once: true });
+      instance.streamMap.set(stream.streamId, stream);
+      streamIdCounter++;
+      return stream;
+    };
     instance.send = async (array: Uint8Array | Array<Uint8Array>) => {
       let data: Uint8Array;
       if (ArrayBuffer.isView(array)) {
@@ -50,7 +68,7 @@ jest.mock('@/WebSocketConnection', () => {
         data = messageUtils.concatUInt8Array(...array);
       }
       const { data: streamId, remainder } = messageUtils.parseStreamId(data);
-      let stream = instance.connectedConnection!.streamMap.get(streamId);
+      let stream = instance.peerConnection!.streamMap.get(streamId);
       if (stream == null) {
         const type = remainder.at(0);
         if (type !== StreamMessageType.Ack) {
@@ -59,11 +77,15 @@ jest.mock('@/WebSocketConnection', () => {
         stream = await WebSocketStream.createWebSocketStream({
           streamId,
           bufferSize: STREAM_BUFFER_SIZE,
-          connection: instance.connectedConnection!,
+          connection: instance.peerConnection!,
           logger: logger2,
           ...streamOptions,
         });
-        instance.connectedConnection!.dispatchEvent(
+        stream.addEventListener(events.EventWebSocketStreamDestroyed.name, () => {
+          instance.peerConnection!.streamMap.delete(streamId);
+        }, { once: true });
+        instance.peerConnection!.streamMap.set(stream.streamId, stream);
+        instance.peerConnection!.dispatchEvent(
           new events.EventWebSocketConnectionStream({
             detail: stream,
           }),
@@ -78,11 +100,9 @@ jest.mock('@/WebSocketConnection', () => {
 const connectionMock = jest.mocked(WebSocketConnection, true);
 
 describe(WebSocketStream.name, () => {
-  let streamIdCounter = 0n;
 
   beforeEach(async () => {
     connectionMock.mockClear();
-    streamIdCounter = 0n;
   });
 
   async function createConnectionPair(
@@ -97,15 +117,8 @@ describe(WebSocketStream.name, () => {
   async function createStreamPairFrom(
     connection1: WebSocketConnection,
     connection2: WebSocketConnection,
-    streamOptions: StreamOptions = {},
   ): Promise<[WebSocketStream, WebSocketStream]> {
-    const stream1 = await WebSocketStream.createWebSocketStream({
-      streamId: streamIdCounter as StreamId,
-      bufferSize: STREAM_BUFFER_SIZE,
-      connection: connection1,
-      logger: logger1,
-      ...streamOptions,
-    });
+    const stream1 = await connection1.streamNew();
     const createStream2Prom = promise<WebSocketStream>();
     connection2.addEventListener(
       events.EventWebSocketConnectionStream.name,
@@ -115,7 +128,6 @@ describe(WebSocketStream.name, () => {
       { once: true },
     );
     const stream2 = await createStream2Prom.p;
-    streamIdCounter++;
     return [stream1, stream2];
   }
 
@@ -123,7 +135,7 @@ describe(WebSocketStream.name, () => {
     const [connection1, connection2] = await createConnectionPair(
       streamOptions,
     );
-    return createStreamPairFrom(connection1, connection2, streamOptions);
+    return createStreamPairFrom(connection1, connection2);
   }
 
   test('should create stream', async () => {
@@ -150,24 +162,15 @@ describe(WebSocketStream.name, () => {
         const stream = event.detail;
         streamCreatedCount += 1;
         if (streamCreatedCount >= streamsNum) streamCreationProm.resolveP();
-        stream.addEventListener(
-          events.EventWebSocketStreamDestroyed.name,
-          () => {
-            streamEndedCount += 1;
-            if (streamEndedCount >= streamsNum) streamEndedProm.resolveP();
-          },
-        );
+        stream.addEventListener(events.EventWebSocketStreamDestroyed.name, () => {
+          streamEndedCount += 1;
+          if (streamEndedCount >= streamsNum) streamEndedProm.resolveP();
+        }, { once: true });
       },
     );
 
     for (let i = 0; i < streamsNum; i++) {
-      const stream = await WebSocketStream.createWebSocketStream({
-        streamId: streamIdCounter as StreamId,
-        bufferSize: STREAM_BUFFER_SIZE,
-        connection: connection1,
-        logger: logger1,
-      });
-      streamIdCounter++;
+      const stream = await connection1.streamNew();
       streams.push(stream);
     }
     await streamCreationProm.p;
@@ -175,6 +178,7 @@ describe(WebSocketStream.name, () => {
     await streamEndedProm.p;
     expect(streamCreatedCount).toEqual(streamsNum);
     expect(streamEndedCount).toEqual(streamsNum);
+
     for (const stream of streams) {
       await stream.destroy();
     }

@@ -141,15 +141,19 @@ class WebSocketConnection {
    * Bubble up stream destroy event
    */
   protected handleEventWebSocketStream = (
-    event:
+    evt:
       | EventAll<events.EventWebSocketStream>
       | EventDefault<events.EventWebSocketStream>
       | events.EventWebSocketStream,
   ) => {
-    if (event instanceof EventAll || event instanceof EventDefault) {
-      this.dispatchEvent(event.detail.clone());
-    } else {
-      this.dispatchEvent(event.clone());
+    if (evt instanceof EventAll || evt instanceof EventDefault) {
+      evt = evt.detail;
+    }
+
+    this.dispatchEvent(evt.clone());
+
+    if (evt instanceof events.EventWebSocketStreamDestroyed) {
+      this.streamMap.delete((evt.target as WebSocketStream).streamId);
     }
   };
 
@@ -224,6 +228,7 @@ class WebSocketConnection {
         bufferSize: this.config.streamBufferSize,
         logger: this.logger.getChild(`${WebSocketStream.name} ${streamId!}`),
       });
+      this.streamMap.set(streamId, stream);
       stream.addEventListener(
         events.EventWebSocketStreamDestroy.name,
         this.handleEventWebSocketStream,
@@ -483,6 +488,7 @@ class WebSocketConnection {
         reasonToCode: this.reasonToCode,
         logger: this.logger.getChild(`${WebSocketStream.name} ${streamId!}`),
       });
+      this.streamMap.set(streamId!, stream);
       stream.addEventListener(
         events.EventWebSocketStreamDestroy.name,
         this.handleEventWebSocketStream,
@@ -571,7 +577,7 @@ class WebSocketConnection {
       if (force) {
         await stream.destroy();
       }
-      streamsDestroyP.push(stream.destroyedP);
+      streamsDestroyP.push(stream.closedP);
     }
     this.logger.debug('waiting for streams to destroy');
     await Promise.all(streamsDestroyP);
@@ -600,9 +606,8 @@ class WebSocketConnection {
     this.socket.off('error', this.handleSocketError);
     this.keepAliveTimeOutTimer?.cancel(timerCleanupReasonSymbol);
 
-    if (this.type === 'server') {
-      this.parentInstance.connectionMap.delete(this.connectionId);
-    }
+    this.parentInstance.connectionMap.delete(this.connectionId);
+
 
     this.logger.info(`Stopped ${this.constructor.name}`);
   }
