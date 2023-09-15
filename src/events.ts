@@ -20,6 +20,8 @@ class EventWebSocketClientDestroyed extends EventWebSocketClient {}
 
 class EventWebSocketClientError extends EventWebSocketClient<Error> {}
 
+class EventWebSocketClientClose extends EventWebSocketClient {}
+
 // Server events
 
 abstract class EventWebSocketServer<T = null> extends EventWebSocket<T> {}
@@ -35,6 +37,8 @@ class EventWebSocketServerStop extends EventWebSocketServer {}
 class EventWebSocketServerStopped extends EventWebSocketServer {}
 
 class EventWebSocketServerError extends EventWebSocketServer<Error> {}
+
+class EventWebSocketServerClose extends EventWebSocketServer<Error> {}
 
 // Connection events
 
@@ -80,6 +84,8 @@ export {
   EventWebSocketClientError,
   EventWebSocketClientDestroy,
   EventWebSocketClientDestroyed,
+  EventWebSocketClientClose,
+
   EventWebSocketServer,
   EventWebSocketServerConnection,
   EventWebSocketServerStart,
@@ -87,6 +93,8 @@ export {
   EventWebSocketServerStop,
   EventWebSocketServerStopped,
   EventWebSocketServerError,
+  EventWebSocketServerClose,
+
   EventWebSocketConnection,
   EventWebSocketConnectionStream,
   EventWebSocketConnectionStart,
@@ -95,6 +103,7 @@ export {
   EventWebSocketConnectionStopped,
   EventWebSocketConnectionError,
   EventWebSocketConnectionClose,
+
   EventWebSocketStream,
   EventWebSocketStreamDestroy,
   EventWebSocketStreamDestroyed,

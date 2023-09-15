@@ -7,7 +7,7 @@ import type {
   StreamReasonToCode,
   WebSocketConfig,
 } from './types';
-import type { AbstractEvent } from '@matrixai/events';
+import { AbstractEvent } from '@matrixai/events';
 import https from 'https';
 import {
   StartStop,
@@ -20,7 +20,7 @@ import * as ws from 'ws';
 import { EventAll, EventDefault } from '@matrixai/events';
 import * as errors from './errors';
 import * as events from './events';
-import { never, promise } from './utils';
+import * as utils from './utils';
 import WebSocketConnection from './WebSocketConnection';
 import { serverDefault } from './config';
 import WebSocketConnectionMap from './WebSocketConnectionMap';
@@ -53,34 +53,164 @@ interface WebSocketServer extends StartStop {}
   eventStop: events.EventWebSocketServerStop,
   eventStopped: events.EventWebSocketServerStopped,
 })
-class WebSocketServer extends EventTarget {
+class WebSocketServer {
+  /**
+   * Custom reason to code converter for new connections.
+   */
+  public reasonToCode?: StreamReasonToCode;
+  /**
+   * Custom code to reason converted for new connections.
+   */
+  public codeToReason?: StreamCodeToReason;
+
   protected logger: Logger;
+  /**
+   * Configuration for new connections.
+   */
   protected config: WebSocketConfig & {
     key: string;
     cert: string;
     ca?: string;
   };
-  protected server: https.Server;
-  protected webSocketServer: ws.WebSocketServer;
-  protected reasonToCode: StreamReasonToCode | undefined;
-  protected codeToReason: StreamCodeToReason | undefined;
+
   public readonly connectionMap: WebSocketConnectionMap =
     new WebSocketConnectionMap();
+  protected server: https.Server;
+  protected webSocketServer: ws.WebSocketServer;
+
+  protected _closed: boolean = false;
+  public readonly closedP: Promise<void>;
+  protected resolveClosedP: () => void;
 
   protected _port: number;
   protected _host: string;
 
-  protected handleWebSocketConnection = (
-    event:
-      | AbstractEvent
-      | EventDefault<AbstractEvent>
-      | EventAll<AbstractEvent>,
+  /**
+   * This must be attached once.
+   */
+  protected handleEventWebSocketServerError = async (
+    evt: events.EventWebSocketServerError,
   ) => {
-    if (event instanceof EventAll || event instanceof EventDefault) {
-      this.dispatchEvent(event.detail.clone());
-    } else {
-      this.dispatchEvent(event.clone());
+    const error = evt.detail;
+    this.logger.error(utils.formatError(error));
+  };
+
+  protected handleEventWebSocketServerClose = async () => {
+    // Close means we are "closing", but error state has occurred
+    // Not that we have actually closed
+    // That's different from socket close event which means "fully" closed
+    // We would call that `Closed` event, not `Close` event
+
+    this.server.off(
+      "close",
+      this.handleServerClosed
+    );
+    if (!this.server.listening) {
+      this.resolveClosedP();
     }
+    this.server.close(() => {
+      this.resolveClosedP();
+    });
+    await this.closedP;
+    this._closed = true;
+    if (this[running]) {
+      // If stop fails, it is a software bug
+      await this.stop({ force: true });
+    }
+  };
+
+  /**
+   * This must be attached once.
+   */
+  protected handleEventWebSocketConnectionStopped = (
+    evt: events.EventWebSocketConnectionStopped
+  ) => {
+    const WebSocketConnection = evt.target as WebSocketConnection;
+    this.connectionMap.delete(WebSocketConnection.connectionId);
+  };
+
+  protected handleEventWebSocketConnection = (evt: EventAll) => {
+    if (evt.detail instanceof AbstractEvent) {
+      this.dispatchEvent(evt.detail.clone());
+    }
+  };
+
+  /**
+   * Used to trigger stopping if the underlying server fails
+   */
+  protected handleServerClosed = async () => {
+    this.dispatchEvent(new events.EventWebSocketServerClose());
+  };
+
+  /**
+   * Used to propagate error conditions
+   */
+  protected handleServerError = (e: Error) => {
+    this.dispatchEvent(
+      new events.EventWebSocketServerError({
+        detail: new errors.ErrorWebSocketServerInternal(
+          'An error occured on the underlying server',
+          {
+            cause: e,
+          },
+        ),
+      }),
+    );
+    this.dispatchEvent(new events.EventWebSocketServerClose());
+  };
+
+  /**
+   * Handles the creation of the `ReadableWritablePair` and provides it to the
+   * StreamPair handler.
+   */
+  protected handleServerConnection = async (
+    webSocket: ws.WebSocket,
+    request: IncomingMessage,
+  ) => {
+    const httpSocket = request.connection;
+    const connectionId = this.connectionMap.allocateId();
+    const connection = new WebSocketConnection({
+      type: 'server',
+      connectionId: connectionId,
+      remoteInfo: {
+        host: (httpSocket.remoteAddress ?? '') as Host,
+        port: (httpSocket.remotePort ?? 0) as Port,
+      },
+      socket: webSocket,
+      config: this.config,
+      reasonToCode: this.reasonToCode,
+      codeToReason: this.codeToReason,
+      logger: this.logger.getChild(
+        `${WebSocketConnection.name} ${connectionId}`,
+      ),
+    });
+    this.connectionMap.add(connection);
+    connection.addEventListener(
+      events.EventWebSocketConnectionStopped.name,
+      this.handleEventWebSocketConnectionStopped
+    );
+    try {
+      await connection.start({
+        timer: this.config.connectTimeoutTime,
+      });
+    }
+    catch(e) {
+      connection.removeEventListener(
+        events.EventWebSocketConnectionStopped.name,
+        this.handleEventWebSocketConnectionStopped
+      );
+      this.connectionMap.delete(connection.connectionId);
+      this.dispatchEvent(
+        new events.EventWebSocketServerError({
+          detail: e
+        })
+      );
+    }
+    this.dispatchEvent(
+      new events.EventWebSocketServerConnection({
+        detail: connection,
+      }),
+    );
   };
 
   /**
@@ -103,23 +233,29 @@ class WebSocketServer extends EventTarget {
     codeToReason?: StreamCodeToReason;
     logger?: Logger;
   }) {
-    super();
-    const wsConfig = {
+    this.logger = logger ?? new Logger(this.constructor.name);
+    this.config = {
       ...serverDefault,
       ...config,
     };
-    this.logger = logger ?? new Logger(this.constructor.name);
-    this.config = wsConfig;
     this.reasonToCode = reasonToCode;
     this.codeToReason = codeToReason;
+    const {
+      p: closedP,
+      resolveP: resolveClosedP,
+    } = utils.promise();
+    this.closedP = closedP;
+    this.resolveClosedP = resolveClosedP;
   }
 
   public async start({
-    host,
+    host = '::',
     port = 0,
+    ipv6Only = false,
   }: {
     host?: string;
     port?: number;
+    ipv6Only?: boolean;
   } = {}): Promise<void> {
     this.logger.info(`Starting ${this.constructor.name}`);
     this.server = https.createServer({
@@ -131,18 +267,33 @@ class WebSocketServer extends EventTarget {
       server: this.server,
     });
 
-    this.webSocketServer.on('connection', this.connectionHandler);
-    this.webSocketServer.on('close', this.closeHandler);
-    this.server.on('close', this.closeHandler);
-    this.webSocketServer.on('error', this.errorHandler);
-    this.server.on('error', this.errorHandler);
+    this.webSocketServer.on('connection', this.handleServerConnection);
+    this.webSocketServer.on('close', this.handleServerClosed);
+    this.server.on('close', this.handleServerClosed);
+    this.webSocketServer.on('error', this.handleServerError);
+    this.server.on('error', this.handleServerError);
     this.server.on('request', this.requestHandler);
 
-    const listenProm = promise<void>();
-    this.server.listen(port, host, listenProm.resolveP);
+    const listenProm = utils.promise<void>();
+    this.server.listen({
+      host,
+      port,
+      ipv6Only
+    }, listenProm.resolveP);
     await listenProm.p;
+
+    this.addEventListener(
+      events.EventWebSocketServerError.name,
+      this.handleEventWebSocketServerError,
+    );
+    this.addEventListener(
+      events.EventWebSocketServerClose.name,
+      this.handleEventWebSocketServerClose,
+      { once: true }
+    );
+
     const address = this.server.address();
-    if (address == null || typeof address === 'string') never();
+    if (address == null || typeof address === 'string') utils.never();
     this._port = address.port;
     this.logger.debug(`Listening on port ${this._port}`);
     this._host = address.address ?? '127.0.0.1';
@@ -150,14 +301,21 @@ class WebSocketServer extends EventTarget {
   }
 
   public async stop({
-    force = false,
-  }: { force?: boolean } = {}): Promise<void> {
+    errorCode = utils.ConnectionErrorCode.Normal,
+    errorMessage = '',
+    force = true,
+  }: {
+    errorCode?: number;
+    errorMessage?: string;
+    force?: boolean;
+  } = {}): Promise<void> {
     this.logger.info(`Stopping ${this.constructor.name}`);
     const destroyProms: Array<Promise<void>> = [];
     for (const webSocketConnection of this.connectionMap.values()) {
       destroyProms.push(
         webSocketConnection.stop({
-          errorMessage: 'cleaning up connections',
+          errorCode,
+          errorMessage,
           force,
         }),
       );
@@ -165,31 +323,30 @@ class WebSocketServer extends EventTarget {
     this.logger.debug('Awaiting connections to destroy');
     await Promise.all(destroyProms);
     this.logger.debug('All connections destroyed');
-    // Close the server by closing the underlying socket
-    const wssCloseProm = promise<void>();
-    this.webSocketServer.close((e) => {
-      if (e == null || e.message === 'The server is not running') {
-        wssCloseProm.resolveP();
-      } else {
-        wssCloseProm.rejectP(e);
-      }
-    });
-    await wssCloseProm.p;
-    const serverCloseProm = promise<void>();
-    this.server.close((e) => {
-      if (e == null || e.message === 'Server is not running.') {
-        serverCloseProm.resolveP();
-      } else {
-        serverCloseProm.rejectP(e);
-      }
-    });
-    await serverCloseProm.p;
+    // Close the server by closing the underlying WebSocketServer
+    if (!this._closed) {
+      // If this succeeds, then we are just transitioned to close
+      // This will trigger noop recursion, that's fine
+      this.dispatchEvent(
+        new events.EventWebSocketServerClose()
+      );
+    }
+    await this.closedP;
 
-    this.webSocketServer.off('connection', this.connectionHandler);
-    this.webSocketServer.off('close', this.closeHandler);
-    this.server.off('close', this.closeHandler);
-    this.webSocketServer.off('error', this.errorHandler);
-    this.server.off('error', this.errorHandler);
+    this.removeEventListener(
+      events.EventWebSocketServerError.name,
+      this.handleEventWebSocketServerError,
+    );
+    this.removeEventListener(
+      events.EventWebSocketServerClose.name,
+      this.handleEventWebSocketServerClose,
+    );
+
+    this.webSocketServer.off('connection', this.handleServerConnection);
+    this.webSocketServer.off('close', this.handleServerClosed);
+    this.server.off('close', this.handleServerClosed);
+    this.webSocketServer.off('error', this.handleServerError);
+    this.server.off('error', this.handleServerError);
     this.server.on('request', this.requestHandler);
     this.logger.info(`Stopped ${this.constructor.name}`);
   }
@@ -220,87 +377,6 @@ class WebSocketServer extends EventTarget {
     tlsServer.setSecureContext(wsConfig);
     this.config = wsConfig;
   }
-
-  /**
-   * Handles the creation of the `ReadableWritablePair` and provides it to the
-   * StreamPair handler.
-   */
-  protected connectionHandler = async (
-    webSocket: ws.WebSocket,
-    request: IncomingMessage,
-  ) => {
-    const httpSocket = request.connection;
-    const connectionId = this.connectionMap.allocateId();
-    const connection = new WebSocketConnection({
-      type: 'server',
-      connectionId: connectionId,
-      remoteInfo: {
-        host: (httpSocket.remoteAddress ?? '') as Host,
-        port: (httpSocket.remotePort ?? 0) as Port,
-      },
-      socket: webSocket,
-      config: this.config,
-      reasonToCode: this.reasonToCode,
-      codeToReason: this.codeToReason,
-      logger: this.logger.getChild(
-        `${WebSocketConnection.name} ${connectionId}`,
-      ),
-      server: this,
-    });
-
-    await connection.start({
-      timer: this.config.connectTimeoutTime,
-    });
-
-    // Handling connection events
-    connection.addEventListener(
-      events.EventWebSocketConnectionStopped.name,
-      (event: events.EventWebSocketConnectionStopped) => {
-        connection.removeEventListener(
-          EventAll.name,
-          this.handleWebSocketConnection,
-        );
-        this.handleWebSocketConnection(event);
-      },
-      { once: true },
-    );
-
-    connection.addEventListener(
-      EventDefault.name,
-      this.handleWebSocketConnection,
-    );
-
-    this.dispatchEvent(
-      new events.EventWebSocketServerConnection({
-        detail: connection,
-      }),
-    );
-  };
-
-  /**
-   * Used to trigger stopping if the underlying server fails
-   */
-  protected closeHandler = async () => {
-    if (this[running] && this[status] !== 'stopping') {
-      await this.stop({ force: true });
-    }
-  };
-
-  /**
-   * Used to propagate error conditions
-   */
-  protected errorHandler = (e: Error) => {
-    this.dispatchEvent(
-      new events.EventWebSocketServerError({
-        detail: new errors.ErrorWebSocketServer(
-          'An error occured on the underlying server',
-          {
-            cause: e,
-          },
-        ),
-      }),
-    );
-  };
 
   /**
    * Will tell any normal HTTP request to upgrade

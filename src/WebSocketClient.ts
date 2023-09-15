@@ -1,5 +1,5 @@
 import type { Host, Port, VerifyCallback, WebSocketConfig } from './types';
-import type { AbstractEvent } from '@matrixai/events';
+import { AbstractEvent } from '@matrixai/events';
 import { createDestroy } from '@matrixai/async-init';
 import Logger from '@matrixai/logger';
 import WebSocket from 'ws';
@@ -10,6 +10,7 @@ import WebSocketConnection from './WebSocketConnection';
 import WebSocketConnectionMap from './WebSocketConnectionMap';
 import { clientDefault } from './config';
 import * as events from './events';
+import * as utils from './utils';
 
 interface WebSocketClient extends createDestroy.CreateDestroy {}
 /**
@@ -35,64 +36,6 @@ interface WebSocketClient extends createDestroy.CreateDestroy {}
   eventDestroyed: events.EventWebSocketClientDestroyed,
 })
 class WebSocketClient extends EventTarget {
-  protected logger: Logger;
-
-  protected _connection: WebSocketConnection;
-  public readonly connectionMap: WebSocketConnectionMap =
-    new WebSocketConnectionMap();
-
-  protected address: string;
-
-  protected handleEventWebSocketConnection = async (
-    event_: EventAll<AbstractEvent> | AbstractEvent,
-  ) => {
-    let event: AbstractEvent;
-    if (event_ instanceof EventAll) {
-      event = event_.detail;
-    } else {
-      event = event_;
-    }
-
-    this.dispatchEvent(event.clone());
-
-    if (event instanceof events.EventWebSocketConnectionStopped) {
-      try {
-        // Force destroy means don't destroy gracefully
-        await this.destroy({
-          force: true,
-        });
-      } catch (e) {
-        this.dispatchEvent(
-          new events.EventWebSocketClientError({
-            detail: e.detail,
-          }),
-        );
-      }
-    } else if (event instanceof events.EventWebSocketConnectionError) {
-      this.dispatchEvent(
-        (event as events.EventWebSocketConnectionError).clone(),
-      );
-      try {
-        // Force destroy means don't destroy gracefully
-        await this.destroy({
-          force: true,
-        });
-      } catch (e) {
-        this.dispatchEvent(
-          new events.EventWebSocketClientError({
-            detail: e.detail,
-          }),
-        );
-      }
-    }
-  };
-
-  constructor({ address, logger }: { address: string; logger: Logger }) {
-    super();
-    this.address = address;
-    this.logger = logger;
-  }
-
   /**
    * @param obj
    * @param obj.host - Target host address to connect to
@@ -107,7 +50,7 @@ class WebSocketClient extends EventTarget {
    * Default is 10,000 milliseconds.
    * @param obj.logger
    */
-  static async createWebSocketClient({
+   static async createWebSocketClient({
     host,
     port,
     config,
@@ -143,16 +86,11 @@ class WebSocketClient extends EventTarget {
 
     const address = `wss://${host_}:${port_}`;
 
-    const client = new this({
-      address,
-      logger,
-    });
-
     const webSocket = new WebSocket(address, {
       rejectUnauthorized: verifyCallback == null,
     });
 
-    const connectionId = client.connectionMap.allocateId();
+    const connectionId = 0;
     const connection = new WebSocketConnection({
       type: 'client',
       connectionId,
@@ -163,55 +101,147 @@ class WebSocketClient extends EventTarget {
       config: wsConfig,
       socket: webSocket,
       verifyCallback,
-      client: client,
       logger: logger.getChild(`${WebSocketConnection.name} ${connectionId}`),
     });
-    await connection.start({
-      timer: wsConfig.connectTimeoutTime,
+    const client = new this({
+      address,
+      logger,
+      connection,
     });
-    connection.addEventListener(
-      events.EventWebSocketConnectionStopped.name,
-      async (event: events.EventWebSocketConnectionStopped) => {
-        connection.removeEventListener(
-          EventAll.name,
-          client.handleEventWebSocketConnection,
-        );
-        await client.handleEventWebSocketConnection(event);
-      },
-      { once: true },
-    );
-    connection.addEventListener(
-      EventDefault.name,
-      client.handleEventWebSocketConnection,
-    );
-    client._connection = connection;
+    // Setting up connection events
+    connection.addEventListener(events.EventWebSocketConnectionError.name, client.handleEventWebSocketConnectionError, { once: true });
+    connection.addEventListener(events.EventWebSocketConnectionStopped.name, client.handleEventWebSocketConnectionStopped, { once: true });
+    connection.addEventListener(EventAll.name, client.handleEventWebSocketConnection);
+    // Setting up client events
+    client.addEventListener(events.EventWebSocketClientError.name, client.handleEventWebSocketClientError);
+    client.addEventListener(events.EventWebSocketClientClose.name, client.handleEventWebSocketClientClose, { once: true });
 
-    logger.info(`Created ${this.name}`);
+    client.connectionMap.add(connection);
+
+    try {
+      await connection.start({
+        timer: wsConfig.connectTimeoutTime,
+      });
+    } catch (e) {
+      client.connectionMap.delete(connectionId);
+
+      connection.removeEventListener(events.EventWebSocketConnectionError.name, client.handleEventWebSocketConnectionError);
+      connection.removeEventListener(events.EventWebSocketConnectionStopped.name, client.handleEventWebSocketConnectionStopped);
+      connection.removeEventListener(EventAll.name, client.handleEventWebSocketConnection);
+
+      client.removeEventListener(events.EventWebSocketClientError.name, client.handleEventWebSocketClientError);
+      client.removeEventListener(events.EventWebSocketClientClose.name, client.handleEventWebSocketClientClose);
+      throw e;
+    }
+
+    logger.info(`Created ${this.name} to ${address}`);
     return client;
   }
 
-  @createDestroy.ready(new errors.ErrorWebSocketClientDestroyed())
-  public get connection() {
-    return this._connection;
+  public readonly connection: WebSocketConnection;
+  public readonly closedP: Promise<void>;
+
+  protected logger: Logger;
+
+  public readonly connectionMap: WebSocketConnectionMap =
+    new WebSocketConnectionMap();
+  protected address: string;
+  protected _closed: boolean = false;
+  protected resolveClosedP: () => void;
+
+  protected handleEventWebSocketClientError = async (evt: events.EventWebSocketClientError) => {
+    const error = evt.detail;
+    this.logger.error(utils.formatError(error));
+  };
+
+  protected handleEventWebSocketClientClose = async () => {
+    await this.connection.stop({ force: true });
+    this._closed = true;
+    this.resolveClosedP();
+    if (!this[createDestroy.destroyed]) {
+      // Failing this is a software error
+      await this.destroy({ force: true });
+    }
+  };
+
+  protected handleEventWebSocketConnectionError = async (
+    evt: events.EventWebSocketConnectionError,
+  ) => {
+    const detail = evt.detail;
+    // All connection errors are also our domain errors
+    this.dispatchEvent(
+      new events.EventWebSocketClientError({
+        detail
+      })
+    );
+  };
+
+  protected handleEventWebSocketConnectionStopped = async (evt: events.EventWebSocketConnectionStopped) => {
+    const connection = evt.target as WebSocketConnection;
+    connection.removeEventListener(
+      events.EventWebSocketConnectionError.name,
+      this.handleEventWebSocketConnectionError
+    );
+    connection.removeEventListener(
+      EventAll.name,
+      this.handleEventWebSocketConnection
+    );
+    this.connectionMap.delete(connection.connectionId);
+    this.dispatchEvent(new events.EventWebSocketClientClose());
+  };
+
+  protected handleEventWebSocketConnection = (evt: EventAll) => {
+    if (evt.detail instanceof AbstractEvent) {
+      this.dispatchEvent(evt.detail.clone());
+    }
+  };
+
+  public get closed() {
+    return this._closed;
+  }
+
+  constructor({ address, logger, connection }: { address: string; logger: Logger; connection: WebSocketConnection }) {
+    super();
+    this.address = address;
+    this.logger = logger;
+    this.connection = connection;
+    const {
+      p: closedP,
+      resolveP: resolveClosedP,
+    } = utils.promise();
+    this.closedP = closedP;
+    this.resolveClosedP = resolveClosedP;
   }
 
   public async destroy({
-    force = false,
+    errorCode = utils.ConnectionErrorCode.Normal,
+    errorMessage = '',
+    force = true,
   }: {
+    errorCode?: number;
+    errorMessage?: string;
     force?: boolean;
+
   } = {}) {
     this.logger.info(`Destroy ${this.constructor.name} on ${this.address}`);
-    for (const connection of this.connectionMap.values()) {
-      this._connection.removeEventListener(
-        EventAll.name,
-        this.handleEventWebSocketConnection,
-      );
-      await connection.stop({
-        errorMessage: 'cleaning up connections',
+    if (!this._closed) {
+      // Failing this is a software error
+      await this.connection.stop({
+        errorCode,
+        errorMessage,
         force,
       });
+      this.dispatchEvent(new events.EventWebSocketClientClose());
     }
-    this.logger.info(`Destroyed ${this.constructor.name}`);
+    await this.closedP;
+    this.removeEventListener(
+      events.EventWebSocketClientError.name,
+      this.handleEventWebSocketClientError
+    );
+    this.removeEventListener(
+      events.EventWebSocketClientClose.name,
+      this.handleEventWebSocketClientClose
+    );
   }
 }
 

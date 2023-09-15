@@ -14,6 +14,10 @@ class ErrorWebSocketServerNotRunning<T> extends ErrorWebSocketServer<T> {
   static description = 'WebSocket Server is not running';
 }
 
+class ErrorWebSocketServerInternal<T> extends ErrorWebSocketServer<T> {
+  static description = 'WebSocket Server internal error';
+}
+
 // Client
 
 class ErrorWebSocketClient<T> extends ErrorWebSocket<T> {
@@ -117,10 +121,13 @@ export {
   ErrorWebSocket,
   ErrorWebSocketServer,
   ErrorWebSocketServerNotRunning,
+  ErrorWebSocketServerInternal,
+
   ErrorWebSocketClient,
   ErrorWebSocketClientCreateTimeOut,
   ErrorWebSocketClientDestroyed,
   ErrorWebSocketClientInvalidHost,
+
   ErrorWebSocketConnection,
   ErrorWebSocketConnectionNotRunning,
   ErrorWebSocketConnectionStartTimeOut,
@@ -128,6 +135,7 @@ export {
   ErrorWebSocketConnectionLocal,
   ErrorWebSocketConnectionPeer,
   ErrorWebSocketConnectionInternal,
+
   ErrorWebSocketStream,
   ErrorWebSocketStreamUnknown,
   ErrorWebSocketStreamReadableParse,
@@ -135,5 +143,6 @@ export {
   ErrorWebSocketStreamDestroyed,
   ErrorWebSocketStreamClose,
   ErrorWebSocketStreamCancel,
+
   ErrorWebSocketUndefinedBehaviour,
 };

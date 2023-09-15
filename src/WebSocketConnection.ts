@@ -127,9 +127,6 @@ class WebSocketConnection {
   protected keepAliveTimeOutTimer?: Timer;
   protected keepAliveIntervalTimer?: Timer;
 
-  protected parentInstance: {
-    connectionMap: WebSocketConnectionMap;
-  };
   protected logger: Logger;
   protected remoteHost: Host;
   protected remotePort: Port;
@@ -314,8 +311,6 @@ class WebSocketConnection {
     remoteInfo,
     config,
     socket,
-    server,
-    client,
     reasonToCode = () => 0n,
     codeToReason = (type, code) => new Error(`${type} ${code}`),
     verifyCallback,
@@ -327,8 +322,6 @@ class WebSocketConnection {
         remoteInfo: RemoteInfo;
         config: WebSocketConfig;
         socket: ws.WebSocket;
-        server?: undefined;
-        client?: WebSocketClient;
         reasonToCode?: StreamReasonToCode;
         codeToReason?: StreamCodeToReason;
         verifyCallback?: VerifyCallback;
@@ -340,8 +333,6 @@ class WebSocketConnection {
         remoteInfo: RemoteInfo;
         config: WebSocketConfig;
         socket: ws.WebSocket;
-        server?: WebSocketServer;
-        client?: undefined;
         reasonToCode?: StreamReasonToCode;
         codeToReason?: StreamCodeToReason;
         verifyCallback?: undefined;
@@ -352,7 +343,6 @@ class WebSocketConnection {
     this.socket = socket;
     this.config = config;
     this.type = type;
-    this.parentInstance = server ?? client!;
     this.remoteHost = remoteInfo.host;
     this.remotePort = remoteInfo.port;
     this.reasonToCode = reasonToCode;
@@ -443,8 +433,6 @@ class WebSocketConnection {
     }
 
     // Set the connection up
-    this.parentInstance.connectionMap.set(this.connectionId, this);
-
     this.socket.on('message', this.handleSocketMessage);
     this.socket.on('ping', this.handleSocketPing);
     this.socket.on('pong', this.handleSocketPong);
@@ -552,7 +540,7 @@ class WebSocketConnection {
   public async stop({
     errorCode = 1000,
     errorMessage = '',
-    force = false,
+    force = true,
   }: {
     errorCode?: number;
     errorMessage?: string;
@@ -605,9 +593,6 @@ class WebSocketConnection {
     this.socket.off('pong', this.handleSocketPong);
     this.socket.off('error', this.handleSocketError);
     this.keepAliveTimeOutTimer?.cancel(timerCleanupReasonSymbol);
-
-    this.parentInstance.connectionMap.delete(this.connectionId);
-
 
     this.logger.info(`Stopped ${this.constructor.name}`);
   }

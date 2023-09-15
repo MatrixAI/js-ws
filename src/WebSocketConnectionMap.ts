@@ -11,7 +11,7 @@ class WebSocketConnectionMap extends Map<number, WebSocketConnection> {
     return this.counter.allocate();
   }
   public add(conn: WebSocketConnection): this {
-    const key = this.allocateId();
+    const key = conn.connectionId;
     return this.set(key, conn);
   }
   public delete(key: number): boolean {

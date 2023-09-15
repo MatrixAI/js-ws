@@ -22,10 +22,20 @@ function promise<T = void>(): PromiseDeconstructed<T> {
 }
 
 /**
+ * Formats error exceptions.
+ * Example: `Error: description - message`
+ */
+function formatError(error: Error): string {
+  return `${error.name}${'description' in error ? `: ${error.description}` : ''}${
+    error.message !== undefined ? ` - ${error.message}` : ''
+  }`;
+}
+
+/**
  * WebSocketConnection error/close codes
  * sourced from: https://www.iana.org/assignments/websocket/websocket.xml
  */
-enum ConnectionErrorCode {
+const enum ConnectionErrorCode {
   Normal = 1000,
   GoingAway = 1001,
   ProtocolError = 1002,
@@ -43,4 +53,4 @@ enum ConnectionErrorCode {
   TLSHandshake = 1015,
 }
 
-export { never, promise, ConnectionErrorCode };
+export { never, promise, formatError, ConnectionErrorCode };
