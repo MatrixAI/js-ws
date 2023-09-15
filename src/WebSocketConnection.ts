@@ -159,7 +159,7 @@ class WebSocketConnection {
     await this.send(evt.msg);
   };
 
-  protected handleEventWebSocketStreamDestroyed = (evt: events.EventWebSocketStreamDestroyed) => {
+  protected handleEventWebSocketStreamStopped = (evt: events.EventWebSocketStreamStopped) => {
     const stream = evt.target as WebSocketStream;
     stream.removeEventListener(
       events.EventWebSocketStreamSend.name,
@@ -223,7 +223,7 @@ class WebSocketConnection {
       if (remainder.at(0) !== StreamMessageType.Ack) {
         return;
       }
-      stream = await WebSocketStream.createWebSocketStream({
+      stream = new WebSocketStream({
         initiated: 'peer',
         connection: this,
         streamId,
@@ -238,14 +238,15 @@ class WebSocketConnection {
         this.handleEventWebSocketStreamSend,
       );
       stream.addEventListener(
-        events.EventWebSocketStreamDestroyed.name,
-        this.handleEventWebSocketStreamDestroyed,
+        events.EventWebSocketStreamStopped.name,
+        this.handleEventWebSocketStreamStopped,
         { once: true },
       );
       stream.addEventListener(
         EventAll.name,
         this.handleEventWebSocketStream,
       );
+      await stream.start();
       this.dispatchEvent(
         new events.EventWebSocketConnectionStream({
           detail: stream,
@@ -478,7 +479,7 @@ class WebSocketConnection {
       } else if (this.type === 'server' && streamType === 'bidi') {
         streamId = this.streamIdServerBidi;
       }
-      const stream = await WebSocketStream.createWebSocketStream({
+      const stream = new WebSocketStream({
         initiated: 'local',
         streamId: streamId!,
         connection: this,
@@ -493,14 +494,15 @@ class WebSocketConnection {
         this.handleEventWebSocketStreamSend,
       );
       stream.addEventListener(
-        events.EventWebSocketStreamDestroyed.name,
-        this.handleEventWebSocketStreamDestroyed,
+        events.EventWebSocketStreamStopped.name,
+        this.handleEventWebSocketStreamStopped,
         { once: true },
       );
       stream.addEventListener(
         EventAll.name,
         this.handleEventWebSocketStream,
       );
+      await stream.start();
       // Ok the stream is opened and working
       if (this.type === 'client' && streamType === 'bidi') {
         this.streamIdClientBidi = (this.streamIdClientBidi + 4n) as StreamId;
@@ -577,7 +579,7 @@ class WebSocketConnection {
     this.logger.debug('triggering stream destruction');
     for (const stream of this.streamMap.values()) {
       if (force) {
-        await stream.destroy();
+        await stream.stop();
       }
       streamsDestroyP.push(stream.closedP);
     }

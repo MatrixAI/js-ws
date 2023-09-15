@@ -79,9 +79,13 @@ class EventWebSocketConnectionClose extends EventWebSocketConnection<
 
 abstract class EventWebSocketStream<T = null> extends EventWebSocket<T> {}
 
-class EventWebSocketStreamDestroy extends EventWebSocketStream {}
+class EventWebSocketStreamStart extends EventWebSocketStream {}
 
-class EventWebSocketStreamDestroyed extends EventWebSocketStream {}
+class EventWebSocketStreamStarted extends EventWebSocketStream {}
+
+class EventWebSocketStreamStop extends EventWebSocketStream {}
+
+class EventWebSocketStreamStopped extends EventWebSocketStream {}
 
 // Note that you can close the readable side, and give a code
 // You can close the writable side, and give a code
@@ -158,8 +162,10 @@ export {
   EventWebSocketConnectionError,
   EventWebSocketConnectionClose,
   EventWebSocketStream,
-  EventWebSocketStreamDestroy,
-  EventWebSocketStreamDestroyed,
+  EventWebSocketStreamStart,
+  EventWebSocketStreamStarted,
+  EventWebSocketStreamStop,
+  EventWebSocketStreamStopped,
   EventWebSocketStreamError,
   EventWebSocketStreamCloseRead,
   EventWebSocketStreamCloseWrite,

@@ -5,13 +5,13 @@ import WebSocketStream from '@/WebSocketStream';
 import WebSocketConnection from '@/WebSocketConnection';
 import * as events from '@/events';
 import { promise } from '@/utils';
+import * as errors from '@/errors';
 import * as utils from '@/utils';
 import * as messageUtils from '@/message/utils';
 import { StreamMessageType } from '@/message';
-import { EventAll } from '@matrixai/events';
 
 type StreamOptions = Partial<
-  Parameters<typeof WebSocketStream.createWebSocketStream>[0]
+  ConstructorParameters<typeof WebSocketStream>[0]
 >;
 
 // Smaller buffer size for the sake of testing
@@ -47,7 +47,7 @@ jest.mock('@/WebSocketConnection', () => {
     };
     instance.streamMap = new Map<StreamId, WebSocketStream>();
     instance.streamNew = async () => {
-      const stream = await WebSocketStream.createWebSocketStream({
+      const stream = new WebSocketStream({
         initiated: 'local',
         streamId: streamIdCounter as StreamId,
         bufferSize: STREAM_BUFFER_SIZE,
@@ -55,21 +55,18 @@ jest.mock('@/WebSocketConnection', () => {
         logger: logger1,
         ...streamOptions,
       });
-      stream.addEventListener(EventAll.name, (evt: any) => {
-        console.log(evt)
-      })
       stream.addEventListener(events.EventWebSocketStreamSend.name, (evt: any) => {
-        console.log(evt.msg);
         instance.send(evt.msg);
       });
       stream.addEventListener(
-        events.EventWebSocketStreamDestroyed.name,
+        events.EventWebSocketStreamStopped.name,
         () => {
           instance.streamMap.delete(stream.streamId);
         },
         { once: true },
       );
       instance.streamMap.set(stream.streamId, stream);
+      await stream.start();
       streamIdCounter++;
       return stream;
     };
@@ -87,7 +84,7 @@ jest.mock('@/WebSocketConnection', () => {
         if (type !== StreamMessageType.Ack) {
           return;
         }
-        stream = await WebSocketStream.createWebSocketStream({
+        stream = new WebSocketStream({
           initiated: 'peer',
           streamId,
           bufferSize: STREAM_BUFFER_SIZE,
@@ -96,17 +93,17 @@ jest.mock('@/WebSocketConnection', () => {
           ...streamOptions,
         });
         stream.addEventListener(events.EventWebSocketStreamSend.name, (evt: any) => {
-          console.log(evt)
           instance.peerConnection!.send(evt.msg)
         });
         stream.addEventListener(
-          events.EventWebSocketStreamDestroyed.name,
+          events.EventWebSocketStreamStopped.name,
           () => {
             instance.peerConnection!.streamMap.delete(streamId);
           },
           { once: true },
         );
         instance.peerConnection!.streamMap.set(stream.streamId, stream);
+        await stream.start();
         instance.peerConnection!.dispatchEvent(
           new events.EventWebSocketConnectionStream({
             detail: stream,
@@ -149,8 +146,6 @@ describe(WebSocketStream.name, () => {
       { once: true },
     );
     const stream2 = await createStream2Prom.p;
-    console.log("done")
-
     return [stream1, stream2];
   }
 
@@ -165,7 +160,7 @@ describe(WebSocketStream.name, () => {
     const streams = await createStreamPair();
     expect(streams.length).toEqual(2);
     for (const stream of streams) {
-      await stream.destroy();
+      await stream.stop();
     }
   });
   test('destroying stream should clean up on both ends while streams are used', async () => {
@@ -186,7 +181,7 @@ describe(WebSocketStream.name, () => {
         streamCreatedCount += 1;
         if (streamCreatedCount >= streamsNum) streamCreationProm.resolveP();
         stream.addEventListener(
-          events.EventWebSocketStreamDestroyed.name,
+          events.EventWebSocketStreamStopped.name,
           () => {
             streamEndedCount += 1;
             if (streamEndedCount >= streamsNum) streamEndedProm.resolveP();
@@ -201,13 +196,13 @@ describe(WebSocketStream.name, () => {
       streams.push(stream);
     }
     await streamCreationProm.p;
-    await Promise.allSettled(streams.map((stream) => stream.destroy()));
+    await Promise.allSettled(streams.map((stream) => stream.stop()));
     await streamEndedProm.p;
     expect(streamCreatedCount).toEqual(streamsNum);
     expect(streamEndedCount).toEqual(streamsNum);
 
     for (const stream of streams) {
-      await stream.destroy();
+      await stream.stop();
     }
   });
   test('should propagate errors over stream for writable', async () => {
@@ -232,8 +227,8 @@ describe(WebSocketStream.name, () => {
     const stream1Readable = stream1.readable;
     const stream2Writable = stream2.writable;
     await stream2Writable.abort(testReason);
-    await expect(stream1Readable.getReader().read()).rejects.toBe(testReason);
-    await expect(stream2Writable.getWriter().write()).rejects.toBe(testReason);
+    await expect(stream1Readable.getReader().read()).rejects.toBeInstanceOf(errors.ErrorWebSocketStreamLocalRead);
+    await expect(stream2Writable.getWriter().write()).rejects.toBeInstanceOf(errors.ErrorWebSocketStreamLocalWrite);
   });
   testProp(
     'should send data over stream - single write within buffer size',
@@ -264,10 +259,10 @@ describe(WebSocketStream.name, () => {
 
       await Promise.all([writeF(), readF()]);
 
-      expect(readChunks).toEqual([data]);
+      expect(messageUtils.concatUInt8Array(data)).toEqual(messageUtils.concatUInt8Array(data));
 
-      await stream1.destroy();
-      await stream2.destroy();
+      await stream1.stop();
+      await stream2.stop();
     },
   );
   testProp(
@@ -300,8 +295,8 @@ describe(WebSocketStream.name, () => {
 
       expect(messageUtils.concatUInt8Array(...readChunks)).toEqual(data);
 
-      await stream1.destroy();
-      await stream2.destroy();
+      await stream1.stop();
+      await stream2.stop();
     },
   );
   testProp(
@@ -338,8 +333,8 @@ describe(WebSocketStream.name, () => {
         messageUtils.concatUInt8Array(...data),
       );
 
-      await stream1.destroy();
-      await stream2.destroy();
+      await stream1.stop();
+      await stream2.stop();
     },
   );
   testProp(
@@ -376,8 +371,8 @@ describe(WebSocketStream.name, () => {
         messageUtils.concatUInt8Array(...data),
       );
 
-      await stream1.destroy();
-      await stream2.destroy();
+      await stream1.stop();
+      await stream2.stop();
     },
   );
   testProp(
@@ -421,8 +416,8 @@ describe(WebSocketStream.name, () => {
         messageUtils.concatUInt8Array(...data),
       );
 
-      await stream1.destroy();
-      await stream2.destroy();
+      await stream1.stop();
+      await stream2.stop();
     },
   );
   testProp(
@@ -479,7 +474,7 @@ describe(WebSocketStream.name, () => {
       }
 
       for (const stream of streams) {
-        await stream.destroy();
+        await stream.stop();
       }
     },
   );
@@ -507,12 +502,8 @@ describe(WebSocketStream.name, () => {
     writer.releaseLock();
     await stream2.cancel(cancelReason);
 
-    await expect(stream2.readable.getReader().read()).rejects.toBe(
-      cancelReason,
-    );
-    await expect(stream2.writable.getWriter().write()).rejects.toBe(
-      cancelReason,
-    );
+    await expect(stream2.readable.getReader().read()).rejects.toBe(cancelReason)
+    await expect(stream2.writable.getWriter().write()).rejects.toBeInstanceOf(errors.ErrorWebSocketStreamLocalWrite)
   });
   test('streams can be cancelled with no data sent', async () => {
     const cancelReason = Symbol('CancelReason');
@@ -535,12 +526,8 @@ describe(WebSocketStream.name, () => {
 
     await stream2.cancel(cancelReason);
 
-    await expect(stream2.readable.getReader().read()).rejects.toBe(
-      cancelReason,
-    );
-    await expect(stream2.writable.getWriter().write()).rejects.toBe(
-      cancelReason,
-    );
+    await expect(stream2.readable.getReader().read()).rejects.toBe(cancelReason)
+    await expect(stream2.writable.getWriter().write()).rejects.toBeInstanceOf(errors.ErrorWebSocketStreamLocalWrite)
   });
   test('streams can be cancelled concurrently after data sent', async () => {
     const [stream1, stream2] = await createStreamPair();
