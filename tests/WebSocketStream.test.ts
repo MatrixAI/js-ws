@@ -234,7 +234,6 @@ describe(WebSocketStream.name, () => {
     'should send data over stream - single write within buffer size',
     [fc.uint8Array({ maxLength: STREAM_BUFFER_SIZE })],
     async (data) => {
-      data = new Uint8Array(0);
       const [stream1, stream2] = await createStreamPair();
 
       const stream1Readable = stream1.readable;
@@ -259,7 +258,7 @@ describe(WebSocketStream.name, () => {
 
       await Promise.all([writeF(), readF()]);
 
-      expect(messageUtils.concatUInt8Array(data)).toEqual(messageUtils.concatUInt8Array(data));
+      expect(messageUtils.concatUInt8Array(...readChunks)).toEqual(messageUtils.concatUInt8Array(data));
 
       await stream1.stop();
       await stream2.stop();
