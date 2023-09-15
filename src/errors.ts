@@ -84,31 +84,48 @@ class ErrorWebSocketStream<T> extends ErrorWebSocket<T> {
   static description = 'WebSocket Stream error';
 }
 
-class ErrorWebSocketStreamUnknown<T> extends ErrorWebSocketStream<T> {
-  static description = 'WebSocket Stream unknown error';
+class ErrorWebSocketStreamDestroyed<T> extends ErrorWebSocketStream<T> {
+  static description = 'WebSocket Stream is destroyed';
 }
 
-class ErrorWebSocketStreamReadableParse<T> extends ErrorWebSocketStream<T> {
-  static description = 'WebSocket Stream readable message parse failed';
+class ErrorWebSocketStreamLocalRead<T> extends ErrorWebSocketStream<T> {
+  static description = 'WebSocket Stream locally closed readable side';
+}
+
+class ErrorWebSocketStreamLocalWrite<T> extends ErrorWebSocketStream<T> {
+  static description = 'WebSocket Stream locally closed writable side';
+}
+
+class ErrorWebSocketStreamPeerRead<T> extends ErrorWebSocketStream<T> {
+  static description = 'WebSocket Stream peer closed readable side';
+}
+
+class ErrorWebSocketStreamPeerWrite<T> extends ErrorWebSocketStream<T> {
+  static description = 'WebSocket Stream peer closed writable side';
+}
+
+class ErrorWebSocketStreamInternal<T> extends ErrorWebSocketStream<T> {
+  static description = 'WebSocket Stream internal error';
+}
+
+// Stream Protocol Errors
+
+class ErrorWebSocketStreamUnknown<
+  T,
+> extends ErrorWebSocketStream<T> {
+  static description = 'WebSocket Stream readable buffer has overloaded';
+}
+
+class ErrorWebSocketStreamReadableParse<
+  T,
+> extends ErrorWebSocketStream<T> {
+  static description = 'WebSocket Stream readable buffer has overloaded';
 }
 
 class ErrorWebSocketStreamReadableBufferOverload<
   T,
 > extends ErrorWebSocketStream<T> {
   static description = 'WebSocket Stream readable buffer has overloaded';
-}
-
-class ErrorWebSocketStreamDestroyed<T> extends ErrorWebSocketStream<T> {
-  static description = 'WebSocket Stream is destroyed';
-}
-
-class ErrorWebSocketStreamClose<T> extends ErrorWebSocketStream<T> {
-  static description = 'WebSocket Stream force close';
-}
-
-class ErrorWebSocketStreamCancel<T> extends ErrorWebSocketStream<T> {
-  static description =
-    'WebSocket Stream was cancelled without a provided reason';
 }
 
 // Misc
@@ -134,11 +151,14 @@ export {
   ErrorWebSocketConnectionPeer,
   ErrorWebSocketConnectionInternal,
   ErrorWebSocketStream,
+  ErrorWebSocketStreamDestroyed,
+  ErrorWebSocketStreamLocalRead,
+  ErrorWebSocketStreamLocalWrite,
+  ErrorWebSocketStreamPeerRead,
+  ErrorWebSocketStreamPeerWrite,
+  ErrorWebSocketStreamInternal,
   ErrorWebSocketStreamUnknown,
   ErrorWebSocketStreamReadableParse,
   ErrorWebSocketStreamReadableBufferOverload,
-  ErrorWebSocketStreamDestroyed,
-  ErrorWebSocketStreamClose,
-  ErrorWebSocketStreamCancel,
   ErrorWebSocketUndefinedBehaviour,
 };

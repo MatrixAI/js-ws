@@ -21,7 +21,7 @@ import { context, timedCancellable } from '@matrixai/contexts/dist/decorators';
 import Logger from '@matrixai/logger';
 import * as ws from 'ws';
 import { Timer } from '@matrixai/timer';
-import { EventAll, EventDefault } from '@matrixai/events';
+import { AbstractEvent, EventAll, EventDefault } from '@matrixai/events';
 import { concatUInt8Array } from './message';
 import WebSocketStream from './WebSocketStream';
 import * as errors from './errors';
@@ -76,13 +76,13 @@ class WebSocketConnection {
 
   /**
    * Converts reason to code.
-   * Used during `QUICStream` creation.
+   * Used during `WebSocketStream` creation.
    */
   protected reasonToCode: StreamReasonToCode;
 
   /**
    * Converts code to reason.
-   * Used during `QUICStream` creation.
+   * Used during `WebSocketStream` creation.
    */
   protected codeToReason: StreamCodeToReason;
 
@@ -134,26 +134,6 @@ class WebSocketConnection {
   protected localPort?: Port;
   protected peerCert?: DetailedPeerCertificate;
 
-  /**
-   * Bubble up stream destroy event
-   */
-  protected handleEventWebSocketStream = (
-    evt:
-      | EventAll<events.EventWebSocketStream>
-      | EventDefault<events.EventWebSocketStream>
-      | events.EventWebSocketStream,
-  ) => {
-    if (evt instanceof EventAll || evt instanceof EventDefault) {
-      evt = evt.detail;
-    }
-
-    this.dispatchEvent(evt.clone());
-
-    if (evt instanceof events.EventWebSocketStreamDestroyed) {
-      this.streamMap.delete((evt.target as WebSocketStream).streamId);
-    }
-  };
-
   protected handleEventWebSocketConnectionError = (
     evt: events.EventWebSocketConnectionError,
   ) => {
@@ -173,6 +153,30 @@ class WebSocketConnection {
       });
     }
   };
+
+
+  protected handleEventWebSocketStreamSend = async (evt: events.EventWebSocketStreamSend) => {
+    await this.send(evt.msg);
+  };
+
+  protected handleEventWebSocketStreamDestroyed = (evt: events.EventWebSocketStreamDestroyed) => {
+    const stream = evt.target as WebSocketStream;
+    stream.removeEventListener(
+      events.EventWebSocketStreamSend.name,
+      this.handleEventWebSocketStreamSend
+    );
+    stream.removeEventListener(
+      EventAll.name,
+      this.handleEventWebSocketStream
+    );
+    this.streamMap.delete(stream.streamId);
+  }
+
+  protected handleEventWebSocketStream = (evt: EventAll) => {
+    if (evt.detail instanceof AbstractEvent) {
+      this.dispatchEvent(evt.detail.clone());
+    }
+  }
 
   protected closeLocally: boolean = false;
   protected closedP: Promise<void>;
@@ -220,21 +224,27 @@ class WebSocketConnection {
         return;
       }
       stream = await WebSocketStream.createWebSocketStream({
+        initiated: 'peer',
         connection: this,
         streamId,
         bufferSize: this.config.streamBufferSize,
+        reasonToCode: this.reasonToCode,
+        codeToReason: this.codeToReason,
         logger: this.logger.getChild(`${WebSocketStream.name} ${streamId!}`),
       });
       this.streamMap.set(streamId, stream);
       stream.addEventListener(
-        events.EventWebSocketStreamDestroy.name,
-        this.handleEventWebSocketStream,
-        { once: true },
+        events.EventWebSocketStreamSend.name,
+        this.handleEventWebSocketStreamSend,
       );
       stream.addEventListener(
         events.EventWebSocketStreamDestroyed.name,
-        this.handleEventWebSocketStream,
+        this.handleEventWebSocketStreamDestroyed,
         { once: true },
+      );
+      stream.addEventListener(
+        EventAll.name,
+        this.handleEventWebSocketStream,
       );
       this.dispatchEvent(
         new events.EventWebSocketConnectionStream({
@@ -469,6 +479,7 @@ class WebSocketConnection {
         streamId = this.streamIdServerBidi;
       }
       const stream = await WebSocketStream.createWebSocketStream({
+        initiated: 'local',
         streamId: streamId!,
         connection: this,
         bufferSize: this.config.streamBufferSize,
@@ -478,14 +489,17 @@ class WebSocketConnection {
       });
       this.streamMap.set(streamId!, stream);
       stream.addEventListener(
-        events.EventWebSocketStreamDestroy.name,
-        this.handleEventWebSocketStream,
-        { once: true },
+        events.EventWebSocketStreamSend.name,
+        this.handleEventWebSocketStreamSend,
       );
       stream.addEventListener(
         events.EventWebSocketStreamDestroyed.name,
-        this.handleEventWebSocketStream,
+        this.handleEventWebSocketStreamDestroyed,
         { once: true },
+      );
+      stream.addEventListener(
+        EventAll.name,
+        this.handleEventWebSocketStream,
       );
       // Ok the stream is opened and working
       if (this.type === 'client' && streamType === 'bidi') {
@@ -538,7 +552,7 @@ class WebSocketConnection {
   }
 
   public async stop({
-    errorCode = 1000,
+    errorCode = ConnectionErrorCode.Normal,
     errorMessage = '',
     force = true,
   }: {

@@ -8,6 +8,7 @@ import { promise } from '@/utils';
 import * as utils from '@/utils';
 import * as messageUtils from '@/message/utils';
 import { StreamMessageType } from '@/message';
+import { EventAll } from '@matrixai/events';
 
 type StreamOptions = Partial<
   Parameters<typeof WebSocketStream.createWebSocketStream>[0]
@@ -47,11 +48,19 @@ jest.mock('@/WebSocketConnection', () => {
     instance.streamMap = new Map<StreamId, WebSocketStream>();
     instance.streamNew = async () => {
       const stream = await WebSocketStream.createWebSocketStream({
+        initiated: 'local',
         streamId: streamIdCounter as StreamId,
         bufferSize: STREAM_BUFFER_SIZE,
         connection: instance as any,
         logger: logger1,
         ...streamOptions,
+      });
+      stream.addEventListener(EventAll.name, (evt: any) => {
+        console.log(evt)
+      })
+      stream.addEventListener(events.EventWebSocketStreamSend.name, (evt: any) => {
+        console.log(evt.msg);
+        instance.send(evt.msg);
       });
       stream.addEventListener(
         events.EventWebSocketStreamDestroyed.name,
@@ -79,11 +88,16 @@ jest.mock('@/WebSocketConnection', () => {
           return;
         }
         stream = await WebSocketStream.createWebSocketStream({
+          initiated: 'peer',
           streamId,
           bufferSize: STREAM_BUFFER_SIZE,
           connection: instance.peerConnection!,
           logger: logger2,
           ...streamOptions,
+        });
+        stream.addEventListener(events.EventWebSocketStreamSend.name, (evt: any) => {
+          console.log(evt)
+          instance.peerConnection!.send(evt.msg)
         });
         stream.addEventListener(
           events.EventWebSocketStreamDestroyed.name,
@@ -135,6 +149,8 @@ describe(WebSocketStream.name, () => {
       { once: true },
     );
     const stream2 = await createStream2Prom.p;
+    console.log("done")
+
     return [stream1, stream2];
   }
 

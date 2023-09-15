@@ -62,17 +62,17 @@ type RemoteInfo = {
  * Use `0` to indicate unknown/default reason.
  */
 type StreamReasonToCode = (
-  type: 'recv' | 'send',
+  type: 'read' | 'write',
   reason?: any,
-) => bigint | PromiseLike<bigint>;
+) => bigint;
 
 /**
  * Maps code to a reason. 0 usually indicates unknown/default reason.
  */
 type StreamCodeToReason = (
-  type: 'recv' | 'send',
+  type: 'read' | 'write',
   code: bigint,
-) => any | PromiseLike<any>;
+) => any;
 
 type ConnectionMetadata = {
   localHost?: string;

@@ -137,9 +137,7 @@ describe(WebSocketClient.name, () => {
 
     await server.stop({ force: true });
 
-    await expect(reader.read()).rejects.toThrowError(
-      errors.ErrorWebSocketStreamClose,
-    );
+    await expect(reader.read()).toReject();
   });
   test('handles multiple connections', async () => {
     const conns = 10;

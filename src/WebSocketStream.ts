@@ -17,12 +17,13 @@ import {
 } from 'stream/web';
 import {
   CreateDestroy,
-  status,
   ready,
+  destroyed,
+  initLock
 } from '@matrixai/async-init/dist/CreateDestroy';
 import Logger from '@matrixai/logger';
 import { generateStreamId } from './message';
-import { promise } from './utils';
+import * as utils from './utils';
 import * as errors from './errors';
 import * as events from './events';
 import {
@@ -45,55 +46,8 @@ interface WebSocketStream extends CreateDestroy {}
   eventDestroyed: events.EventWebSocketStreamDestroyed,
 })
 class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
-  public streamId: StreamId;
-  public encodedStreamId: Uint8Array;
-  /**
-   * Errors:
-   * - {@link errors.ErrorWebSocketStreamClose} - This will happen if the stream is closed with {@link WebSocketStream.destroy} or if the {@link WebSocketConnection} was closed.
-   * - {@link errors.ErrorWebSocketStreamCancel} - This will happen if the stream is closed with {@link WebSocketStream.cancel}
-   * - {@link errors.ErrorWebSocketStreamUnknown} - Unknown error
-   * - {@link errors.ErrorWebSocketStreamReadableBufferOverload} - This will happen when the readable buffer is overloaded
-   * - {@link errors.ErrorWebSocketStreamReadableParse} - This will happen when the ReadableStream cannot parse an incoming message
-   */
-  public readable: ReadableStream<Uint8Array>;
-  /**
-   * Errors:
-   * - {@link errors.ErrorWebSocketStreamClose} - This will happen if the stream is closed with {@link WebSocketStream.destroy} or if the {@link WebSocketConnection} was closed.
-   * - {@link errors.ErrorWebSocketStreamCancel} - This will happen if the stream is closed with {@link WebSocketStream.cancel}
-   * - {@link errors.ErrorWebSocketStreamUnknown} - Unknown error
-   * - {@link errors.ErrorWebSocketStreamReadableBufferOverload} - This will happen when the receiving ReadableStream's buffer is overloaded
-   * - {@link errors.ErrorWebSocketStreamReadableParse} - This will happen when the receiving ReadableStream cannot parse a sent message
-   */
-  public writable: WritableStream<Uint8Array>;
-
-  protected _readableEnded = false;
-  protected _writableEnded = false;
-
-  protected logger: Logger;
-  protected connection: WebSocketConnection;
-  protected reasonToCode: StreamReasonToCode;
-  protected codeToReason: StreamCodeToReason;
-  protected readableController: ReadableStreamDefaultController;
-  protected writableController: WritableStreamDefaultController;
-
-  protected readableQueue: WebSocketStreamQueue = new WebSocketStreamQueue();
-  protected readableQueueBufferSize = 0;
-  protected readableBufferReady = promise<void>();
-  protected writableDesiredSize = 0;
-  protected writableDesiredSizeProm = promise<void>();
-
-  // This can only be resolved, and never rejected
-  // This is because we cannot fail to destroy
-  // If the destroy never occurred, then we just
-  protected _closedP: Promise<void>;
-
-  // Any errors that occurs within the streams
-  // Translates to the streams being closed
-  // Thus this will always be resolved even if there's an error
-  // As long as there are closures on both streams
-  protected resolveClosedP: () => void;
-
   public static async createWebSocketStream({
+    initiated,
     streamId,
     connection,
     bufferSize,
@@ -102,6 +56,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       new Error(`${type.toString()} ${code.toString()}`),
     logger = new Logger(`${this.name} ${streamId}`),
   }: {
+    initiated: 'local' | 'peer';
     streamId: StreamId;
     connection: WebSocketConnection;
     bufferSize: number;
@@ -111,6 +66,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   }): Promise<WebSocketStream> {
     logger.info(`Create ${this.name}`);
     const stream = new this({
+      initiated,
       streamId,
       connection,
       bufferSize,
@@ -118,11 +74,116 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       codeToReason,
       logger,
     });
+    stream.addEventListener(
+      events.EventWebSocketStreamError.name,
+      stream.handleEventWebSocketStreamError,
+    );
+    stream.addEventListener(
+      events.EventWebSocketStreamCloseRead.name,
+      stream.handleEventWebSocketStreamCloseRead,
+      { once: true }
+    );
+    stream.addEventListener(
+      events.EventWebSocketStreamCloseWrite.name,
+      stream.handleEventWebSocketStreamCloseWrite,
+      { once: true }
+    );
     logger.info(`Created ${this.name}`);
     return stream;
   }
 
+  public readonly initiated: 'local' | 'peer';
+
+  public readonly streamId: StreamId;
+  public readonly encodedStreamId: Uint8Array;
+  /**
+   * Errors:
+   * - {@link errors.ErrorWebSocketStreamClose} - This will happen if the stream is closed with {@link WebSocketStream.destroy} or if the {@link WebSocketConnection} was closed.
+   * - {@link errors.ErrorWebSocketStreamCancel} - This will happen if the stream is closed with {@link WebSocketStream.cancel}
+   * - {@link errors.ErrorWebSocketStreamUnknown} - Unknown error
+   * - {@link errors.ErrorWebSocketStreamReadableBufferOverload} - This will happen when the readable buffer is overloaded
+   * - {@link errors.ErrorWebSocketStreamReadableParse} - This will happen when the ReadableStream cannot parse an incoming message
+   */
+  public readonly readable: ReadableStream<Uint8Array>;
+  /**
+   * Errors:
+   * - {@link errors.ErrorWebSocketStreamClose} - This will happen if the stream is closed with {@link WebSocketStream.destroy} or if the {@link WebSocketConnection} was closed.
+   * - {@link errors.ErrorWebSocketStreamCancel} - This will happen if the stream is closed with {@link WebSocketStream.cancel}
+   * - {@link errors.ErrorWebSocketStreamUnknown} - Unknown error
+   * - {@link errors.ErrorWebSocketStreamReadableBufferOverload} - This will happen when the receiving ReadableStream's buffer is overloaded
+   * - {@link errors.ErrorWebSocketStreamReadableParse} - This will happen when the receiving ReadableStream cannot parse a sent message
+   */
+  public readonly writable: WritableStream<Uint8Array>;
+
+  protected logger: Logger;
+  protected connection: WebSocketConnection;
+  protected reasonToCode: StreamReasonToCode;
+  protected codeToReason: StreamCodeToReason;
+  protected readableController: ReadableStreamDefaultController;
+  protected writableController: WritableStreamDefaultController;
+
+  protected _readClosed = false;
+  protected _writeClosed = false;
+
+  protected readableQueue: WebSocketStreamQueue = new WebSocketStreamQueue();
+  protected readableQueueBufferSize = 0;
+  protected readableBufferReady = utils.promise<void>();
+  protected writableDesiredSize = 0;
+  protected writableDesiredSizeProm = utils.promise<void>();
+  protected initAckSent = false;
+
+  public readonly closedP: Promise<void>;
+  protected resolveClosedP: () => void;
+
+  /**
+   * We expect WebSocket stream error in 2 ways.
+   * WebSocket stream closure of the stream codes.
+   * On read side
+   * On write side
+   * We are able to use exception classes to distinguish things
+   * Because it's always about the error itself!A
+   * Note that you must distinguish between actual internal errors, and errors on the stream itself
+   */
+  protected handleEventWebSocketStreamError = async (evt: events.EventWebSocketStreamError) => {
+    const error = evt.detail;
+    this.logger.error(utils.formatError(error));
+  };
+
+  protected handleEventWebSocketStreamCloseRead = async () => {
+    this._readClosed = true;
+    if (this._readClosed && this._writeClosed) {
+      this.resolveClosedP();
+      if (!this[destroyed]) {
+        // If we are destroying, we still end up calling this
+        // This is to enable, that when a failed cancellation to continue to destroy
+        // By disabling force, we don't end up running cancel again
+        // But that way it does infact successfully destroy
+        // Failing to destroy is also a caller error, there's no domain error handling (because this runs once)
+        // So we let it bubble up
+        await this.destroy({ force: false });
+      }
+    }
+  };
+
+  protected handleEventWebSocketStreamCloseWrite = async () => {
+    this._writeClosed = true;
+    if (this._readClosed && this._writeClosed) {
+      this.resolveClosedP();
+      if (!this[destroyed]) {
+        // If we are destroying, we still end up calling this
+        // This is to enable, that when a failed cancellation to continue to destroy
+        // By disabling force, we don't end up running cancel again
+        // But that way it does infact successfully destroy
+        await this.destroy({ force: false });
+      }
+    }
+  };
+
+  /**
+   * @internal
+   */
   constructor({
+    initiated,
     streamId,
     connection,
     bufferSize,
@@ -130,6 +191,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     codeToReason,
     logger,
   }: {
+    initiated: 'local' | 'peer';
     streamId: StreamId;
     connection: WebSocketConnection;
     bufferSize: number;
@@ -138,70 +200,24 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     logger: Logger;
   }) {
     this.logger = logger;
+    this.initiated = initiated;
     this.streamId = streamId;
     this.encodedStreamId = generateStreamId(streamId);
     this.connection = connection;
     this.reasonToCode = reasonToCode;
     this.codeToReason = codeToReason;
+    // This will be used to know when both readable and writable is closed
+    const { p: closedP, resolveP: resolveClosedP } = utils.promise();
+    this.closedP = closedP;
+    this.resolveClosedP = resolveClosedP;
 
     this.readableQueueBufferSize = bufferSize;
 
-    const { p: closedP, resolveP: resolveClosedP } = promise();
-    this._closedP = closedP;
-    this.resolveClosedP = resolveClosedP;
-
-    let initAckSent = false;
-
     this.readable = new ReadableStream<Uint8Array>(
       {
-        start: async (controller) => {
-          this.readableController = controller;
-        },
-        pull: async (controller) => {
-          // If a readable has ended, whether by the closing of the sender's WritableStream or by calling `.close`, do not bother to send back an ACK
-          if (this._readableEnded) {
-            return;
-          }
-
-          if (!initAckSent) {
-            await this.streamSend({
-              type: StreamMessageType.Ack,
-              payload: bufferSize,
-            });
-            initAckSent = true;
-            return;
-          }
-
-          // Reset the promise before a read from the queue to wait until the queue has items
-          if (this.readableQueue.count === 0) {
-            this.readableBufferReady.resolveP();
-            this.readableBufferReady = promise<void>();
-          }
-          await this.readableBufferReady.p;
-
-          // Data will be null in the case of stream destruction before the readable buffer is blocked
-          // we're going to just enqueue an empty buffer in case it is null for some other reason, so that the next read is able to complete
-          const data = this.readableQueue.dequeue();
-          if (data == null) {
-            controller.enqueue(new Uint8Array(0));
-            return;
-          }
-          const readBytes = data.length;
-          controller.enqueue(data);
-
-          this.logger.debug(
-            `${readBytes} bytes have been pushed onto stream buffer`,
-          );
-
-          await this.streamSend({
-            type: StreamMessageType.Ack,
-            payload: readBytes,
-          });
-        },
-        cancel: async (reason) => {
-          this.logger.debug(`readable aborted with [${reason.message}]`);
-          await this.signalReadableEnd(true, reason);
-        },
+        start: this.readableStart.bind(this),
+        pull: this.readablePull.bind(this),
+        cancel: this.readableCancel.bind(this),
       },
       new CountQueuingStrategy({
         highWaterMark: 1,
@@ -210,56 +226,10 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
 
     this.writable = new WritableStream(
       {
-        start: (controller) => {
-          this.writableController = controller;
-        },
-        write: async (chunk) => {
-          while (chunk.length > 0) {
-            // Do not bother to write or wait for ACK if the writable has ended
-            if (this._writableEnded) {
-              return;
-            }
-            this.logger.debug(
-              `${chunk.length} bytes need to be written into a receiver buffer of ${this.writableDesiredSize} bytes`,
-            );
-
-            await this.writableDesiredSizeProm.p;
-
-            // Chunking
-            // .subarray parameters begin and end are clamped to the size of the Uint8Array
-            const data = chunk.subarray(0, this.writableDesiredSize);
-            if (chunk.length > this.writableDesiredSize) {
-              this.logger.debug(
-                `this chunk will be split into sizes of ${this.writableDesiredSize} bytes`,
-              );
-            }
-
-            const bytesWritten = data.length;
-            if (this.writableDesiredSize === bytesWritten) {
-              this.logger.debug(
-                `this chunk will trigger receiver to send an ACK`,
-              );
-              // Reset the promise to wait for another ACK
-              this.writableDesiredSizeProm = promise();
-            }
-            // Decrement the desired size by the amount of bytes written
-            this.writableDesiredSize -= bytesWritten;
-            this.logger.debug(
-              `writableDesiredSize is now ${this.writableDesiredSize} due to write`,
-            );
-            await this.streamSend({
-              type: StreamMessageType.Data,
-              payload: data,
-            });
-            chunk = chunk.subarray(bytesWritten);
-          }
-        },
-        close: async () => {
-          await this.signalWritableEnd();
-        },
-        abort: async (reason?: any) => {
-          await this.signalWritableEnd(true, reason);
-        },
+        start: this.writableStart.bind(this),
+        write: this.writableWrite.bind(this),
+        close: this.writableClose.bind(this),
+        abort: this.writableAbort.bind(this),
       },
       {
         highWaterMark: 1,
@@ -276,45 +246,278 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   }
 
   /**
-   * Returns true if the readable has closed.
-   */
-  public get readableEnded(): boolean {
-    return this._readableEnded;
-  }
-
-  /**
    * Returns true if the writable has closed.
    */
-  public get writableEnded(): boolean {
-    return this.writableEnded;
+  public get writeClosed(): boolean {
+    return this.writeClosed;
   }
 
   /**
-   * A promise that resolves once this `WebSocketStream` has ended.
+   * Returns true if the readable has closed.
    */
-  public get closedP() {
-    return this._closedP;
+  public get readClosed(): boolean {
+    return this._readClosed;
   }
 
-  public async destroy() {
+  public get closed() {
+    return this._readClosed && this._writeClosed;
+  }
+
+  /**
+   * This method can be arrived top-down or bottom-up:
+   *
+   * 1. Top-down control flow - means explicit destruction from WebSocketConnection
+   * 2. Bottom-up control flow - means stream events from users of this stream
+   *
+   * If force is true then this will cancel readable and abort writable.
+   * If force is false then it will just wait for readable and writable to be closed.
+   *
+   * Unlike WebSocketConnection, this defaults to true for force.
+   *
+   * @throws {errors.ErrorWebSocketStreamInternal}
+   */
+  public async destroy({
+    force = true,
+    reason
+  }: {
+    force?: boolean;
+    reason?: any;
+  } = {}) {
     this.logger.info(`Destroy ${this.constructor.name}`);
-    // Force close any open streams
-    await this.cancel(new errors.ErrorWebSocketStreamClose());
-    // Removing stream from the connection's stream map
-    // The other side currently will send back an ERROR/CLOSE frame from us sending an ERROR/CLOSE frame from this.close().
-    // However, out stream gets deleted before we receive that message on the connection.
-    // So the connection will infinitely create streams with the same streamId when it receives the ERROR/CLOSE frame.
-    // I'm dealing with this by just making that only an ACK message can initiate a stream creation.
+    if (force && !(this._readClosed && this._writeClosed)) {
+      // If force is true, we are going to cancel the 2 streams
+      // This means cancelling the readable stream and aborting the writable stream
+      // Whether this fails or succeeds, it will trigger the close handler
+      // Which means we recurse back into `this.destroy`.
+      // If it failed, it recurses into destroy and will succeed (because the force will be false)
+      // If it succeeded, it recurses into destroy into a noop.
+      this.cancel(reason);
+    }
+    await this.closedP;
+    this.removeEventListener(
+      events.EventWebSocketStreamError.name,
+      this.handleEventWebSocketStreamError
+    );
+    this.removeEventListener(
+      events.EventWebSocketStreamCloseRead.name,
+      this.handleEventWebSocketStreamCloseRead,
+    );
+    this.removeEventListener(
+      events.EventWebSocketStreamCloseWrite.name,
+      this.handleEventWebSocketStreamCloseWrite
+    );
     this.logger.info(`Destroyed ${this.constructor.name}`);
   }
 
-  protected async streamSend(message: StreamMessage): Promise<void> {
-    const array: Array<Uint8Array> = [
-      this.encodedStreamId,
-      ...generateStreamMessage(message, false),
-    ];
-    await this.connection.send(array);
+  /**
+   * Will trigger the destruction of the `WebSocketStream` if the readable or writable haven't closed, yet they will be forced
+   * closed with `reason` as the error.
+   * If streams have already closed then this will do nothing.
+   * This is synchronous by design but cancelling will happen asynchronously in the background.
+   *
+   * This ends up calling the cancel and abort methods.
+   * Those methods are needed because the readable and writable might be locked with
+   * a reader and writer respectively. So we have to cancel and abort from the "inside" of
+   * the stream.
+   * It's essential that this is synchronous, as that ensures only one thing is running at a time.
+   * Note that if cancellation fails...
+   *
+   * Calling this will lead an asynchronous destruction of this `WebSocketStream` instance.
+   * This could throw actually. But cancellation is likely to have occurred.
+   *
+   * @throws {errors.ErrorWebSocketStreamInternal}
+   */
+  public async cancel(reason?: any) {
+    try {
+      this.readableCancel(reason);
+    } catch (e) {
+      // If cancelling readable failed here, it would have dispatched the domain error and close for read
+      // So we need to also dispatch the close for write here, because failing to cancel is a domain error
+      this.dispatchEvent(new events.EventWebSocketStreamCloseWrite());
+      throw e;
+    }
+    // If this failed, it will be a domain error, but readable cancel would have succeeded
+    this.writableAbort(reason);
   }
+
+  protected readableStart(controller: ReadableStreamDefaultController): void {
+    this.readableController = controller;
+  }
+
+  protected writableStart(controller: WritableStreamDefaultController): void {
+    this.writableController = controller;
+  }
+
+  protected async readablePull(controller: ReadableStreamDefaultController): Promise<void> {
+    // If a readable has ended, whether by the closing of the sender's WritableStream or by calling `.close`, do not bother to send back an ACK
+    if (this._readClosed) {
+      return;
+    }
+
+    if (!this.initAckSent) {
+      this.streamSend({
+        type: StreamMessageType.Ack,
+        payload: this.readableQueueBufferSize,
+      });
+      this.initAckSent = true;
+      return;
+    }
+
+    // Reset the promise before a read from the queue to wait until the queue has items
+    if (this.readableQueue.count === 0) {
+      this.readableBufferReady.resolveP();
+      this.readableBufferReady = utils.promise<void>();
+    }
+    await this.readableBufferReady.p;
+
+    // Data will be null in the case of stream destruction before the readable buffer is blocked
+    // we're going to just enqueue an empty buffer in case it is null for some other reason, so that the next read is able to complete
+    const data = this.readableQueue.dequeue();
+    if (data == null) {
+      controller.enqueue(new Uint8Array(0));
+      return;
+    }
+    const readBytes = data.length;
+    controller.enqueue(data);
+
+    this.logger.debug(
+      `${readBytes} bytes have been pushed onto stream buffer`,
+    );
+
+    this.streamSend({
+      type: StreamMessageType.Ack,
+      payload: readBytes,
+    });
+  }
+
+  protected async writableWrite(chunk: Uint8Array): Promise<void> {
+
+  }
+
+  /**
+   * This is mutually exclusive with write.
+   * It will be serialised!
+   */
+  protected writableClose(): void {
+    // Graceful close on the write without any code
+    this.dispatchEvent(
+      new events.EventWebSocketStreamCloseWrite({
+        detail: { type: 'local' }
+      })
+    );
+    this.streamSend({
+      type: StreamMessageType.Close,
+      payload: StreamShutdown.Read
+    });
+  }
+
+  /**
+   * This is factored out and callable by both `readable.cancel` and `this.cancel`.
+   * ReadableStream ensures that this method is idempotent
+   *
+   * @throws {errors.ErrorWebSocketStreamInternal}
+   */
+  protected readableCancel(reason?: any): void {
+    // Ignore if already closed
+    // This is only needed if this function is called from `this.cancel`.
+    // Because the web stream already ensures `cancel` is idempotent.
+    if (this._readClosed) return;
+    const code = this.reasonToCode('read', reason) as VarInt;
+    const e = new errors.ErrorWebSocketStreamLocalRead(
+      'Closing readable stream locally',
+      {
+        data: { code },
+        cause: reason
+      }
+    );
+    // This is idempotent and won't error even if it is already stopped
+    this.readableController.error(reason);
+    // This rejects the readableP if it exists
+    // The pull method may be blocked by `await readableP`
+    // When rejected, it will throw up the exception
+    // However because the stream is cancelled, then
+    // the exception has no effect, and any reads of this stream
+    // will simply return `{ value: undefined, done: true }`
+    this.readableBufferReady.resolveP();
+    this.dispatchEvent(
+      new events.EventWebSocketStreamError({
+        detail: e
+      })
+    );
+    this.dispatchEvent(
+      new events.EventWebSocketStreamCloseRead({
+        detail: {
+          type: 'local',
+          code: code
+        }
+      })
+    );
+    this.streamSend({
+      type: StreamMessageType.Error,
+      payload: {
+        shutdown: StreamShutdown.Write,
+        code
+      }
+    });
+    return;
+  }
+
+  /**
+   * This is factored out and callable by both `writable.abort` and `this.cancel`.
+   *
+   * @throws {errors.ErrorWebSocketStreamInternal}
+   */
+  protected writableAbort(reason?: any): void {
+    // Ignore if already closed
+    // This is only needed if this function is called from `this.cancel`.
+    // Because the web stream already ensures `cancel` is idempotent.
+    if (this._writeClosed) return;
+    const code = this.reasonToCode('write', reason) as VarInt;
+    const e = new errors.ErrorWebSocketStreamLocalWrite(
+      'Closing writable stream locally',
+      {
+        data: { code },
+        cause: reason
+      }
+    );
+    this.writableController.error(e);
+    // This will reject the writable call
+    // But at the same time, it means the writable stream transitions to errored state
+    // But the whole writable stream is going to be closed anyway
+    this.writableDesiredSizeProm.resolveP();
+    this.dispatchEvent(
+      new events.EventWebSocketStreamError({
+        detail: e
+      })
+    );
+    this.dispatchEvent(
+      new events.EventWebSocketStreamCloseWrite({
+        detail: {
+          type: 'local',
+          code
+        }
+      })
+    );
+    // TODO: change to dispatch event
+    this.streamSend({
+      type: StreamMessageType.Error,
+      payload: {
+        shutdown: StreamShutdown.Read,
+        code
+      }
+    });
+    return;
+  }
+
+
+  protected streamSend(message: StreamMessage) {
+    const array = generateStreamMessage(message, false);
+    array.unshift(this.encodedStreamId);
+    const evt = new events.EventWebSocketStreamSend();
+    evt.msg = array;
+    this.dispatchEvent(evt);
+  }
+
 
   /**
    * Put a message frame into a stream.
@@ -325,8 +528,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   public async streamRecv(message: Uint8Array) {
     if (message.length === 0) {
       this.logger.debug(`received empty message, closing stream`);
-      await this.signalReadableEnd(
-        true,
+      this.readableCancel(
         new errors.ErrorWebSocketStreamReadableParse('empty message', {
           cause: new RangeError(),
         }),
@@ -338,8 +540,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     try {
       parsedMessage = parseStreamMessage(message);
     } catch (err) {
-      await this.signalReadableEnd(
-        true,
+      await this.readableCancel(
         new errors.ErrorWebSocketStreamReadableParse(err.message, {
           cause: err,
         }),
@@ -354,15 +555,14 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
         `writableDesiredSize is now ${this.writableDesiredSize} due to ACK`,
       );
     } else if (parsedMessage.type === StreamMessageType.Data) {
-      if (this._readableEnded) {
+      if (this._readClosed) {
         return;
       }
       if (
         parsedMessage.payload.length >
         this.readableQueueBufferSize - this.readableQueue.length
       ) {
-        await this.signalReadableEnd(
-          true,
+        this.readableCancel(
           new errors.ErrorWebSocketStreamReadableBufferOverload(),
         );
         return;
@@ -389,146 +589,127 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
           );
           break;
         default:
-          reason = await this.codeToReason('recv', code);
+          reason = await this.codeToReason('read', code);
       }
       if (shutdown === StreamShutdown.Read) {
-        await this.signalReadableEnd(true, reason);
+        if (this._readClosed) return;
+        const code = this.reasonToCode('read', reason) as VarInt;
+        const e = new errors.ErrorWebSocketStreamLocalRead(
+          'Closing readable stream due to Error message from peer',
+          {
+            data: { code },
+            cause: reason
+          }
+        );
+        this.readableController.error(reason);
+        this.readableBufferReady.resolveP();
+        this.dispatchEvent(
+          new events.EventWebSocketStreamError({
+            detail: e
+          })
+        );
+        this.dispatchEvent(
+          new events.EventWebSocketStreamCloseRead({
+            detail: {
+              type: 'local',
+              code: code
+            }
+          })
+        );
+        this.streamSend({
+          type: StreamMessageType.Error,
+          payload: {
+            shutdown: StreamShutdown.Write,
+            code
+          }
+        });
       } else if (shutdown === StreamShutdown.Write) {
-        await this.signalWritableEnd(true, reason);
+        if (this._writeClosed) return;
+        const code = this.reasonToCode('write', reason) as VarInt;
+        const e = new errors.ErrorWebSocketStreamLocalWrite(
+          'Closing writable stream due to Error message from peer',
+          {
+            data: { code },
+            cause: reason
+          }
+        );
+        this.writableController.error(e);
+        this.writableDesiredSizeProm.resolveP();
+        this.dispatchEvent(
+          new events.EventWebSocketStreamError({
+            detail: e
+          })
+        );
+        this.dispatchEvent(
+          new events.EventWebSocketStreamCloseWrite({
+            detail: {
+              type: 'local',
+              code
+            }
+          })
+        );
+        // TODO: change to dispatch event
+        this.streamSend({
+          type: StreamMessageType.Error,
+          payload: {
+            shutdown: StreamShutdown.Read,
+            code
+          }
+        });
       }
     } else if (parsedMessage.type === StreamMessageType.Close) {
       const shutdown = parsedMessage.payload;
       if (shutdown === StreamShutdown.Read) {
-        if (this._readableEnded) {
-          return;
-        }
-        await this.signalReadableEnd(false);
+        if (this._readClosed) return;
         this.readableController.close();
+        this.readableBufferReady.resolveP();
+        this.dispatchEvent(
+          new events.EventWebSocketStreamCloseRead({
+            detail: {
+              type: 'peer',
+            }
+          })
+        );
+        this.streamSend({
+          type: StreamMessageType.Close,
+          payload: StreamShutdown.Write,
+        });
       } else if (shutdown === StreamShutdown.Write) {
-        if (this._writableEnded) {
-          return;
-        }
-        await this.signalWritableEnd(false);
+        if (this._writeClosed) return;
+        // Realistically this should never happen due to Readable stream not being able to be closed
+        const code = StreamErrorCode.Unknown;
+        const reason = new errors.ErrorWebSocketStreamUnknown();
+        const e = new errors.ErrorWebSocketStreamLocalWrite(
+          'Closing writable stream due to Close message from peer',
+          {
+            data: { code },
+            cause: reason
+          }
+        );
+        this.writableController.error(e);
+        this.writableDesiredSizeProm.resolveP();
+        this.dispatchEvent(
+          new events.EventWebSocketStreamError({
+            detail: e
+          })
+        );
+        this.dispatchEvent(
+          new events.EventWebSocketStreamCloseWrite({
+            detail: {
+              type: 'peer',
+              code
+            }
+          })
+        );
+        this.streamSend({
+          type: StreamMessageType.Error,
+          payload: {
+            shutdown: StreamShutdown.Read,
+            code
+          }
+        });
       }
     }
-  }
-
-  /**
-   * Forces the active stream to end early
-   */
-  public async cancel(reason?: any) {
-    const isError =
-      reason != null && !(reason instanceof errors.ErrorWebSocketStreamClose);
-    reason = reason ?? new errors.ErrorWebSocketStreamCancel();
-    // Close the streams with the given error,
-    if (!this._readableEnded) {
-      this.readableController.error(reason);
-      await this.signalReadableEnd(isError, reason);
-    }
-    if (!this._writableEnded) {
-      this.writableController.error(reason);
-      await this.signalWritableEnd(isError, reason);
-    }
-  }
-
-  /**
-   * Signals the end of the ReadableStream. to be used with the extended class
-   * to track the streams state.
-   */
-  protected async signalReadableEnd(isError: boolean = false, reason?: any) {
-    if (isError) {
-      this.logger.debug(`ending readable with error ${reason.message}`);
-    } else {
-      this.logger.debug(`ending readable`);
-    }
-    if (this._readableEnded) return;
-    // Indicate that receiving side is closed
-    this._readableEnded = true;
-    // Resolve readable promise in case blocking
-    this.readableBufferReady.resolveP();
-    // Clear the readable queue
-    this.readableQueue.clear();
-    // Shutdown the write side of the other stream
-    if (isError) {
-      let code: VarInt;
-      if (reason instanceof errors.ErrorWebSocketStreamUnknown) {
-        code = StreamErrorCode.Unknown;
-      } else if (reason instanceof errors.ErrorWebSocketStreamReadableParse) {
-        code = StreamErrorCode.ErrorReadableStreamParse;
-      } else if (
-        reason instanceof errors.ErrorWebSocketStreamReadableBufferOverload
-      ) {
-        code = StreamErrorCode.ErrorReadableStreamBufferOverflow;
-      } else {
-        code = (await this.reasonToCode('send', reason)) as VarInt;
-      }
-      await this.streamSend({
-        type: StreamMessageType.Error,
-        payload: {
-          shutdown: StreamShutdown.Write,
-          code,
-        },
-      });
-      this.readableController.error(reason);
-    } else {
-      await this.streamSend({
-        type: StreamMessageType.Close,
-        payload: StreamShutdown.Write,
-      });
-    }
-    if (this._readableEnded && this._writableEnded) {
-      this.resolveClosedP();
-      if (this[status] !== 'destroying') await this.destroy();
-    }
-    this.logger.debug(`readable ended`);
-  }
-
-  /**
-   * Signals the end of the WritableStream. to be used with the extended class
-   * to track the streams state.
-   */
-  protected async signalWritableEnd(isError: boolean = false, reason?: any) {
-    if (isError) {
-      this.logger.debug(`ending writable with error ${reason.message}`);
-    } else {
-      this.logger.debug(`ending writable`);
-    }
-    if (this._writableEnded) return;
-    // Indicate that sending side is closed
-    this._writableEnded = true;
-    // Resolve backpressure blocking promise in case unresolved
-    this.writableDesiredSizeProm.resolveP();
-    // Shutdown the read side of the other stream
-    if (isError) {
-      let code: VarInt;
-      if (reason instanceof errors.ErrorWebSocketStreamReadableParse) {
-        code = StreamErrorCode.ErrorReadableStreamParse;
-      } else if (
-        reason instanceof errors.ErrorWebSocketStreamReadableBufferOverload
-      ) {
-        code = StreamErrorCode.ErrorReadableStreamBufferOverflow;
-      } else {
-        code = (await this.reasonToCode('send', reason)) as VarInt;
-      }
-      await this.streamSend({
-        type: StreamMessageType.Error,
-        payload: {
-          shutdown: StreamShutdown.Read,
-          code,
-        },
-      });
-      this.writableController.error(reason);
-    } else {
-      await this.streamSend({
-        type: StreamMessageType.Close,
-        payload: StreamShutdown.Read,
-      });
-    }
-    if (this._readableEnded && this._writableEnded) {
-      this.resolveClosedP();
-      if (this[status] !== 'destroying') await this.destroy();
-    }
-    this.logger.debug(`writable ended`);
   }
 }
 

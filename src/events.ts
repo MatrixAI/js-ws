@@ -5,6 +5,11 @@ import type {
   ErrorWebSocketConnectionKeepAliveTimeOut,
   ErrorWebSocketConnectionLocal,
   ErrorWebSocketConnectionPeer,
+  ErrorWebSocketStreamInternal,
+  ErrorWebSocketStreamLocalRead,
+  ErrorWebSocketStreamLocalWrite,
+  ErrorWebSocketStreamPeerRead,
+  ErrorWebSocketStreamPeerWrite,
 } from './errors';
 import { AbstractEvent } from '@matrixai/events';
 
@@ -78,6 +83,57 @@ class EventWebSocketStreamDestroy extends EventWebSocketStream {}
 
 class EventWebSocketStreamDestroyed extends EventWebSocketStream {}
 
+// Note that you can close the readable side, and give a code
+// You can close the writable side, and give a code
+// Neither of which represents an "error" for the WebSocket stream error?
+// Or does it?
+// Because one could argue either way, and then have a way to separate
+// Intenral errors from non-internal errors
+
+/**
+ * WebSocket stream encountered an error.
+ * Unlike WebSocketConnection, you can just have graceful close without any error event at all.
+ * This is because streams can just be finished with no code.
+ * But WebSocketConnection closure always comes with some error code and reason, even if the code is 0.
+ */
+class EventWebSocketStreamError extends EventWebSocketStream<
+  | ErrorWebSocketStreamLocalRead<unknown> // I may send out errors on both stop sending (shutdown read) and reset stream (shutdown write)
+  | ErrorWebSocketStreamLocalWrite<unknown> // I may send out errors on both stop sending (shutdown read) and reset stream (shutdown write)
+  | ErrorWebSocketStreamPeerRead<unknown> // I may receive errors on both stop sending (shutdown read) and reset stream (shutdown write)
+  | ErrorWebSocketStreamPeerWrite<unknown> // I may receive errors on both stop sending (shutdown read) and reset stream (shutdown write)
+  | ErrorWebSocketStreamInternal<unknown>
+> {}
+
+/**
+ * WebSocket stream readable side was closed
+ * Local means I closed my readable side - there must be an error code.
+ * Peer means the peer closed my readable side by closing their writable side - there may not be an error code.
+ */
+class EventWebSocketStreamCloseRead extends EventWebSocketStream<{
+  type: 'local';
+  code: bigint;
+} | {
+  type: 'peer';
+  code?: bigint;
+}> {}
+
+/**
+ * WebSocket stream writable side was closed
+ * Local means I closed my writable side - there may not be an error code.
+ * Peer means the peer closed my writable side by closing their readable side - there must be an error code.
+ */
+class EventWebSocketStreamCloseWrite extends EventWebSocketStream<{
+  type: 'local';
+  code?: bigint;
+} | {
+  type: 'peer';
+  code: bigint;
+}> {}
+
+class EventWebSocketStreamSend extends EventWebSocketStream {
+  msg: Uint8Array | Array<Uint8Array>
+}
+
 export {
   EventWebSocket,
   EventWebSocketClient,
@@ -104,4 +160,8 @@ export {
   EventWebSocketStream,
   EventWebSocketStreamDestroy,
   EventWebSocketStreamDestroyed,
+  EventWebSocketStreamError,
+  EventWebSocketStreamCloseRead,
+  EventWebSocketStreamCloseWrite,
+  EventWebSocketStreamSend,
 };
