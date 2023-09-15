@@ -227,8 +227,8 @@ describe(WebSocketStream.name, () => {
     const stream1Readable = stream1.readable;
     const stream2Writable = stream2.writable;
     await stream2Writable.abort(testReason);
-    await expect(stream1Readable.getReader().read()).rejects.toBeInstanceOf(errors.ErrorWebSocketStreamLocalRead);
-    await expect(stream2Writable.getWriter().write()).rejects.toBeInstanceOf(errors.ErrorWebSocketStreamLocalWrite);
+    await expect(stream1Readable.getReader().read()).rejects.toBe(testReason);
+    await expect(stream2Writable.getWriter().write()).rejects.toBe(testReason);
   });
   testProp(
     'should send data over stream - single write within buffer size',

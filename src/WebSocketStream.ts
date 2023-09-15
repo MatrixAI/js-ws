@@ -362,7 +362,45 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   }
 
   protected async writableWrite(chunk: Uint8Array): Promise<void> {
+    while (chunk.length > 0) {
+      // Do not bother to write or wait for ACK if the writable has ended
+      if (this._writeClosed) {
+        return;
+      }
+      this.logger.debug(
+        `${chunk.length} bytes need to be written into a receiver buffer of ${this.writableDesiredSize} bytes`,
+      );
 
+      await this.writableDesiredSizeProm.p;
+
+      // Chunking
+      // .subarray parameters begin and end are clamped to the size of the Uint8Array
+      const data = chunk.subarray(0, this.writableDesiredSize);
+      if (chunk.length > this.writableDesiredSize) {
+        this.logger.debug(
+          `this chunk will be split into sizes of ${this.writableDesiredSize} bytes`,
+        );
+      }
+
+      const bytesWritten = data.length;
+      if (this.writableDesiredSize === bytesWritten) {
+        this.logger.debug(
+          `this chunk will trigger receiver to send an ACK`,
+        );
+        // Reset the promise to wait for another ACK
+        this.writableDesiredSizeProm = utils.promise();
+      }
+      // Decrement the desired size by the amount of bytes written
+      this.writableDesiredSize -= bytesWritten;
+      this.logger.debug(
+        `writableDesiredSize is now ${this.writableDesiredSize} due to write`,
+      );
+      await this.streamSend({
+        type: StreamMessageType.Data,
+        payload: data,
+      });
+      chunk = chunk.subarray(bytesWritten);
+    }
   }
 
   /**
@@ -496,7 +534,6 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
    * @internal
    */
   public async streamRecv(message: Uint8Array) {
-    this.logger.error(`message | ${message} | ${message.byteLength}`);
     if (message.length === 0) {
       this.logger.debug(`received empty message, closing stream`);
       this.readableCancel(
@@ -539,7 +576,6 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
         return;
       }
       this.readableQueue.queue(parsedMessage.payload);
-      this.logger.error(`data | ${parsedMessage.payload} | ${parsedMessage.payload.byteLength}`);
       this.readableBufferReady.resolveP();
     } else if (parsedMessage.type === StreamMessageType.Error) {
       const { shutdown, code } = parsedMessage.payload;
