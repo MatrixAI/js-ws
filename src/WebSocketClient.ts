@@ -50,7 +50,7 @@ class WebSocketClient extends EventTarget {
    * Default is 10,000 milliseconds.
    * @param obj.logger
    */
-   static async createWebSocketClient({
+  static async createWebSocketClient({
     host,
     port,
     config,
@@ -109,12 +109,30 @@ class WebSocketClient extends EventTarget {
       connection,
     });
     // Setting up connection events
-    connection.addEventListener(events.EventWebSocketConnectionError.name, client.handleEventWebSocketConnectionError, { once: true });
-    connection.addEventListener(events.EventWebSocketConnectionStopped.name, client.handleEventWebSocketConnectionStopped, { once: true });
-    connection.addEventListener(EventAll.name, client.handleEventWebSocketConnection);
+    connection.addEventListener(
+      events.EventWebSocketConnectionError.name,
+      client.handleEventWebSocketConnectionError,
+      { once: true },
+    );
+    connection.addEventListener(
+      events.EventWebSocketConnectionStopped.name,
+      client.handleEventWebSocketConnectionStopped,
+      { once: true },
+    );
+    connection.addEventListener(
+      EventAll.name,
+      client.handleEventWebSocketConnection,
+    );
     // Setting up client events
-    client.addEventListener(events.EventWebSocketClientError.name, client.handleEventWebSocketClientError);
-    client.addEventListener(events.EventWebSocketClientClose.name, client.handleEventWebSocketClientClose, { once: true });
+    client.addEventListener(
+      events.EventWebSocketClientError.name,
+      client.handleEventWebSocketClientError,
+    );
+    client.addEventListener(
+      events.EventWebSocketClientClose.name,
+      client.handleEventWebSocketClientClose,
+      { once: true },
+    );
 
     client.connectionMap.add(connection);
 
@@ -125,12 +143,27 @@ class WebSocketClient extends EventTarget {
     } catch (e) {
       client.connectionMap.delete(connectionId);
 
-      connection.removeEventListener(events.EventWebSocketConnectionError.name, client.handleEventWebSocketConnectionError);
-      connection.removeEventListener(events.EventWebSocketConnectionStopped.name, client.handleEventWebSocketConnectionStopped);
-      connection.removeEventListener(EventAll.name, client.handleEventWebSocketConnection);
+      connection.removeEventListener(
+        events.EventWebSocketConnectionError.name,
+        client.handleEventWebSocketConnectionError,
+      );
+      connection.removeEventListener(
+        events.EventWebSocketConnectionStopped.name,
+        client.handleEventWebSocketConnectionStopped,
+      );
+      connection.removeEventListener(
+        EventAll.name,
+        client.handleEventWebSocketConnection,
+      );
 
-      client.removeEventListener(events.EventWebSocketClientError.name, client.handleEventWebSocketClientError);
-      client.removeEventListener(events.EventWebSocketClientClose.name, client.handleEventWebSocketClientClose);
+      client.removeEventListener(
+        events.EventWebSocketClientError.name,
+        client.handleEventWebSocketClientError,
+      );
+      client.removeEventListener(
+        events.EventWebSocketClientClose.name,
+        client.handleEventWebSocketClientClose,
+      );
       throw e;
     }
 
@@ -149,7 +182,9 @@ class WebSocketClient extends EventTarget {
   protected _closed: boolean = false;
   protected resolveClosedP: () => void;
 
-  protected handleEventWebSocketClientError = async (evt: events.EventWebSocketClientError) => {
+  protected handleEventWebSocketClientError = async (
+    evt: events.EventWebSocketClientError,
+  ) => {
     const error = evt.detail;
     this.logger.error(utils.formatError(error));
   };
@@ -171,20 +206,22 @@ class WebSocketClient extends EventTarget {
     // All connection errors are also our domain errors
     this.dispatchEvent(
       new events.EventWebSocketClientError({
-        detail
-      })
+        detail,
+      }),
     );
   };
 
-  protected handleEventWebSocketConnectionStopped = async (evt: events.EventWebSocketConnectionStopped) => {
+  protected handleEventWebSocketConnectionStopped = async (
+    evt: events.EventWebSocketConnectionStopped,
+  ) => {
     const connection = evt.target as WebSocketConnection;
     connection.removeEventListener(
       events.EventWebSocketConnectionError.name,
-      this.handleEventWebSocketConnectionError
+      this.handleEventWebSocketConnectionError,
     );
     connection.removeEventListener(
       EventAll.name,
-      this.handleEventWebSocketConnection
+      this.handleEventWebSocketConnection,
     );
     this.connectionMap.delete(connection.connectionId);
     this.dispatchEvent(new events.EventWebSocketClientClose());
@@ -200,15 +237,20 @@ class WebSocketClient extends EventTarget {
     return this._closed;
   }
 
-  constructor({ address, logger, connection }: { address: string; logger: Logger; connection: WebSocketConnection }) {
+  constructor({
+    address,
+    logger,
+    connection,
+  }: {
+    address: string;
+    logger: Logger;
+    connection: WebSocketConnection;
+  }) {
     super();
     this.address = address;
     this.logger = logger;
     this.connection = connection;
-    const {
-      p: closedP,
-      resolveP: resolveClosedP,
-    } = utils.promise();
+    const { p: closedP, resolveP: resolveClosedP } = utils.promise();
     this.closedP = closedP;
     this.resolveClosedP = resolveClosedP;
   }
@@ -221,7 +263,6 @@ class WebSocketClient extends EventTarget {
     errorCode?: number;
     errorMessage?: string;
     force?: boolean;
-
   } = {}) {
     this.logger.info(`Destroy ${this.constructor.name} on ${this.address}`);
     if (!this._closed) {
@@ -236,11 +277,11 @@ class WebSocketClient extends EventTarget {
     await this.closedP;
     this.removeEventListener(
       events.EventWebSocketClientError.name,
-      this.handleEventWebSocketClientError
+      this.handleEventWebSocketClientError,
     );
     this.removeEventListener(
       events.EventWebSocketClientClose.name,
-      this.handleEventWebSocketClientClose
+      this.handleEventWebSocketClientClose,
     );
   }
 }

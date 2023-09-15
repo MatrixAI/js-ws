@@ -122,12 +122,10 @@ export {
   ErrorWebSocketServer,
   ErrorWebSocketServerNotRunning,
   ErrorWebSocketServerInternal,
-
   ErrorWebSocketClient,
   ErrorWebSocketClientCreateTimeOut,
   ErrorWebSocketClientDestroyed,
   ErrorWebSocketClientInvalidHost,
-
   ErrorWebSocketConnection,
   ErrorWebSocketConnectionNotRunning,
   ErrorWebSocketConnectionStartTimeOut,
@@ -135,7 +133,6 @@ export {
   ErrorWebSocketConnectionLocal,
   ErrorWebSocketConnectionPeer,
   ErrorWebSocketConnectionInternal,
-
   ErrorWebSocketStream,
   ErrorWebSocketStreamUnknown,
   ErrorWebSocketStreamReadableParse,
@@ -143,6 +140,5 @@ export {
   ErrorWebSocketStreamDestroyed,
   ErrorWebSocketStreamClose,
   ErrorWebSocketStreamCancel,
-
   ErrorWebSocketUndefinedBehaviour,
 };

@@ -26,9 +26,9 @@ function promise<T = void>(): PromiseDeconstructed<T> {
  * Example: `Error: description - message`
  */
 function formatError(error: Error): string {
-  return `${error.name}${'description' in error ? `: ${error.description}` : ''}${
-    error.message !== undefined ? ` - ${error.message}` : ''
-  }`;
+  return `${error.name}${
+    'description' in error ? `: ${error.description}` : ''
+  }${error.message !== undefined ? ` - ${error.message}` : ''}`;
 }
 
 /**

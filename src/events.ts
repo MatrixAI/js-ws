@@ -85,7 +85,6 @@ export {
   EventWebSocketClientDestroy,
   EventWebSocketClientDestroyed,
   EventWebSocketClientClose,
-
   EventWebSocketServer,
   EventWebSocketServerConnection,
   EventWebSocketServerStart,
@@ -94,7 +93,6 @@ export {
   EventWebSocketServerStopped,
   EventWebSocketServerError,
   EventWebSocketServerClose,
-
   EventWebSocketConnection,
   EventWebSocketConnectionStream,
   EventWebSocketConnectionStart,
@@ -103,7 +101,6 @@ export {
   EventWebSocketConnectionStopped,
   EventWebSocketConnectionError,
   EventWebSocketConnectionClose,
-
   EventWebSocketStream,
   EventWebSocketStreamDestroy,
   EventWebSocketStreamDestroyed,

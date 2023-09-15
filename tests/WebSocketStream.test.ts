@@ -53,9 +53,13 @@ jest.mock('@/WebSocketConnection', () => {
         logger: logger1,
         ...streamOptions,
       });
-      stream.addEventListener(events.EventWebSocketStreamDestroyed.name, () => {
-        instance.streamMap.delete(stream.streamId);
-      }, { once: true });
+      stream.addEventListener(
+        events.EventWebSocketStreamDestroyed.name,
+        () => {
+          instance.streamMap.delete(stream.streamId);
+        },
+        { once: true },
+      );
       instance.streamMap.set(stream.streamId, stream);
       streamIdCounter++;
       return stream;
@@ -81,9 +85,13 @@ jest.mock('@/WebSocketConnection', () => {
           logger: logger2,
           ...streamOptions,
         });
-        stream.addEventListener(events.EventWebSocketStreamDestroyed.name, () => {
-          instance.peerConnection!.streamMap.delete(streamId);
-        }, { once: true });
+        stream.addEventListener(
+          events.EventWebSocketStreamDestroyed.name,
+          () => {
+            instance.peerConnection!.streamMap.delete(streamId);
+          },
+          { once: true },
+        );
         instance.peerConnection!.streamMap.set(stream.streamId, stream);
         instance.peerConnection!.dispatchEvent(
           new events.EventWebSocketConnectionStream({
@@ -100,7 +108,6 @@ jest.mock('@/WebSocketConnection', () => {
 const connectionMock = jest.mocked(WebSocketConnection, true);
 
 describe(WebSocketStream.name, () => {
-
   beforeEach(async () => {
     connectionMock.mockClear();
   });
@@ -162,10 +169,14 @@ describe(WebSocketStream.name, () => {
         const stream = event.detail;
         streamCreatedCount += 1;
         if (streamCreatedCount >= streamsNum) streamCreationProm.resolveP();
-        stream.addEventListener(events.EventWebSocketStreamDestroyed.name, () => {
-          streamEndedCount += 1;
-          if (streamEndedCount >= streamsNum) streamEndedProm.resolveP();
-        }, { once: true });
+        stream.addEventListener(
+          events.EventWebSocketStreamDestroyed.name,
+          () => {
+            streamEndedCount += 1;
+            if (streamEndedCount >= streamsNum) streamEndedProm.resolveP();
+          },
+          { once: true },
+        );
       },
     );
 

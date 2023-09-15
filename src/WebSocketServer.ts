@@ -7,8 +7,9 @@ import type {
   StreamReasonToCode,
   WebSocketConfig,
 } from './types';
-import { AbstractEvent } from '@matrixai/events';
+import type { EventAll } from '@matrixai/events';
 import https from 'https';
+import { AbstractEvent } from '@matrixai/events';
 import {
   StartStop,
   status,
@@ -17,7 +18,7 @@ import {
 } from '@matrixai/async-init/dist/StartStop';
 import Logger from '@matrixai/logger';
 import * as ws from 'ws';
-import { EventAll, EventDefault } from '@matrixai/events';
+import { EventDefault } from '@matrixai/events';
 import * as errors from './errors';
 import * as events from './events';
 import * as utils from './utils';
@@ -101,10 +102,7 @@ class WebSocketServer {
     // That's different from socket close event which means "fully" closed
     // We would call that `Closed` event, not `Close` event
 
-    this.server.off(
-      "close",
-      this.handleServerClosed
-    );
+    this.server.off('close', this.handleServerClosed);
     if (!this.server.listening) {
       this.resolveClosedP();
     }
@@ -123,7 +121,7 @@ class WebSocketServer {
    * This must be attached once.
    */
   protected handleEventWebSocketConnectionStopped = (
-    evt: events.EventWebSocketConnectionStopped
+    evt: events.EventWebSocketConnectionStopped,
   ) => {
     const WebSocketConnection = evt.target as WebSocketConnection;
     this.connectionMap.delete(WebSocketConnection.connectionId);
@@ -187,23 +185,22 @@ class WebSocketServer {
     this.connectionMap.add(connection);
     connection.addEventListener(
       events.EventWebSocketConnectionStopped.name,
-      this.handleEventWebSocketConnectionStopped
+      this.handleEventWebSocketConnectionStopped,
     );
     try {
       await connection.start({
         timer: this.config.connectTimeoutTime,
       });
-    }
-    catch(e) {
+    } catch (e) {
       connection.removeEventListener(
         events.EventWebSocketConnectionStopped.name,
-        this.handleEventWebSocketConnectionStopped
+        this.handleEventWebSocketConnectionStopped,
       );
       this.connectionMap.delete(connection.connectionId);
       this.dispatchEvent(
         new events.EventWebSocketServerError({
-          detail: e
-        })
+          detail: e,
+        }),
       );
     }
     this.dispatchEvent(
@@ -240,10 +237,7 @@ class WebSocketServer {
     };
     this.reasonToCode = reasonToCode;
     this.codeToReason = codeToReason;
-    const {
-      p: closedP,
-      resolveP: resolveClosedP,
-    } = utils.promise();
+    const { p: closedP, resolveP: resolveClosedP } = utils.promise();
     this.closedP = closedP;
     this.resolveClosedP = resolveClosedP;
   }
@@ -275,11 +269,14 @@ class WebSocketServer {
     this.server.on('request', this.requestHandler);
 
     const listenProm = utils.promise<void>();
-    this.server.listen({
-      host,
-      port,
-      ipv6Only
-    }, listenProm.resolveP);
+    this.server.listen(
+      {
+        host,
+        port,
+        ipv6Only,
+      },
+      listenProm.resolveP,
+    );
     await listenProm.p;
 
     this.addEventListener(
@@ -289,7 +286,7 @@ class WebSocketServer {
     this.addEventListener(
       events.EventWebSocketServerClose.name,
       this.handleEventWebSocketServerClose,
-      { once: true }
+      { once: true },
     );
 
     const address = this.server.address();
@@ -327,9 +324,7 @@ class WebSocketServer {
     if (!this._closed) {
       // If this succeeds, then we are just transitioned to close
       // This will trigger noop recursion, that's fine
-      this.dispatchEvent(
-        new events.EventWebSocketServerClose()
-      );
+      this.dispatchEvent(new events.EventWebSocketServerClose());
     }
     await this.closedP;
 
