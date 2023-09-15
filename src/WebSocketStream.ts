@@ -345,7 +345,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     // we're going to just enqueue an empty buffer in case it is null for some other reason, so that the next read is able to complete
     const data = this.readableQueue.dequeue();
     if (data == null) {
-      controller.enqueue(new Uint8Array(0));
+      controller.enqueue([]);
       return;
     }
     const readBytes = data.length;

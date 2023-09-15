@@ -1,8 +1,8 @@
 # TYPE stream.stream_1KiB_ops gauge
-stream.stream_1KiB_ops{name="send 1KiB of data over stream"} 12791
+stream.stream_1KiB_ops{name="send 1KiB of data over stream"} 13705
 
 # TYPE stream.stream_1KiB_margin gauge
-stream.stream_1KiB_margin{name="send 1KiB of data over stream"} 2.91
+stream.stream_1KiB_margin{name="send 1KiB of data over stream"} 3.76
 
 # TYPE stream.stream_1KiB_samples counter
-stream.stream_1KiB_samples{name="send 1KiB of data over stream"} 79
+stream.stream_1KiB_samples{name="send 1KiB of data over stream"} 49
