@@ -236,6 +236,7 @@ describe(WebSocketStream.name, () => {
 
       const stream1Readable = stream1.readable;
       const stream2Writable = stream2.writable;
+      stream1.writable.close();
 
       const writer = stream2Writable.getWriter();
       const reader = stream1Readable.getReader();
@@ -270,6 +271,7 @@ describe(WebSocketStream.name, () => {
 
       const stream1Readable = stream1.readable;
       const stream2Writable = stream2.writable;
+      stream1.writable.close();
 
       const writer = stream2Writable.getWriter();
       const reader = stream1Readable.getReader();
@@ -304,6 +306,7 @@ describe(WebSocketStream.name, () => {
 
       const stream1Readable = stream1.readable;
       const stream2Writable = stream2.writable;
+      stream1.writable.close();
 
       const writer = stream2Writable.getWriter();
       const reader = stream1Readable.getReader();
@@ -342,6 +345,7 @@ describe(WebSocketStream.name, () => {
 
       const stream1Readable = stream1.readable;
       const stream2Writable = stream2.writable;
+      stream1.writable.close();
 
       const writer = stream2Writable.getWriter();
       const reader = stream1Readable.getReader();
@@ -387,6 +391,7 @@ describe(WebSocketStream.name, () => {
 
       const stream1Readable = stream1.readable;
       const stream2Writable = stream2.writable;
+      stream1.writable.close();
 
       const writer = stream2Writable.getWriter();
       const reader = stream1Readable.getReader();
