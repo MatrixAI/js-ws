@@ -532,32 +532,74 @@ describe(WebSocketStream.name, () => {
     await expect(stream2.writable.getWriter().write()).rejects.toHaveProperty('cause', cancelReason)
   });
   test('streams can be cancelled concurrently after data sent', async () => {
-    const [stream1, stream2] = await createStreamPair();
+    const cancelReason = Symbol('CancelReason');
+    const codeToReason = (type, code: bigint) => {
+      switch (code) {
+        case 4001n:
+          return cancelReason;
+        default:
+          return new Error(`${type.toString()} ${code.toString()}`);
+      }
+    };
+    const reasonToCode = (_type, reason) => {
+      if (reason === cancelReason) return 4001n;
+      return 0n;
+    };
+    const [stream1, stream2] = await createStreamPair({
+      codeToReason,
+      reasonToCode,
+    });
 
     const writer = stream2.writable.getWriter();
-    await writer.write(new Uint8Array(2));
+    await writer.write(Buffer.alloc(STREAM_BUFFER_SIZE - 1));
+    writer.releaseLock();
 
-    const reader = stream1.readable.getReader();
-    reader.releaseLock();
+    stream1.cancel(cancelReason);
+    stream2.cancel(cancelReason);
 
-    await Promise.all([writer.close(), stream1.writable.close()]);
+    await expect(stream2.readable.getReader().read()).rejects.toHaveProperty('cause', cancelReason);
+    await expect(stream2.writable.getWriter().write()).rejects.toHaveProperty('cause', cancelReason);
+    await expect(stream1.readable.getReader().read()).rejects.toHaveProperty('cause', cancelReason);
+    await expect(stream1.writable.getWriter().write()).rejects.toHaveProperty('cause', cancelReason);
   });
-  // Test('stream can error when blocked on data', async () => {
-  //   const [stream1, stream2] = await createStreamPair();
+  test('stream will end when waiting for more data', async () => {
+    // Needed to check that the pull based reading of data doesn't break when we
+    // temporarily run out of data to read
+    const [stream1, stream2] = await createStreamPair();
+    const message = Buffer.alloc(STREAM_BUFFER_SIZE - 1);
+    const clientWriter = stream1.writable.getWriter();
+    await clientWriter.write(message);
 
-  //   const message = new Uint8Array(STREAM_BUFFER_SIZE * 2);
+    // Drain the readable buffer
+    const serverReader = stream2.readable.getReader();
+    serverReader.releaseLock();
 
-  //   const stream1Writer = stream1.writable.getWriter();
-  //   void stream1Writer.write(message);
-  //   stream1Writer.releaseLock();
+    // Closing stream with no buffered data should be responsive
+    await clientWriter.close();
+    await stream2.writable.close();
 
-  //   const stream2Writer = stream2.writable.getWriter();
-  //   void stream2Writer.write(message);
-  //   stream2Writer.releaseLock();
+    // Both streams are destroyed even without reading till close
+    await Promise.all([stream1.closedP, stream2.closedP]);
+  });
+  test('stream can error when blocked on data', async () => {
+    // This checks that if the readable web-stream is full and not pulling data,
+    // we will still respond to an error in the readable stream
 
-  //   await Promise.all([
-  //     stream1Writer.abort(Error('some error')),
-  //     stream1Writer.abort(Error('some error')),
-  //   ]);
-  // });
+    const [stream1, stream2] = await createStreamPair();
+
+    const message = new Uint8Array(STREAM_BUFFER_SIZE);
+
+    const stream1Writer = stream1.writable.getWriter();
+    await stream1Writer.write(message);
+
+        // Fill up buffers to block reads from pulling
+    const stream2Writer = stream2.writable.getWriter();
+    await stream2Writer.write(message);
+    await stream2Writer.write(message);
+
+    await stream1Writer.abort(new Error('Some Error'));
+    await stream2Writer.abort(new Error('Some Error'));
+
+    await Promise.all([stream1.closedP, stream2.closedP]);
+  });
 });
