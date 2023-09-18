@@ -42,8 +42,8 @@ async function main() {
     port: wsServer.getPort(),
     logger,
     config: {
-      verifyPeer: false
-    }
+      verifyPeer: false,
+    },
   });
 
   // Running benchmark

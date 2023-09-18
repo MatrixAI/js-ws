@@ -13,7 +13,7 @@ const clientDefault: WebSocketConfig = {
   keepAliveIntervalTime: Infinity,
   keepAliveTimeoutTime: Infinity,
   streamBufferSize: 1 * 1024 * 1024, // 1MB
-  verifyPeer: true
+  verifyPeer: true,
 };
 
 export { serverDefault, clientDefault };

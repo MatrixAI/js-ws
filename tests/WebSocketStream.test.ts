@@ -9,9 +9,7 @@ import * as messageUtils from '@/message/utils';
 import { StreamMessageType } from '@/message';
 import * as messageTestUtils from './message/utils';
 
-type StreamOptions = Partial<
-  ConstructorParameters<typeof WebSocketStream>[0]
->;
+type StreamOptions = Partial<ConstructorParameters<typeof WebSocketStream>[0]>;
 
 // Smaller buffer size for the sake of testing
 const STREAM_BUFFER_SIZE = 64;
@@ -54,9 +52,12 @@ jest.mock('@/WebSocketConnection', () => {
         logger: logger1,
         ...streamOptions,
       });
-      stream.addEventListener(events.EventWebSocketStreamSend.name, (evt: any) => {
-        instance.send(evt.msg);
-      });
+      stream.addEventListener(
+        events.EventWebSocketStreamSend.name,
+        async (evt: any) => {
+          await instance.send(evt.msg);
+        },
+      );
       stream.addEventListener(
         events.EventWebSocketStreamStopped.name,
         () => {
@@ -79,7 +80,9 @@ jest.mock('@/WebSocketConnection', () => {
       const { data: streamId, remainder } = messageUtils.parseStreamId(data);
       let stream = instance.peerConnection!.streamMap.get(streamId);
       if (stream == null) {
-        if (!(remainder.at(0) === 0 && remainder.at(1) === StreamMessageType.Ack)) {
+        if (
+          !(remainder.at(0) === 0 && remainder.at(1) === StreamMessageType.Ack)
+        ) {
           return;
         }
         stream = new WebSocketStream({
@@ -90,9 +93,12 @@ jest.mock('@/WebSocketConnection', () => {
           logger: logger2,
           ...streamOptions,
         });
-        stream.addEventListener(events.EventWebSocketStreamSend.name, (evt: any) => {
-          instance.peerConnection!.send(evt.msg)
-        });
+        stream.addEventListener(
+          events.EventWebSocketStreamSend.name,
+          async (evt: any) => {
+            await instance.peerConnection!.send(evt.msg);
+          },
+        );
         stream.addEventListener(
           events.EventWebSocketStreamStopped.name,
           () => {
@@ -225,7 +231,10 @@ describe(WebSocketStream.name, () => {
     const stream1Readable = stream1.readable;
     const stream2Writable = stream2.writable;
     await stream2Writable.abort(testReason);
-    await expect(stream1Readable.getReader().read()).rejects.toHaveProperty('cause', testReason);
+    await expect(stream1Readable.getReader().read()).rejects.toHaveProperty(
+      'cause',
+      testReason,
+    );
     await expect(stream2Writable.getWriter().write()).rejects.toBe(testReason);
   });
   testProp(
@@ -236,7 +245,7 @@ describe(WebSocketStream.name, () => {
 
       const stream1Readable = stream1.readable;
       const stream2Writable = stream2.writable;
-      stream1.writable.close();
+      await stream1.writable.close();
 
       const writer = stream2Writable.getWriter();
       const reader = stream1Readable.getReader();
@@ -257,7 +266,9 @@ describe(WebSocketStream.name, () => {
 
       await Promise.all([writeF(), readF()]);
 
-      expect(messageUtils.concatUInt8Array(...readChunks)).toEqual(messageUtils.concatUInt8Array(data));
+      expect(messageUtils.concatUInt8Array(...readChunks)).toEqual(
+        messageUtils.concatUInt8Array(data),
+      );
 
       await stream1.stop();
       await stream2.stop();
@@ -271,7 +282,7 @@ describe(WebSocketStream.name, () => {
 
       const stream1Readable = stream1.readable;
       const stream2Writable = stream2.writable;
-      stream1.writable.close();
+      await stream1.writable.close();
 
       const writer = stream2Writable.getWriter();
       const reader = stream1Readable.getReader();
@@ -306,7 +317,7 @@ describe(WebSocketStream.name, () => {
 
       const stream1Readable = stream1.readable;
       const stream2Writable = stream2.writable;
-      stream1.writable.close();
+      await stream1.writable.close();
 
       const writer = stream2Writable.getWriter();
       const reader = stream1Readable.getReader();
@@ -339,13 +350,17 @@ describe(WebSocketStream.name, () => {
   );
   testProp(
     'should send data over stream - multiple writes outside buffer size',
-    [fc.array(messageTestUtils.fcBuffer({ minLength: STREAM_BUFFER_SIZE + 1 }))],
+    [
+      fc.array(
+        messageTestUtils.fcBuffer({ minLength: STREAM_BUFFER_SIZE + 1 }),
+      ),
+    ],
     async (data) => {
       const [stream1, stream2] = await createStreamPair();
 
       const stream1Readable = stream1.readable;
       const stream2Writable = stream2.writable;
-      stream1.writable.close();
+      await stream1.writable.close();
 
       const writer = stream2Writable.getWriter();
       const reader = stream1Readable.getReader();
@@ -391,7 +406,7 @@ describe(WebSocketStream.name, () => {
 
       const stream1Readable = stream1.readable;
       const stream2Writable = stream2.writable;
-      stream1.writable.close();
+      await stream1.writable.close();
 
       const writer = stream2Writable.getWriter();
       const reader = stream1Readable.getReader();
@@ -502,10 +517,16 @@ describe(WebSocketStream.name, () => {
     const writer = stream2.writable.getWriter();
     await writer.write(new Uint8Array(2));
     writer.releaseLock();
-    await stream2.cancel(cancelReason);
+    stream2.cancel(cancelReason);
 
-    await expect(stream2.readable.getReader().read()).rejects.toHaveProperty('cause', cancelReason)
-    await expect(stream2.writable.getWriter().write()).rejects.toHaveProperty('cause', cancelReason);
+    await expect(stream2.readable.getReader().read()).rejects.toHaveProperty(
+      'cause',
+      cancelReason,
+    );
+    await expect(stream2.writable.getWriter().write()).rejects.toHaveProperty(
+      'cause',
+      cancelReason,
+    );
   });
   test('streams can be cancelled with no data sent', async () => {
     const cancelReason = Symbol('CancelReason');
@@ -526,10 +547,16 @@ describe(WebSocketStream.name, () => {
       reasonToCode,
     });
 
-    await stream2.cancel(cancelReason);
+    stream2.cancel(cancelReason);
 
-    await expect(stream2.readable.getReader().read()).rejects.toHaveProperty('cause', cancelReason)
-    await expect(stream2.writable.getWriter().write()).rejects.toHaveProperty('cause', cancelReason)
+    await expect(stream2.readable.getReader().read()).rejects.toHaveProperty(
+      'cause',
+      cancelReason,
+    );
+    await expect(stream2.writable.getWriter().write()).rejects.toHaveProperty(
+      'cause',
+      cancelReason,
+    );
   });
   test('streams can be cancelled concurrently after data sent', async () => {
     const cancelReason = Symbol('CancelReason');
@@ -554,13 +581,25 @@ describe(WebSocketStream.name, () => {
     await writer.write(Buffer.alloc(STREAM_BUFFER_SIZE - 1));
     writer.releaseLock();
 
-    stream1.cancel(cancelReason);
-    stream2.cancel(cancelReason);
+    void stream1.cancel(cancelReason);
+    void stream2.cancel(cancelReason);
 
-    await expect(stream2.readable.getReader().read()).rejects.toHaveProperty('cause', cancelReason);
-    await expect(stream2.writable.getWriter().write()).rejects.toHaveProperty('cause', cancelReason);
-    await expect(stream1.readable.getReader().read()).rejects.toHaveProperty('cause', cancelReason);
-    await expect(stream1.writable.getWriter().write()).rejects.toHaveProperty('cause', cancelReason);
+    await expect(stream2.readable.getReader().read()).rejects.toHaveProperty(
+      'cause',
+      cancelReason,
+    );
+    await expect(stream2.writable.getWriter().write()).rejects.toHaveProperty(
+      'cause',
+      cancelReason,
+    );
+    await expect(stream1.readable.getReader().read()).rejects.toHaveProperty(
+      'cause',
+      cancelReason,
+    );
+    await expect(stream1.writable.getWriter().write()).rejects.toHaveProperty(
+      'cause',
+      cancelReason,
+    );
   });
   test('stream will end when waiting for more data', async () => {
     // Needed to check that the pull based reading of data doesn't break when we
@@ -592,7 +631,7 @@ describe(WebSocketStream.name, () => {
     const stream1Writer = stream1.writable.getWriter();
     await stream1Writer.write(message);
 
-        // Fill up buffers to block reads from pulling
+    // Fill up buffers to block reads from pulling
     const stream2Writer = stream2.writable.getWriter();
     await stream2Writer.write(message);
     await stream2Writer.write(message);

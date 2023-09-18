@@ -45,7 +45,7 @@ const streamMessageAckArb = fc.record({
 
 const streamMessageDataArb = fc.record({
   type: fc.constant(StreamMessageType.Data),
-  payload: fcBuffer()
+  payload: fcBuffer(),
 });
 
 const streamMessageCloseArb = fc.record({

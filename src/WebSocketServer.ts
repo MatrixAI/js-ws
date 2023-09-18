@@ -9,6 +9,7 @@ import type {
   WebSocketServerConfigInput,
 } from './types';
 import type { EventAll } from '@matrixai/events';
+import type { TLSSocket } from 'tls';
 import https from 'https';
 import { AbstractEvent } from '@matrixai/events';
 import {
@@ -26,7 +27,6 @@ import * as utils from './utils';
 import WebSocketConnection from './WebSocketConnection';
 import { serverDefault } from './config';
 import WebSocketConnectionMap from './WebSocketConnectionMap';
-import { TLSSocket } from 'tls';
 
 interface WebSocketServer extends StartStop {}
 /**
@@ -241,12 +241,12 @@ class WebSocketServer {
 
   @ready(new errors.ErrorWebSocketServerNotRunning())
   public get host(): Host {
-    return (this.server.address() as any)?.address ?? "" as Host;
+    return (this.server.address() as any)?.address ?? ('' as Host);
   }
 
   @ready(new errors.ErrorWebSocketServerNotRunning())
   public get port(): Port {
-    return (this.server.address() as any)?.port ?? 0 as Port;
+    return (this.server.address() as any)?.port ?? (0 as Port);
   }
 
   /**
@@ -268,7 +268,8 @@ class WebSocketServer {
   } = {}): Promise<void> {
     this.logger.info(`Starting ${this.constructor.name}`);
     this.server = https.createServer({
-      rejectUnauthorized: this.config.verifyPeer && this.config.verifyCallback == null,
+      rejectUnauthorized:
+        this.config.verifyPeer && this.config.verifyCallback == null,
       requestCert: true,
       key: this.config.key as any,
       cert: this.config.cert as any,
@@ -277,15 +278,16 @@ class WebSocketServer {
     this.webSocketServer = new ws.WebSocketServer({
       server: this.server,
       verifyClient: async (info, done) => {
-        const peerCert = (info.req.socket as TLSSocket).getPeerCertificate(true);
+        const peerCert = (info.req.socket as TLSSocket).getPeerCertificate(
+          true,
+        );
         try {
           await this.config.verifyCallback?.(peerCert);
           done(true);
-        }
-        catch (e) {
+        } catch (e) {
           done(false, 525, 'TLS Handshake Failed');
         }
-      }
+      },
     });
 
     this.webSocketServer.on('connection', this.handleServerConnection);
@@ -384,9 +386,7 @@ class WebSocketServer {
   }
 
   @ready(new errors.ErrorWebSocketServerNotRunning())
-  public updateConfig(
-    config: WebSocketServerConfigInput
-  ): void {
+  public updateConfig(config: WebSocketServerConfigInput): void {
     const tlsServer = this.server as tls.Server;
     const wsConfig = {
       ...this.config,

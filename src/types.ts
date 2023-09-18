@@ -61,18 +61,12 @@ type RemoteInfo = {
  * Maps reason (most likely an exception) to a stream code.
  * Use `0` to indicate unknown/default reason.
  */
-type StreamReasonToCode = (
-  type: 'read' | 'write',
-  reason?: any,
-) => bigint;
+type StreamReasonToCode = (type: 'read' | 'write', reason?: any) => bigint;
 
 /**
  * Maps code to a reason. 0 usually indicates unknown/default reason.
  */
-type StreamCodeToReason = (
-  type: 'read' | 'write',
-  code: bigint,
-) => any;
+type StreamCodeToReason = (type: 'read' | 'write', code: bigint) => any;
 
 type ConnectionMetadata = {
   localHost?: string;
@@ -86,17 +80,17 @@ type VerifyCallback = (peerCert: DetailedPeerCertificate) => Promise<void>;
 
 type WebSocketConfig = {
   /**
- * Certificate authority certificate in PEM format or Uint8Array buffer
- * containing PEM formatted certificate. Each string or Uint8Array can be
- * one certificate or multiple certificates concatenated together. The order
- * does not matter, each is an independent certificate authority. Multiple
- * concatenated certificate authorities can be passed. They are all
- * concatenated together.
- *
- * When this is not set, this defaults to the operating system's CA
- * certificates. OpenSSL (and forks of OpenSSL) all support the
- * environment variables `SSL_CERT_DIR` and `SSL_CERT_FILE`.
- */
+   * Certificate authority certificate in PEM format or Uint8Array buffer
+   * containing PEM formatted certificate. Each string or Uint8Array can be
+   * one certificate or multiple certificates concatenated together. The order
+   * does not matter, each is an independent certificate authority. Multiple
+   * concatenated certificate authorities can be passed. They are all
+   * concatenated together.
+   *
+   * When this is not set, this defaults to the operating system's CA
+   * certificates. OpenSSL (and forks of OpenSSL) all support the
+   * environment variables `SSL_CERT_DIR` and `SSL_CERT_FILE`.
+   */
   ca?: string | Array<string> | Uint8Array | Array<Uint8Array>;
 
   /**

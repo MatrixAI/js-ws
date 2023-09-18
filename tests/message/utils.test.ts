@@ -105,7 +105,9 @@ describe('StreamMessage', () => {
       const parsedConnectionMessage = parseConnectionMessage(
         generatedConnectionMessage,
       );
-      expect(parsedConnectionMessage.payload).toEqual(connectionMessage.payload);
+      expect(parsedConnectionMessage.payload).toEqual(
+        connectionMessage.payload,
+      );
     },
   );
 });

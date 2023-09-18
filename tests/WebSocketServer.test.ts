@@ -1,8 +1,6 @@
 import type { X509Certificate } from '@peculiar/x509';
-import type { Host } from '@/types';
 import Logger, { LogLevel, StreamHandler, formatting } from '@matrixai/logger';
-import WebSocketServer from "@/WebSocketServer";
-import * as utils from '@/utils';
+import WebSocketServer from '@/WebSocketServer';
 import * as testsUtils from './utils';
 
 describe(WebSocketServer.name, () => {
@@ -197,7 +195,7 @@ describe(WebSocketServer.name, () => {
       expect(typeof webSocketServer.port).toBe('number');
       await webSocketServer.stop();
     });
-    // test('listen on hostname', async () => {
+    // Test('listen on hostname', async () => {
     //   const webSocketServer = new WebSocketServer({
     //     config: {
     //       key: keyPairEd25519PEM.privateKey,

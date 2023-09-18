@@ -110,15 +110,11 @@ class ErrorWebSocketStreamInternal<T> extends ErrorWebSocketStream<T> {
 
 // Stream Protocol Errors
 
-class ErrorWebSocketStreamUnknown<
-  T,
-> extends ErrorWebSocketStream<T> {
+class ErrorWebSocketStreamUnknown<T> extends ErrorWebSocketStream<T> {
   static description = 'WebSocket Stream readable buffer has overloaded';
 }
 
-class ErrorWebSocketStreamReadableParse<
-  T,
-> extends ErrorWebSocketStream<T> {
+class ErrorWebSocketStreamReadableParse<T> extends ErrorWebSocketStream<T> {
   static description = 'WebSocket Stream readable buffer has overloaded';
 }
 

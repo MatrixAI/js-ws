@@ -1,4 +1,10 @@
-import type { Host, Port, VerifyCallback, WebSocketClientConfigInput, WebSocketConfig } from './types';
+import type {
+  Host,
+  Port,
+  VerifyCallback,
+  WebSocketClientConfigInput,
+  WebSocketConfig,
+} from './types';
 import { AbstractEvent } from '@matrixai/events';
 import { createDestroy } from '@matrixai/async-init';
 import Logger from '@matrixai/logger';
@@ -84,9 +90,10 @@ class WebSocketClient extends EventTarget {
 
     const address = `wss://${host_}:${port_}`;
 
-    // rejectUnauthorized must be false when verifyCallback exists
+    // RejectUnauthorized must be false when verifyCallback exists
     const webSocket = new WebSocket(address, {
-      rejectUnauthorized: wsConfig.verifyPeer && wsConfig.verifyCallback == null,
+      rejectUnauthorized:
+        wsConfig.verifyPeer && wsConfig.verifyCallback == null,
       key: wsConfig.key as any,
       cert: wsConfig.cert as any,
       ca: wsConfig.ca as any,

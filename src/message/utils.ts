@@ -31,7 +31,9 @@ const StreamErrorCode = {
 // Misc
 
 function bufferAllocUnsafe(size: number): Uint8Array {
-  return globalThis.Buffer == null ? new Uint8Array(size) : Buffer.allocUnsafe(size);
+  return globalThis.Buffer == null
+    ? new Uint8Array(size)
+    : Buffer.allocUnsafe(size);
 }
 
 function concatUInt8Array(...arrays: Array<Uint8Array>) {
@@ -62,7 +64,11 @@ function parseVarInt(array: Uint8Array): Parsed<VarInt> {
   arrayCopy.set(array);
   arrayCopy[0] &= 0b00111111;
 
-  const dv = new DataView(arrayCopy.buffer, arrayCopy.byteOffset, array.byteLength);
+  const dv = new DataView(
+    arrayCopy.buffer,
+    arrayCopy.byteOffset,
+    array.byteLength,
+  );
 
   let readBytes = 0;
 
@@ -139,13 +145,12 @@ function parseStreamMessageType(input: Uint8Array): Parsed<StreamMessageType> {
   let type: number | undefined;
   try {
     type = dv.getUint16(0, false);
-  }
-  catch (e) {
+  } catch (e) {
     throw new errors.ErrorStreamParse(
       'StreamMessage does not contain a StreamMessageType',
       {
-        cause: e
-      }
+        cause: e,
+      },
     );
   }
   switch (type) {
@@ -264,7 +269,7 @@ function parseStreamMessage(input: Uint8Array): StreamMessage {
 function generateStreamMessageType(type: StreamMessageType): Uint8Array {
   const array = bufferAllocUnsafe(2);
   const dv = new DataView(array.buffer, array.byteOffset, array.byteLength);
-  dv.setUint16(0, type, false)
+  dv.setUint16(0, type, false);
   return array;
 }
 

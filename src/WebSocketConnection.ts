@@ -151,29 +151,29 @@ class WebSocketConnection {
     }
   };
 
-
-  protected handleEventWebSocketStreamSend = async (evt: events.EventWebSocketStreamSend) => {
+  protected handleEventWebSocketStreamSend = async (
+    evt: events.EventWebSocketStreamSend,
+  ) => {
     await this.send(evt.msg);
   };
 
-  protected handleEventWebSocketStreamStopped = (evt: events.EventWebSocketStreamStopped) => {
+  protected handleEventWebSocketStreamStopped = (
+    evt: events.EventWebSocketStreamStopped,
+  ) => {
     const stream = evt.target as WebSocketStream;
     stream.removeEventListener(
       events.EventWebSocketStreamSend.name,
-      this.handleEventWebSocketStreamSend
+      this.handleEventWebSocketStreamSend,
     );
-    stream.removeEventListener(
-      EventAll.name,
-      this.handleEventWebSocketStream
-    );
+    stream.removeEventListener(EventAll.name, this.handleEventWebSocketStream);
     this.streamMap.delete(stream.streamId);
-  }
+  };
 
   protected handleEventWebSocketStream = (evt: EventAll) => {
     if (evt.detail instanceof AbstractEvent) {
       this.dispatchEvent(evt.detail.clone());
     }
-  }
+  };
 
   protected closeLocally: boolean = false;
   protected closedP: Promise<void>;
@@ -213,9 +213,11 @@ class WebSocketConnection {
 
     let stream = this.streamMap.get(streamId);
     if (stream == null) {
-      // because the stream code is 16 bits, and Ack is only the right-most bit set when encoded by big-endian,
+      // Because the stream code is 16 bits, and Ack is only the right-most bit set when encoded by big-endian,
       // we can assume that the second byte of the StreamMessageType.Ack will look the same as if it were encoded in a u8
-      if (!(remainder.at(0) === 0 && remainder.at(1) === StreamMessageType.Ack)) {
+      if (
+        !(remainder.at(0) === 0 && remainder.at(1) === StreamMessageType.Ack)
+      ) {
         return;
       }
       stream = new WebSocketStream({
@@ -237,10 +239,7 @@ class WebSocketConnection {
         this.handleEventWebSocketStreamStopped,
         { once: true },
       );
-      stream.addEventListener(
-        EventAll.name,
-        this.handleEventWebSocketStream,
-      );
+      stream.addEventListener(EventAll.name, this.handleEventWebSocketStream);
       await stream.start();
       this.dispatchEvent(
         new events.EventWebSocketConnectionStream({
@@ -314,7 +313,7 @@ class WebSocketConnection {
   public constructor({
     type,
     connectionId,
-    meta ,
+    meta,
     config,
     socket,
     reasonToCode = () => 0n,
@@ -496,10 +495,7 @@ class WebSocketConnection {
         this.handleEventWebSocketStreamStopped,
         { once: true },
       );
-      stream.addEventListener(
-        EventAll.name,
-        this.handleEventWebSocketStream,
-      );
+      stream.addEventListener(EventAll.name, this.handleEventWebSocketStream);
       await stream.start();
       // Ok the stream is opened and working
       if (this.type === 'client' && streamType === 'bidi') {

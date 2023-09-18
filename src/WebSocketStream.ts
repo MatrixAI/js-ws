@@ -20,7 +20,7 @@ import {
   ready,
   running,
   status,
-  initLock
+  initLock,
 } from '@matrixai/async-init/dist/StartStop';
 import Logger from '@matrixai/logger';
 import { generateStreamId } from './message';
@@ -58,12 +58,12 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     this.addEventListener(
       events.EventWebSocketStreamCloseRead.name,
       this.handleEventWebSocketStreamCloseRead,
-      { once: true }
+      { once: true },
     );
     this.addEventListener(
       events.EventWebSocketStreamCloseWrite.name,
       this.handleEventWebSocketStreamCloseWrite,
-      { once: true }
+      { once: true },
     );
     this.logger.info(`Started ${this.constructor.name}`);
     this.streamSend({
@@ -125,7 +125,9 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
    * Because it's always about the error itself!A
    * Note that you must distinguish between actual internal errors, and errors on the stream itself
    */
-  protected handleEventWebSocketStreamError = async (evt: events.EventWebSocketStreamError) => {
+  protected handleEventWebSocketStreamError = async (
+    evt: events.EventWebSocketStreamError,
+  ) => {
     const error = evt.detail;
     this.logger.error(utils.formatError(error));
   };
@@ -260,7 +262,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
    */
   public async stop({
     force = true,
-    reason
+    reason,
   }: {
     force?: boolean;
     reason?: any;
@@ -278,7 +280,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     await this.closedP;
     this.removeEventListener(
       events.EventWebSocketStreamError.name,
-      this.handleEventWebSocketStreamError
+      this.handleEventWebSocketStreamError,
     );
     this.removeEventListener(
       events.EventWebSocketStreamCloseRead.name,
@@ -286,7 +288,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     );
     this.removeEventListener(
       events.EventWebSocketStreamCloseWrite.name,
-      this.handleEventWebSocketStreamCloseWrite
+      this.handleEventWebSocketStreamCloseWrite,
     );
     this.logger.info(`Destroyed ${this.constructor.name}`);
   }
@@ -309,7 +311,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
    *
    * @throws {errors.ErrorWebSocketStreamInternal}
    */
-  public async cancel(reason?: any) {
+  public cancel(reason?: any) {
     try {
       this.readableCancel(reason);
     } catch (e) {
@@ -330,7 +332,9 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     this.writableController = controller;
   }
 
-  protected async readablePull(controller: ReadableStreamDefaultController): Promise<void> {
+  protected async readablePull(
+    controller: ReadableStreamDefaultController,
+  ): Promise<void> {
     // If a readable has ended, whether by the closing of the sender's WritableStream or by calling `.close`, do not bother to send back an ACK
     if (this._readClosed) {
       return;
@@ -346,7 +350,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     this.rejectReadableP = rejectReadableP;
 
     // Resolve the promise immediately if there are messages
-      // If not, wait for there to be to messages
+    // If not, wait for there to be to messages
     if (this.readableQueue.count > 0) {
       resolveReadableP();
     }
@@ -362,9 +366,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     const readBytes = data.length;
     controller.enqueue(data);
 
-    this.logger.debug(
-      `${readBytes} bytes have been pushed onto stream buffer`,
-    );
+    this.logger.debug(`${readBytes} bytes have been pushed onto stream buffer`);
 
     this.streamSend({
       type: StreamMessageType.Ack,
@@ -413,7 +415,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       this.logger.debug(
         `writableDesiredSize is now ${this.writableDesiredSize} due to write`,
       );
-      await this.streamSend({
+      this.streamSend({
         type: StreamMessageType.Data,
         payload: data,
       });
@@ -429,12 +431,12 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     // Graceful close on the write without any code
     this.dispatchEvent(
       new events.EventWebSocketStreamCloseWrite({
-        detail: { type: 'local' }
-      })
+        detail: { type: 'local' },
+      }),
     );
     this.streamSend({
       type: StreamMessageType.Close,
-      payload: StreamShutdown.Read
+      payload: StreamShutdown.Read,
     });
   }
 
@@ -454,8 +456,8 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       'Closing readable stream locally',
       {
         data: { code },
-        cause: reason
-      }
+        cause: reason,
+      },
     );
     // This is idempotent and won't error even if it is already stopped
     this.readableController.error(e);
@@ -468,23 +470,23 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     this.rejectReadableP?.(e);
     this.dispatchEvent(
       new events.EventWebSocketStreamError({
-        detail: e
-      })
+        detail: e,
+      }),
     );
     this.dispatchEvent(
       new events.EventWebSocketStreamCloseRead({
         detail: {
           type: 'local',
-          code: code
-        }
-      })
+          code: code,
+        },
+      }),
     );
     this.streamSend({
       type: StreamMessageType.Error,
       payload: {
         shutdown: StreamShutdown.Write,
-        code
-      }
+        code,
+      },
     });
     return;
   }
@@ -504,8 +506,8 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       'Closing writable stream locally',
       {
         data: { code },
-        cause: reason
-      }
+        cause: reason,
+      },
     );
     this.writableController.error(e);
     // This will reject the writable call
@@ -514,27 +516,26 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     this.rejectWritableP?.(e);
     this.dispatchEvent(
       new events.EventWebSocketStreamError({
-        detail: e
-      })
+        detail: e,
+      }),
     );
     this.dispatchEvent(
       new events.EventWebSocketStreamCloseWrite({
         detail: {
           type: 'local',
-          code
-        }
-      })
+          code,
+        },
+      }),
     );
     this.streamSend({
       type: StreamMessageType.Error,
       payload: {
         shutdown: StreamShutdown.Read,
-        code
-      }
+        code,
+      },
     });
     return;
   }
-
 
   protected streamSend(message: StreamMessage) {
     const array = [this.encodedStreamId];
@@ -543,7 +544,6 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     evt.msg = array;
     this.dispatchEvent(evt);
   }
-
 
   /**
    * Put a message frame into a stream.
@@ -566,7 +566,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     try {
       parsedMessage = parseStreamMessage(message);
     } catch (err) {
-      await this.readableCancel(
+      this.readableCancel(
         new errors.ErrorWebSocketStreamReadableParse(err.message, {
           cause: err,
         }),
@@ -624,30 +624,30 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
           'Closing readable stream due to Error message from peer',
           {
             data: { code },
-            cause: reason
-          }
+            cause: reason,
+          },
         );
         this.readableController.error(e);
         this.rejectReadableP?.(e);
         this.dispatchEvent(
           new events.EventWebSocketStreamError({
-            detail: e
-          })
+            detail: e,
+          }),
         );
         this.dispatchEvent(
           new events.EventWebSocketStreamCloseRead({
             detail: {
               type: 'local',
-              code: code
-            }
-          })
+              code: code,
+            },
+          }),
         );
         this.streamSend({
           type: StreamMessageType.Error,
           payload: {
             shutdown: StreamShutdown.Write,
-            code
-          }
+            code,
+          },
         });
       } else if (shutdown === StreamShutdown.Write) {
         if (this._writeClosed) return;
@@ -656,31 +656,31 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
           'Closing writable stream due to Error message from peer',
           {
             data: { code },
-            cause: reason
-          }
+            cause: reason,
+          },
         );
         this.writableController.error(e);
         this.rejectWritableP?.(e);
         this.dispatchEvent(
           new events.EventWebSocketStreamError({
-            detail: e
-          })
+            detail: e,
+          }),
         );
         this.dispatchEvent(
           new events.EventWebSocketStreamCloseWrite({
             detail: {
               type: 'local',
-              code
-            }
-          })
+              code,
+            },
+          }),
         );
         // TODO: change to dispatch event
         this.streamSend({
           type: StreamMessageType.Error,
           payload: {
             shutdown: StreamShutdown.Read,
-            code
-          }
+            code,
+          },
         });
       }
     } else if (parsedMessage.type === StreamMessageType.Close) {
@@ -693,8 +693,8 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
           new events.EventWebSocketStreamCloseRead({
             detail: {
               type: 'peer',
-            }
-          })
+            },
+          }),
         );
         this.streamSend({
           type: StreamMessageType.Close,
@@ -709,30 +709,30 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
           'Closing writable stream due to Close message from peer',
           {
             data: { code },
-            cause: reason
-          }
+            cause: reason,
+          },
         );
         this.writableController.error(e);
         this.rejectWritableP?.(e);
         this.dispatchEvent(
           new events.EventWebSocketStreamError({
-            detail: e
-          })
+            detail: e,
+          }),
         );
         this.dispatchEvent(
           new events.EventWebSocketStreamCloseWrite({
             detail: {
               type: 'peer',
-              code
-            }
-          })
+              code,
+            },
+          }),
         );
         this.streamSend({
           type: StreamMessageType.Error,
           payload: {
             shutdown: StreamShutdown.Read,
-            code
-          }
+            code,
+          },
         });
       }
     }

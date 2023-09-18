@@ -113,29 +113,35 @@ class EventWebSocketStreamError extends EventWebSocketStream<
  * Local means I closed my readable side - there must be an error code.
  * Peer means the peer closed my readable side by closing their writable side - there may not be an error code.
  */
-class EventWebSocketStreamCloseRead extends EventWebSocketStream<{
-  type: 'local';
-  code: bigint;
-} | {
-  type: 'peer';
-  code?: bigint;
-}> {}
+class EventWebSocketStreamCloseRead extends EventWebSocketStream<
+  | {
+      type: 'local';
+      code: bigint;
+    }
+  | {
+      type: 'peer';
+      code?: bigint;
+    }
+> {}
 
 /**
  * WebSocket stream writable side was closed
  * Local means I closed my writable side - there may not be an error code.
  * Peer means the peer closed my writable side by closing their readable side - there must be an error code.
  */
-class EventWebSocketStreamCloseWrite extends EventWebSocketStream<{
-  type: 'local';
-  code?: bigint;
-} | {
-  type: 'peer';
-  code: bigint;
-}> {}
+class EventWebSocketStreamCloseWrite extends EventWebSocketStream<
+  | {
+      type: 'local';
+      code?: bigint;
+    }
+  | {
+      type: 'peer';
+      code: bigint;
+    }
+> {}
 
 class EventWebSocketStreamSend extends EventWebSocketStream {
-  msg: Uint8Array | Array<Uint8Array>
+  msg: Uint8Array | Array<Uint8Array>;
 }
 
 export {

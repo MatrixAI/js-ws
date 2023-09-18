@@ -46,8 +46,8 @@ describe(WebSocketClient.name, () => {
       port: server.getPort(),
       logger,
       config: {
-        verifyPeer: false
-      }
+        verifyPeer: false,
+      },
     });
 
     await expect(connectionProm.p).toResolve();
@@ -83,8 +83,8 @@ describe(WebSocketClient.name, () => {
         verifyPeer: true,
         verifyCallback: async (peerCert) => {
           peerCertRaw = peerCert.raw;
-        }
-      }
+        },
+      },
     });
 
     await expect(connectionProm.p).toResolve();
@@ -108,7 +108,7 @@ describe(WebSocketClient.name, () => {
         verifyPeer: true,
         verifyCallback: async (peerCert) => {
           peerCertRaw = peerCert.raw;
-        }
+        },
       },
       logger,
     });
@@ -125,7 +125,7 @@ describe(WebSocketClient.name, () => {
       config: {
         ...tlsConfigClient,
         verifyPeer: false,
-      }
+      },
     });
 
     await expect(connectionProm.p).toResolve();
@@ -165,8 +165,8 @@ describe(WebSocketClient.name, () => {
         verifyPeer: true,
         verifyCallback: async (peerCert) => {
           peerCertRaw = peerCert.raw;
-        }
-      }
+        },
+      },
     });
 
     await expect(connectionProm.p).toResolve();
@@ -193,8 +193,8 @@ describe(WebSocketClient.name, () => {
       port: server.getPort(),
       logger,
       config: {
-        verifyPeer: false
-      }
+        verifyPeer: false,
+      },
     });
 
     await expect(connectionProm.p).toResolve();
@@ -213,8 +213,8 @@ describe(WebSocketClient.name, () => {
       port: server.getPort(),
       logger,
       config: {
-        verifyPeer: false
-      }
+        verifyPeer: false,
+      },
     });
 
     const stream = await client.connection.streamNew('bidi');
@@ -246,8 +246,8 @@ describe(WebSocketClient.name, () => {
         port: server.getPort(),
         logger,
         config: {
-          verifyPeer: false
-        }
+          verifyPeer: false,
+        },
       });
 
       await client.connection.streamNew('bidi');
@@ -309,8 +309,8 @@ describe(WebSocketClient.name, () => {
       port: server.getPort(),
       logger,
       config: {
-        verifyPeer: false
-      }
+        verifyPeer: false,
+      },
     });
 
     const closeProm = utils.promise<any>();
