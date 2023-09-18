@@ -239,6 +239,24 @@ class WebSocketServer {
     this.resolveClosedP = resolveClosedP;
   }
 
+  @ready(new errors.ErrorWebSocketServerNotRunning())
+  public get host(): Host {
+    return (this.server.address() as any)?.address ?? "" as Host;
+  }
+
+  @ready(new errors.ErrorWebSocketServerNotRunning())
+  public get port(): Port {
+    return (this.server.address() as any)?.port ?? 0 as Port;
+  }
+
+  /**
+   * This just means the server is no longer accepting connections.
+   * Like deregistered from a server.
+   */
+  public get closed() {
+    return this._closed;
+  }
+
   public async start({
     host = '::',
     port = 0,
