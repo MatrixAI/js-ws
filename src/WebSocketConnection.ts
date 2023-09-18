@@ -7,13 +7,9 @@ import type {
   RemoteInfo,
   StreamCodeToReason,
   StreamReasonToCode,
-  VerifyCallback,
   WebSocketConfig,
 } from './types';
-import type WebSocketClient from './WebSocketClient';
-import type WebSocketServer from './WebSocketServer';
 import type { DetailedPeerCertificate, TLSSocket } from 'tls';
-import type WebSocketConnectionMap from './WebSocketConnectionMap';
 import type { StreamId } from './message';
 import { startStop } from '@matrixai/async-init';
 import { Lock } from '@matrixai/async-locks';
@@ -183,10 +179,6 @@ class WebSocketConnection {
   protected resolveClosedP: () => void;
   protected rejectClosedP: (reason?: any) => void;
 
-  protected verifyCallback:
-    | ((peerCert: DetailedPeerCertificate) => Promise<void>)
-    | undefined;
-
   protected handleSocketMessage = async (
     data: ws.RawData,
     isBinary: boolean,
@@ -319,34 +311,31 @@ class WebSocketConnection {
   public constructor({
     type,
     connectionId,
-    remoteInfo,
+    meta ,
     config,
     socket,
     reasonToCode = () => 0n,
     codeToReason = (type, code) => new Error(`${type} ${code}`),
-    verifyCallback,
     logger,
   }:
     | {
         type: 'client';
         connectionId: number;
-        remoteInfo: RemoteInfo;
+        meta?: undefined;
         config: WebSocketConfig;
         socket: ws.WebSocket;
         reasonToCode?: StreamReasonToCode;
         codeToReason?: StreamCodeToReason;
-        verifyCallback?: VerifyCallback;
         logger?: Logger;
       }
     | {
         type: 'server';
         connectionId: number;
-        remoteInfo: RemoteInfo;
+        meta: ConnectionMetadata;
         config: WebSocketConfig;
         socket: ws.WebSocket;
         reasonToCode?: StreamReasonToCode;
         codeToReason?: StreamCodeToReason;
-        verifyCallback?: undefined;
         logger?: Logger;
       }) {
     this.logger = logger ?? new Logger(`${this.constructor.name}`);
@@ -354,11 +343,16 @@ class WebSocketConnection {
     this.socket = socket;
     this.config = config;
     this.type = type;
-    this.remoteHost = remoteInfo.host;
-    this.remotePort = remoteInfo.port;
     this.reasonToCode = reasonToCode;
     this.codeToReason = codeToReason;
-    this.verifyCallback = verifyCallback;
+
+    if (meta != null) {
+      this.remoteHost = meta.remoteHost as Host;
+      this.remotePort = meta.remotePort as Port;
+      this.localHost = meta.localHost as Host | undefined;
+      this.localPort = meta.localPort as Port | undefined;
+      this.peerCert = meta.peerCert;
+    }
 
     const {
       p: closedP,
@@ -369,6 +363,7 @@ class WebSocketConnection {
     this.resolveClosedP = resolveClosedP;
     this.rejectClosedP = rejectClosedP;
   }
+
   public start(ctx?: Partial<ContextTimedInput>): PromiseCancellable<void>;
   @timedCancellable(true, Infinity, errors.ErrorWebSocketConnectionStartTimeOut)
   public async start(@context ctx: ContextTimed): Promise<void> {
@@ -408,8 +403,8 @@ class WebSocketConnection {
         const tlsSocket = request.socket as TLSSocket;
         const peerCert = tlsSocket.getPeerCertificate(true);
         try {
-          if (this.verifyCallback != null) {
-            await this.verifyCallback(peerCert);
+          if (this.config.verifyPeer && this.config.verifyCallback != null) {
+            await this.config.verifyCallback?.(peerCert);
           }
           this.localHost = request.connection.localAddress as Host;
           this.localPort = request.connection.localPort as Port;

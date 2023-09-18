@@ -45,9 +45,9 @@ describe(WebSocketClient.name, () => {
       host: server.getHost(),
       port: server.getPort(),
       logger,
-      verifyCallback: async () => {
-        // Noop
-      },
+      config: {
+        verifyPeer: false
+      }
     });
 
     await expect(connectionProm.p).toResolve();
@@ -62,7 +62,10 @@ describe(WebSocketClient.name, () => {
     const x509Cert = new crypto.X509Certificate(newTlsConfigServer.cert);
 
     const server = new WebSocketServer({
-      config: tlsConfigServer,
+      config: {
+        ...tlsConfigServer,
+        verifyPeer: false,
+      },
       logger,
     });
     await server.start({ host: ipv4Host });
@@ -79,9 +82,13 @@ describe(WebSocketClient.name, () => {
       host: server.getHost(),
       port: server.getPort(),
       logger,
-      verifyCallback: async (cert) => {
-        peerCertFingerprint = cert.fingerprint;
-      },
+      config: {
+        ...tlsConfigServer,
+        verifyPeer: true,
+        verifyCallback: async (peerCert) => {
+          peerCertFingerprint = peerCert.fingerprint;
+        }
+      }
     });
 
     await expect(connectionProm.p).toResolve();
@@ -106,9 +113,9 @@ describe(WebSocketClient.name, () => {
       host: server.getHost(),
       port: server.getPort(),
       logger,
-      verifyCallback: async () => {
-        // Noop
-      },
+      config: {
+        verifyPeer: false
+      }
     });
 
     await expect(connectionProm.p).toResolve();
@@ -126,9 +133,9 @@ describe(WebSocketClient.name, () => {
       host: server.getHost(),
       port: server.getPort(),
       logger,
-      verifyCallback: async () => {
-        // Noop
-      },
+      config: {
+        verifyPeer: false
+      }
     });
 
     const stream = await client.connection.streamNew('bidi');
@@ -159,9 +166,9 @@ describe(WebSocketClient.name, () => {
         host: server.getHost(),
         port: server.getPort(),
         logger,
-        verifyCallback: async () => {
-          // Noop
-        },
+        config: {
+          verifyPeer: false
+        }
       });
 
       await client.connection.streamNew('bidi');
@@ -222,9 +229,9 @@ describe(WebSocketClient.name, () => {
       host: server.getHost(),
       port: server.getPort(),
       logger,
-      verifyCallback: async () => {
-        // Noop
-      },
+      config: {
+        verifyPeer: false
+      }
     });
 
     const closeProm = utils.promise<any>();

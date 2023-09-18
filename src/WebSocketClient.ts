@@ -1,4 +1,4 @@
-import type { Host, Port, VerifyCallback, WebSocketConfig } from './types';
+import type { Host, Port, VerifyCallback, WebSocketClientConfigInput, WebSocketConfig } from './types';
 import { AbstractEvent } from '@matrixai/events';
 import { createDestroy } from '@matrixai/async-init';
 import Logger from '@matrixai/logger';
@@ -55,13 +55,11 @@ class WebSocketClient extends EventTarget {
     port,
     config,
     logger = new Logger(`${this.name}`),
-    verifyCallback,
   }: {
     host: string;
     port: number;
-    config?: Partial<WebSocketConfig>;
+    config?: WebSocketClientConfigInput;
     logger?: Logger;
-    verifyCallback?: VerifyCallback;
   }): Promise<WebSocketClient> {
     logger.info(`Create ${this.name} to ${host}:${port}`);
     const wsConfig = {
@@ -86,21 +84,20 @@ class WebSocketClient extends EventTarget {
 
     const address = `wss://${host_}:${port_}`;
 
+    // rejectUnauthorized must be false when verifyCallback exists
     const webSocket = new WebSocket(address, {
-      rejectUnauthorized: verifyCallback == null,
+      rejectUnauthorized: wsConfig.verifyPeer && wsConfig.verifyCallback == null,
+      key: wsConfig.key as any,
+      cert: wsConfig.cert as any,
+      ca: wsConfig.ca as any,
     });
 
     const connectionId = 0;
     const connection = new WebSocketConnection({
       type: 'client',
       connectionId,
-      remoteInfo: {
-        host: host as Host,
-        port: port_,
-      },
       config: wsConfig,
       socket: webSocket,
-      verifyCallback,
       logger: logger.getChild(`${WebSocketConnection.name} ${connectionId}`),
     });
     const client = new this({

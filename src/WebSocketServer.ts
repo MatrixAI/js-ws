@@ -6,6 +6,7 @@ import type {
   StreamCodeToReason,
   StreamReasonToCode,
   WebSocketConfig,
+  WebSocketServerConfigInput,
 } from './types';
 import type { EventAll } from '@matrixai/events';
 import https from 'https';
@@ -25,6 +26,7 @@ import * as utils from './utils';
 import WebSocketConnection from './WebSocketConnection';
 import { serverDefault } from './config';
 import WebSocketConnectionMap from './WebSocketConnectionMap';
+import { TLSSocket } from 'tls';
 
 interface WebSocketServer extends StartStop {}
 /**
@@ -68,11 +70,7 @@ class WebSocketServer {
   /**
    * Configuration for new connections.
    */
-  protected config: WebSocketConfig & {
-    key: string;
-    cert: string;
-    ca?: string;
-  };
+  protected config: WebSocketConfig;
 
   public readonly connectionMap: WebSocketConnectionMap =
     new WebSocketConnectionMap();
@@ -170,9 +168,12 @@ class WebSocketServer {
     const connection = new WebSocketConnection({
       type: 'server',
       connectionId: connectionId,
-      remoteInfo: {
-        host: (httpSocket.remoteAddress ?? '') as Host,
-        port: (httpSocket.remotePort ?? 0) as Port,
+      meta: {
+        remoteHost: httpSocket.remoteAddress ?? '',
+        remotePort: httpSocket.remotePort ?? 0,
+        localHost: httpSocket.localAddress ?? '',
+        localPort: httpSocket.localPort ?? 0,
+        peerCert: (httpSocket as TLSSocket).getPeerCertificate(true),
       },
       socket: webSocket,
       config: this.config,
@@ -221,11 +222,7 @@ class WebSocketServer {
     codeToReason,
     logger,
   }: {
-    config: Partial<WebSocketConfig> & {
-      key: string;
-      cert: string;
-      ca?: string;
-    };
+    config: WebSocketServerConfigInput;
     reasonToCode?: StreamReasonToCode;
     codeToReason?: StreamCodeToReason;
     logger?: Logger;
@@ -253,12 +250,24 @@ class WebSocketServer {
   } = {}): Promise<void> {
     this.logger.info(`Starting ${this.constructor.name}`);
     this.server = https.createServer({
-      key: this.config.key,
-      cert: this.config.cert,
-      ca: this.config.ca,
+      rejectUnauthorized: this.config.verifyPeer && this.config.verifyCallback == null,
+      requestCert: true,
+      key: this.config.key as any,
+      cert: this.config.cert as any,
+      ca: this.config.ca as any,
     });
     this.webSocketServer = new ws.WebSocketServer({
       server: this.server,
+      verifyClient: async (info, done) => {
+        const peerCert = (info.req.socket as TLSSocket).getPeerCertificate(true);
+        try {
+          await this.config.verifyCallback?.(peerCert);
+          done(true);
+        }
+        catch (e) {
+          done(false, 525, 'TLS Handshake Failed');
+        }
+      }
     });
 
     this.webSocketServer.on('connection', this.handleServerConnection);
@@ -266,7 +275,7 @@ class WebSocketServer {
     this.server.on('close', this.handleServerClosed);
     this.webSocketServer.on('error', this.handleServerError);
     this.server.on('error', this.handleServerError);
-    this.server.on('request', this.requestHandler);
+    this.server.on('request', this.handleServerRequest);
 
     const listenProm = utils.promise<void>();
     this.server.listen(
@@ -342,7 +351,7 @@ class WebSocketServer {
     this.server.off('close', this.handleServerClosed);
     this.webSocketServer.off('error', this.handleServerError);
     this.server.off('error', this.handleServerError);
-    this.server.on('request', this.requestHandler);
+    this.server.on('request', this.handleServerRequest);
     this.logger.info(`Stopped ${this.constructor.name}`);
   }
 
@@ -358,25 +367,25 @@ class WebSocketServer {
 
   @ready(new errors.ErrorWebSocketServerNotRunning())
   public updateConfig(
-    config: Partial<WebSocketConfig> & {
-      key?: string;
-      cert?: string;
-      ca?: string;
-    },
+    config: WebSocketServerConfigInput
   ): void {
     const tlsServer = this.server as tls.Server;
     const wsConfig = {
       ...this.config,
       ...config,
     };
-    tlsServer.setSecureContext(wsConfig);
+    tlsServer.setSecureContext({
+      key: wsConfig.key as any,
+      cert: wsConfig.cert as any,
+      ca: wsConfig.ca as any,
+    });
     this.config = wsConfig;
   }
 
   /**
    * Will tell any normal HTTP request to upgrade
    */
-  protected requestHandler = (_req, res: ServerResponse) => {
+  protected handleServerRequest = (_req, res: ServerResponse) => {
     res
       .writeHead(426, '426 Upgrade Required', {
         connection: 'Upgrade',

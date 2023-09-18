@@ -5,6 +5,7 @@ const serverDefault: WebSocketConfig = {
   keepAliveIntervalTime: Infinity,
   keepAliveTimeoutTime: Infinity,
   streamBufferSize: 1 * 1024 * 1024, // 1MB
+  verifyPeer: false,
 };
 
 const clientDefault: WebSocketConfig = {
@@ -12,6 +13,7 @@ const clientDefault: WebSocketConfig = {
   keepAliveIntervalTime: Infinity,
   keepAliveTimeoutTime: Infinity,
   streamBufferSize: 1 * 1024 * 1024, // 1MB
+  verifyPeer: true
 };
 
 export { serverDefault, clientDefault };
