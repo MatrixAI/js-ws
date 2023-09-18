@@ -226,7 +226,7 @@ describe(WebSocketStream.name, () => {
     const stream1Readable = stream1.readable;
     const stream2Writable = stream2.writable;
     await stream2Writable.abort(testReason);
-    await expect(stream1Readable.getReader().read()).rejects.toBe(testReason);
+    await expect(stream1Readable.getReader().read()).rejects.toHaveProperty('cause', testReason);
     await expect(stream2Writable.getWriter().write()).rejects.toBe(testReason);
   });
   testProp(
@@ -500,7 +500,7 @@ describe(WebSocketStream.name, () => {
     writer.releaseLock();
     await stream2.cancel(cancelReason);
 
-    await expect(stream2.readable.getReader().read()).rejects.toBe(cancelReason)
+    await expect(stream2.readable.getReader().read()).rejects.toHaveProperty('cause', cancelReason)
     await expect(stream2.writable.getWriter().write()).rejects.toHaveProperty('cause', cancelReason);
   });
   test('streams can be cancelled with no data sent', async () => {
@@ -524,7 +524,7 @@ describe(WebSocketStream.name, () => {
 
     await stream2.cancel(cancelReason);
 
-    await expect(stream2.readable.getReader().read()).rejects.toBe(cancelReason)
+    await expect(stream2.readable.getReader().read()).rejects.toHaveProperty('cause', cancelReason)
     await expect(stream2.writable.getWriter().write()).rejects.toHaveProperty('cause', cancelReason)
   });
   test('streams can be cancelled concurrently after data sent', async () => {

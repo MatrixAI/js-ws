@@ -107,9 +107,11 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
 
   protected readableQueue: WebSocketStreamQueue = new WebSocketStreamQueue();
   protected readableQueueBufferSize = 0;
-  protected readableBufferReady = utils.promise<void>();
   protected writableDesiredSize = 0;
-  protected writableDesiredSizeProm = utils.promise<void>();
+  protected resolveReadableP?: () => void;
+  protected rejectReadableP?: (reason?: any) => void;
+  protected resolveWritableP?: () => void;
+  protected rejectWritableP?: (reason?: any) => void;
 
   public readonly closedP: Promise<void>;
   protected resolveClosedP: () => void;
@@ -334,12 +336,21 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       return;
     }
 
-    // Reset the promise before a read from the queue to wait until the queue has items
-    if (this.readableQueue.count === 0) {
-      this.readableBufferReady.resolveP();
-      this.readableBufferReady = utils.promise<void>();
+    const {
+      p: readableP,
+      resolveP: resolveReadableP,
+      rejectP: rejectReadableP,
+    } = utils.promise<void>();
+
+    this.resolveReadableP = resolveReadableP;
+    this.rejectReadableP = rejectReadableP;
+
+    // Resolve the promise immediately if there are messages
+      // If not, wait for there to be to messages
+    if (this.readableQueue.count > 0) {
+      resolveReadableP();
     }
-    await this.readableBufferReady.p;
+    await readableP;
 
     // Data will be null in the case of stream destruction before the readable buffer is blocked
     // we're going to just enqueue an empty buffer in case it is null for some other reason, so that the next read is able to complete
@@ -371,7 +382,21 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
         `${chunk.length} bytes need to be written into a receiver buffer of ${this.writableDesiredSize} bytes`,
       );
 
-      await this.writableDesiredSizeProm.p;
+      const {
+        p: writableP,
+        resolveP: resolveWritableP,
+        rejectP: rejectWritableP,
+      } = utils.promise<void>();
+
+      this.resolveWritableP = resolveWritableP;
+      this.rejectWritableP = rejectWritableP;
+
+      // Resolve the promise immediately if there is available space to be written
+      // If not, wait for the writableDesiredSize to be updated by the peer
+      if (this.writableDesiredSize > 0) {
+        resolveWritableP();
+      }
+      await writableP;
 
       // Chunking
       // .subarray parameters begin and end are clamped to the size of the Uint8Array
@@ -383,13 +408,6 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       }
 
       const bytesWritten = data.length;
-      if (this.writableDesiredSize === bytesWritten) {
-        this.logger.debug(
-          `this chunk will trigger receiver to send an ACK`,
-        );
-        // Reset the promise to wait for another ACK
-        this.writableDesiredSizeProm = utils.promise();
-      }
       // Decrement the desired size by the amount of bytes written
       this.writableDesiredSize -= bytesWritten;
       this.logger.debug(
@@ -440,14 +458,14 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       }
     );
     // This is idempotent and won't error even if it is already stopped
-    this.readableController.error(reason);
+    this.readableController.error(e);
     // This rejects the readableP if it exists
     // The pull method may be blocked by `await readableP`
     // When rejected, it will throw up the exception
     // However because the stream is cancelled, then
     // the exception has no effect, and any reads of this stream
     // will simply return `{ value: undefined, done: true }`
-    this.readableBufferReady.resolveP();
+    this.rejectReadableP?.(e);
     this.dispatchEvent(
       new events.EventWebSocketStreamError({
         detail: e
@@ -493,7 +511,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     // This will reject the writable call
     // But at the same time, it means the writable stream transitions to errored state
     // But the whole writable stream is going to be closed anyway
-    this.writableDesiredSizeProm.resolveP();
+    this.rejectWritableP?.(e);
     this.dispatchEvent(
       new events.EventWebSocketStreamError({
         detail: e
@@ -558,7 +576,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
 
     if (parsedMessage.type === StreamMessageType.Ack) {
       this.writableDesiredSize += parsedMessage.payload;
-      this.writableDesiredSizeProm.resolveP();
+      this.resolveWritableP?.();
       this.logger.debug(
         `writableDesiredSize is now ${this.writableDesiredSize} due to ACK`,
       );
@@ -576,7 +594,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
         return;
       }
       this.readableQueue.queue(parsedMessage.payload);
-      this.readableBufferReady.resolveP();
+      this.resolveReadableP?.();
     } else if (parsedMessage.type === StreamMessageType.Error) {
       const { shutdown, code } = parsedMessage.payload;
       let reason: any;
@@ -609,8 +627,8 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
             cause: reason
           }
         );
-        this.readableController.error(reason);
-        this.readableBufferReady.resolveP();
+        this.readableController.error(e);
+        this.rejectReadableP?.(e);
         this.dispatchEvent(
           new events.EventWebSocketStreamError({
             detail: e
@@ -642,7 +660,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
           }
         );
         this.writableController.error(e);
-        this.writableDesiredSizeProm.resolveP();
+        this.rejectWritableP?.(e);
         this.dispatchEvent(
           new events.EventWebSocketStreamError({
             detail: e
@@ -670,7 +688,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       if (shutdown === StreamShutdown.Read) {
         if (this._readClosed) return;
         this.readableController.close();
-        this.readableBufferReady.resolveP();
+        this.resolveReadableP?.();
         this.dispatchEvent(
           new events.EventWebSocketStreamCloseRead({
             detail: {
@@ -695,7 +713,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
           }
         );
         this.writableController.error(e);
-        this.writableDesiredSizeProm.resolveP();
+        this.rejectWritableP?.(e);
         this.dispatchEvent(
           new events.EventWebSocketStreamError({
             detail: e
