@@ -1,4 +1,4 @@
-import * as crypto from 'crypto';
+import { X509Certificate } from '@peculiar/x509';
 import Logger, { formatting, LogLevel, StreamHandler } from '@matrixai/logger';
 import { status } from '@matrixai/async-init';
 import * as events from '@/events';
@@ -55,11 +55,90 @@ describe(WebSocketClient.name, () => {
     await server.stop();
   });
 
+  test('client can verify TLS', async () => {
+    const connectionProm = utils.promise();
+
+    const x509Cert = new X509Certificate(tlsConfigServer.cert);
+
+    const server = new WebSocketServer({
+      config: {
+        ...tlsConfigServer,
+        verifyPeer: false,
+      },
+      logger,
+    });
+    await server.start({ host: ipv4Host });
+
+    server.addEventListener(events.EventWebSocketServerConnection.name, () => {
+      connectionProm.resolveP();
+    });
+
+    let peerCertRaw: Buffer;
+
+    await WebSocketClient.createWebSocketClient({
+      host: server.getHost(),
+      port: server.getPort(),
+      logger,
+      config: {
+        verifyPeer: true,
+        verifyCallback: async (peerCert) => {
+          peerCertRaw = peerCert.raw;
+        }
+      }
+    });
+
+    await expect(connectionProm.p).toResolve();
+    expect(peerCertRaw!.buffer).toEqual(x509Cert.rawData);
+
+    await server.stop();
+  });
+
+  test('server can verify TLS', async () => {
+    const connectionProm = utils.promise();
+
+    const tlsConfigClient = await testsUtils.generateConfig('RSA');
+
+    const x509Cert = new X509Certificate(tlsConfigClient.cert);
+
+    let peerCertRaw: Buffer;
+
+    const server = new WebSocketServer({
+      config: {
+        ...tlsConfigServer,
+        verifyPeer: true,
+        verifyCallback: async (peerCert) => {
+          peerCertRaw = peerCert.raw;
+        }
+      },
+      logger,
+    });
+    await server.start({ host: ipv4Host });
+
+    server.addEventListener(events.EventWebSocketServerConnection.name, () => {
+      connectionProm.resolveP();
+    });
+
+    await WebSocketClient.createWebSocketClient({
+      host: server.getHost(),
+      port: server.getPort(),
+      logger,
+      config: {
+        ...tlsConfigClient,
+        verifyPeer: false,
+      }
+    });
+
+    await expect(connectionProm.p).toResolve();
+    expect(peerCertRaw!.buffer).toEqual(x509Cert.rawData);
+
+    await server.stop();
+  });
+
   test('can change TLS config', async () => {
     const connectionProm = utils.promise();
     const newTlsConfigServer = await testsUtils.generateConfig('RSA');
 
-    const x509Cert = new crypto.X509Certificate(newTlsConfigServer.cert);
+    const x509Cert = new X509Certificate(newTlsConfigServer.cert);
 
     const server = new WebSocketServer({
       config: {
@@ -76,26 +155,26 @@ describe(WebSocketClient.name, () => {
       connectionProm.resolveP();
     });
 
-    let peerCertFingerprint: string;
+    let peerCertRaw: Buffer;
 
     await WebSocketClient.createWebSocketClient({
       host: server.getHost(),
       port: server.getPort(),
       logger,
       config: {
-        ...tlsConfigServer,
         verifyPeer: true,
         verifyCallback: async (peerCert) => {
-          peerCertFingerprint = peerCert.fingerprint;
+          peerCertRaw = peerCert.raw;
         }
       }
     });
 
     await expect(connectionProm.p).toResolve();
-    expect(peerCertFingerprint!).toEqual(x509Cert.fingerprint);
+    expect(peerCertRaw!.buffer).toEqual(x509Cert.rawData);
 
     await server.stop();
   });
+
   test('makes a connection over IPv6', async () => {
     const connectionProm = utils.promise();
 
