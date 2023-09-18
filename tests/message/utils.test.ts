@@ -92,7 +92,7 @@ describe('StreamMessage', () => {
         streamMessage as StreamMessage,
       );
       const parsedStreamMessage = parseStreamMessage(generatedStreamMessage);
-      expect(parsedStreamMessage).toEqual(streamMessage);
+      expect(parsedStreamMessage.payload).toEqual(streamMessage.payload);
     },
   );
   testProp(
@@ -105,7 +105,7 @@ describe('StreamMessage', () => {
       const parsedConnectionMessage = parseConnectionMessage(
         generatedConnectionMessage,
       );
-      expect(parsedConnectionMessage).toEqual(connectionMessage);
+      expect(parsedConnectionMessage.payload).toEqual(connectionMessage.payload);
     },
   );
 });

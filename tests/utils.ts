@@ -2,6 +2,7 @@ import type { X509Certificate } from '@peculiar/x509';
 import { Crypto } from '@peculiar/webcrypto';
 import * as x509 from '@peculiar/x509';
 import { never } from '@/utils';
+import { fc } from '@fast-check/jest';
 
 /**
  * WebCrypto polyfill from @peculiar/webcrypto
@@ -599,6 +600,14 @@ function toReadableStream<T>(iterator: IterableIterator<T>) {
   });
 }
 
+function bufferArbBuilder(contraints?: fc.IntArrayConstraints) {
+  return fc.uint8Array(contraints).map((data) => {
+    const buff = Buffer.allocUnsafe(data.length);
+    buff.set(data);
+    return buff;
+  });
+}
+
 export {
   sleep,
   randomBytes,
@@ -615,6 +624,7 @@ export {
   verifyHMAC,
   generateConfig,
   toReadableStream,
+  bufferArbBuilder
 };
 
 export type { KeyTypes, TLSConfigs };

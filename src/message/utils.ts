@@ -30,9 +30,13 @@ const StreamErrorCode = {
 
 // Misc
 
+function bufferAllocUnsafe(size: number): Uint8Array {
+  return globalThis.Buffer == null ? new Uint8Array(size) : Buffer.allocUnsafe(size);
+}
+
 function concatUInt8Array(...arrays: Array<Uint8Array>) {
   const totalLength = arrays.reduce((acc, val) => acc + val.length, 0);
-  const result = new Uint8Array(totalLength);
+  const result = bufferAllocUnsafe(totalLength);
   let offset = 0;
   for (const arr of arrays) {
     result.set(arr, offset);
@@ -54,11 +58,11 @@ function parseVarInt(array: Uint8Array): Parsed<VarInt> {
   const prefix = header >> 6;
 
   // Copy bytearray and remove prefix
-  const arrayCopy = new Uint8Array(array.length);
+  const arrayCopy = bufferAllocUnsafe(array.length);
   arrayCopy.set(array);
   arrayCopy[0] &= 0b00111111;
 
-  const dv = new DataView(arrayCopy.buffer, arrayCopy.byteOffset);
+  const dv = new DataView(arrayCopy.buffer, arrayCopy.byteOffset, array.byteLength);
 
   let readBytes = 0;
 
@@ -96,22 +100,22 @@ function generateVarInt(varInt: VarInt): Uint8Array {
   let prefixMask = 0;
 
   if (varInt < 0x40) {
-    array = new Uint8Array(1);
-    dv = new DataView(array.buffer);
+    array = bufferAllocUnsafe(1);
+    dv = new DataView(array.buffer, array.byteOffset, array.byteLength);
     dv.setUint8(0, Number(varInt));
   } else if (varInt < 0x4000) {
-    array = new Uint8Array(2);
-    dv = new DataView(array.buffer);
+    array = bufferAllocUnsafe(2);
+    dv = new DataView(array.buffer, array.byteOffset, array.byteLength);
     dv.setUint16(0, Number(varInt));
     prefixMask = 0b01_000000;
   } else if (varInt < 0x40000000) {
-    array = new Uint8Array(4);
-    dv = new DataView(array.buffer);
+    array = bufferAllocUnsafe(4);
+    dv = new DataView(array.buffer, array.byteOffset, array.byteLength);
     dv.setUint32(0, Number(varInt));
     prefixMask = 0b10_000000;
   } else if (varInt < 0x4000000000000000n) {
-    array = new Uint8Array(8);
-    dv = new DataView(array.buffer);
+    array = bufferAllocUnsafe(8);
+    dv = new DataView(array.buffer, array.byteOffset, array.byteLength);
     dv.setBigUint64(0, varInt);
     prefixMask = 0b11_000000;
   } else {
@@ -260,8 +264,8 @@ function generateStreamMessageAckPayload(ackPayload: number): Uint8Array {
       'StreamMessageAckPayload is too large',
     );
   }
-  const array = new Uint8Array(4);
-  const dv = new DataView(array.buffer);
+  const array = bufferAllocUnsafe(4);
+  const dv = new DataView(array.buffer, array.byteOffset, array.byteLength);
   dv.setUint32(0, ackPayload, false);
   return array;
 }
@@ -277,7 +281,7 @@ function generateStreamMessageErrorPayload(errorPayload: {
   code: VarInt;
 }): Uint8Array {
   const generatedCode = generateVarInt(errorPayload.code);
-  const array = new Uint8Array(1 + generatedCode.length);
+  const array = bufferAllocUnsafe(1 + generatedCode.length);
   array[0] = errorPayload.shutdown;
   array.set(generatedCode, 1);
   return array;
@@ -329,6 +333,7 @@ export {
   StreamMessageType,
   StreamShutdown,
   StreamErrorCode,
+  bufferAllocUnsafe,
   concatUInt8Array,
   parseVarInt,
   generateVarInt,

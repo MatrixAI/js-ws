@@ -4,11 +4,11 @@ import { fc, testProp } from '@fast-check/jest';
 import WebSocketStream from '@/WebSocketStream';
 import WebSocketConnection from '@/WebSocketConnection';
 import * as events from '@/events';
-import { promise } from '@/utils';
 import * as errors from '@/errors';
 import * as utils from '@/utils';
 import * as messageUtils from '@/message/utils';
 import { StreamMessageType } from '@/message';
+import * as testUtils from './utils';
 
 type StreamOptions = Partial<
   ConstructorParameters<typeof WebSocketStream>[0]
@@ -137,7 +137,7 @@ describe(WebSocketStream.name, () => {
     connection2: WebSocketConnection,
   ): Promise<[WebSocketStream, WebSocketStream]> {
     const stream1 = await connection1.streamNew();
-    const createStream2Prom = promise<WebSocketStream>();
+    const createStream2Prom = utils.promise<WebSocketStream>();
     connection2.addEventListener(
       events.EventWebSocketConnectionStream.name,
       (e: events.EventWebSocketConnectionStream) => {
@@ -232,7 +232,7 @@ describe(WebSocketStream.name, () => {
   });
   testProp(
     'should send data over stream - single write within buffer size',
-    [fc.uint8Array({ maxLength: STREAM_BUFFER_SIZE })],
+    [testUtils.bufferArbBuilder({ maxLength: STREAM_BUFFER_SIZE })],
     async (data) => {
       const [stream1, stream2] = await createStreamPair();
 
@@ -266,7 +266,7 @@ describe(WebSocketStream.name, () => {
   );
   testProp(
     'should send data over stream - single write outside buffer size',
-    [fc.uint8Array({ minLength: STREAM_BUFFER_SIZE + 1 })],
+    [testUtils.bufferArbBuilder({ minLength: STREAM_BUFFER_SIZE + 1 })],
     async (data) => {
       const [stream1, stream2] = await createStreamPair();
 
@@ -300,7 +300,7 @@ describe(WebSocketStream.name, () => {
   );
   testProp(
     'should send data over stream - multiple writes within buffer size',
-    [fc.array(fc.uint8Array({ maxLength: STREAM_BUFFER_SIZE }))],
+    [fc.array(testUtils.bufferArbBuilder({ maxLength: STREAM_BUFFER_SIZE }))],
     async (data) => {
       const [stream1, stream2] = await createStreamPair();
 
@@ -338,7 +338,7 @@ describe(WebSocketStream.name, () => {
   );
   testProp(
     'should send data over stream - multiple writes outside buffer size',
-    [fc.array(fc.uint8Array({ minLength: STREAM_BUFFER_SIZE + 1 }))],
+    [fc.array(testUtils.bufferArbBuilder({ minLength: STREAM_BUFFER_SIZE + 1 }))],
     async (data) => {
       const [stream1, stream2] = await createStreamPair();
 
@@ -379,8 +379,8 @@ describe(WebSocketStream.name, () => {
     [
       fc.array(
         fc.oneof(
-          fc.uint8Array({ minLength: STREAM_BUFFER_SIZE + 1 }),
-          fc.uint8Array({ maxLength: STREAM_BUFFER_SIZE }),
+          testUtils.bufferArbBuilder({ minLength: STREAM_BUFFER_SIZE + 1 }),
+          testUtils.bufferArbBuilder({ maxLength: STREAM_BUFFER_SIZE }),
         ),
       ),
     ],
@@ -424,14 +424,14 @@ describe(WebSocketStream.name, () => {
     [
       fc.array(
         fc.oneof(
-          fc.uint8Array({ minLength: STREAM_BUFFER_SIZE + 1 }),
-          fc.uint8Array({ maxLength: STREAM_BUFFER_SIZE }),
+          testUtils.bufferArbBuilder({ minLength: STREAM_BUFFER_SIZE + 1 }),
+          testUtils.bufferArbBuilder({ maxLength: STREAM_BUFFER_SIZE }),
         ),
       ),
       fc.array(
         fc.oneof(
-          fc.uint8Array({ minLength: STREAM_BUFFER_SIZE + 1 }),
-          fc.uint8Array({ maxLength: STREAM_BUFFER_SIZE }),
+          testUtils.bufferArbBuilder({ minLength: STREAM_BUFFER_SIZE + 1 }),
+          testUtils.bufferArbBuilder({ maxLength: STREAM_BUFFER_SIZE }),
         ),
       ),
     ],

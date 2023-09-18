@@ -1,6 +1,7 @@
 import type { StreamId, VarInt } from '@/message';
 import { fc } from '@fast-check/jest';
 import { StreamMessageType, StreamShutdown } from '@/message';
+import { bufferArbBuilder } from '../utils';
 
 const varIntArb = fc.bigInt({
   min: 0n,
@@ -37,7 +38,7 @@ const streamMessageAckArb = fc.record({
 
 const streamMessageDataArb = fc.record({
   type: fc.constant(StreamMessageType.Data),
-  payload: fc.uint8Array(),
+  payload: bufferArbBuilder()
 });
 
 const streamMessageCloseArb = fc.record({
