@@ -1,7 +1,14 @@
 import type { StreamId, VarInt } from '@/message';
 import { fc } from '@fast-check/jest';
 import { StreamMessageType, StreamShutdown } from '@/message';
-import { bufferArbBuilder } from '../utils';
+
+function fcBuffer(contraints?: fc.IntArrayConstraints) {
+  return fc.uint8Array(contraints).map((data) => {
+    const buff = Buffer.allocUnsafe(data.length);
+    buff.set(data);
+    return buff;
+  });
+}
 
 const varIntArb = fc.bigInt({
   min: 0n,
@@ -38,7 +45,7 @@ const streamMessageAckArb = fc.record({
 
 const streamMessageDataArb = fc.record({
   type: fc.constant(StreamMessageType.Data),
-  payload: bufferArbBuilder()
+  payload: fcBuffer()
 });
 
 const streamMessageCloseArb = fc.record({
@@ -68,6 +75,7 @@ const connectionMessageArb = streamIdArb.chain((streamId) => {
 });
 
 export {
+  fcBuffer,
   varIntArb,
   streamIdArb,
   streamShutdownArb,
