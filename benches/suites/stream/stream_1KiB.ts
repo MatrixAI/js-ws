@@ -57,7 +57,9 @@ async function main() {
     host,
     port: wsServer.getPort(),
     logger,
-    verifyCallback: async () => {},
+    config: {
+      verifyPeer: false
+    }
   });
 
   const stream = await client.connection.streamNew();
