@@ -135,10 +135,17 @@ const parseStreamId = parseVarInt as (array: Uint8Array) => Parsed<StreamId>;
 // StreamMessage
 
 function parseStreamMessageType(input: Uint8Array): Parsed<StreamMessageType> {
-  const type = input.at(0);
-  if (type == null) {
+  const dv = new DataView(input.buffer, input.byteOffset, input.byteLength);
+  let type: number | undefined;
+  try {
+    type = dv.getUint16(0, false);
+  }
+  catch (e) {
     throw new errors.ErrorStreamParse(
       'StreamMessage does not contain a StreamMessageType',
+      {
+        cause: e
+      }
     );
   }
   switch (type) {
@@ -148,7 +155,7 @@ function parseStreamMessageType(input: Uint8Array): Parsed<StreamMessageType> {
     case StreamMessageType.Error:
       return {
         data: type,
-        remainder: input.subarray(1),
+        remainder: input.subarray(2),
       };
     default:
       throw new errors.ErrorStreamParse(
@@ -255,7 +262,10 @@ function parseStreamMessage(input: Uint8Array): StreamMessage {
 }
 
 function generateStreamMessageType(type: StreamMessageType): Uint8Array {
-  return new Uint8Array([type]);
+  const array = bufferAllocUnsafe(2);
+  const dv = new DataView(array.buffer, array.byteOffset, array.byteLength);
+  dv.setUint16(0, type, false)
+  return array;
 }
 
 function generateStreamMessageAckPayload(ackPayload: number): Uint8Array {

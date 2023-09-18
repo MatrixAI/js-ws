@@ -79,8 +79,7 @@ jest.mock('@/WebSocketConnection', () => {
       const { data: streamId, remainder } = messageUtils.parseStreamId(data);
       let stream = instance.peerConnection!.streamMap.get(streamId);
       if (stream == null) {
-        const type = remainder.at(0);
-        if (type !== StreamMessageType.Ack) {
+        if (!(remainder.at(0) === 0 && remainder.at(1) === StreamMessageType.Ack)) {
           return;
         }
         stream = new WebSocketStream({

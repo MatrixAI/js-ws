@@ -24,6 +24,7 @@ import * as errors from './errors';
 import * as events from './events';
 import { parseStreamId, StreamMessageType } from './message';
 import { ConnectionErrorCode, promise } from './utils';
+import * as messageUtils from './message/utils';
 
 const timerCleanupReasonSymbol = Symbol('timerCleanupReasonSymbol');
 
@@ -212,7 +213,9 @@ class WebSocketConnection {
 
     let stream = this.streamMap.get(streamId);
     if (stream == null) {
-      if (remainder.at(0) !== StreamMessageType.Ack) {
+      // because the stream code is 16 bits, and Ack is only the right-most bit set when encoded by big-endian,
+      // we can assume that the second byte of the StreamMessageType.Ack will look the same as if it were encoded in a u8
+      if (!(remainder.at(0) === 0 && remainder.at(1) === StreamMessageType.Ack)) {
         return;
       }
       stream = new WebSocketStream({
