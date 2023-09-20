@@ -3,6 +3,7 @@ import type tls from 'tls';
 import type {
   Host,
   Port,
+  PromiseDeconstructed,
   StreamCodeToReason,
   StreamReasonToCode,
   WebSocketConfig,
@@ -58,6 +59,11 @@ interface WebSocketServer extends StartStop {}
 })
 class WebSocketServer {
   /**
+   * Determines whether the socket is injected or not
+   */
+  public readonly isServerShared: boolean;
+
+  /**
    * Custom reason to code converter for new connections.
    */
   public reasonToCode?: StreamReasonToCode;
@@ -76,6 +82,7 @@ class WebSocketServer {
     new WebSocketConnectionMap();
   protected server: https.Server;
   protected webSocketServer: ws.WebSocketServer;
+  protected webSocketServerClosed = false;
 
   protected _closed: boolean = false;
   public readonly closedP: Promise<void>;
@@ -99,15 +106,29 @@ class WebSocketServer {
     // Not that we have actually closed
     // That's different from socket close event which means "fully" closed
     // We would call that `Closed` event, not `Close` event
-
+    this.webSocketServer.off('close', this.handleWebSocketServerClosed);
     this.server.off('close', this.handleServerClosed);
-    if (!this.server.listening) {
-      this.resolveClosedP();
+
+    if (this.isServerShared) {
+      if (this.webSocketServerClosed) {
+        this.resolveClosedP();
+      }
+      this.webSocketServer.close(() => this.resolveClosedP());
+      await this.closed;
     }
-    this.server.close(() => {
-      this.resolveClosedP();
-    });
-    await this.closedP;
+    else {
+      if (!this.webSocketServerClosed) {
+        let wsClosedP = utils.promise();
+        this.webSocketServer.close(() => wsClosedP.resolveP());
+        await wsClosedP;
+      }
+      if (!this.server.listening) {
+        this.resolveClosedP();
+      }
+      this.server.close(() => this.resolveClosedP());
+      await this.closedP;
+    }
+
     this._closed = true;
     if (this[running]) {
       // If stop fails, it is a software bug
@@ -137,6 +158,11 @@ class WebSocketServer {
   protected handleServerClosed = async () => {
     this.dispatchEvent(new events.EventWebSocketServerClose());
   };
+
+  protected handleWebSocketServerClosed = async () => {
+    this.webSocketServerClosed = true;
+    this.dispatchEvent(new events.EventWebSocketServerClose());
+  }
 
   /**
    * Used to propagate error conditions
@@ -218,11 +244,13 @@ class WebSocketServer {
    */
   constructor({
     config,
+    server,
     reasonToCode,
     codeToReason,
     logger,
   }: {
     config: WebSocketServerConfigInput;
+    server?: https.Server;
     reasonToCode?: StreamReasonToCode;
     codeToReason?: StreamCodeToReason;
     logger?: Logger;
@@ -237,6 +265,14 @@ class WebSocketServer {
     const { p: closedP, resolveP: resolveClosedP } = utils.promise();
     this.closedP = closedP;
     this.resolveClosedP = resolveClosedP;
+
+    if (server != null) {
+      this.isServerShared = true;
+      this.server = server;
+    }
+    else {
+      this.isServerShared = false;
+    }
   }
 
   @ready(new errors.ErrorWebSocketServerNotRunning())
@@ -267,14 +303,17 @@ class WebSocketServer {
     ipv6Only?: boolean;
   } = {}): Promise<void> {
     this.logger.info(`Starting ${this.constructor.name}`);
-    this.server = https.createServer({
-      rejectUnauthorized:
-        this.config.verifyPeer && this.config.verifyCallback == null,
-      requestCert: true,
-      key: this.config.key as any,
-      cert: this.config.cert as any,
-      ca: this.config.ca as any,
-    });
+    if (!this.isServerShared) {
+      this.server = https.createServer({
+        rejectUnauthorized:
+          this.config.verifyPeer && this.config.verifyCallback == null,
+        requestCert: true,
+        key: this.config.key as any,
+        cert: this.config.cert as any,
+        ca: this.config.ca as any,
+      });
+    }
+
     this.webSocketServer = new ws.WebSocketServer({
       server: this.server,
       verifyClient: async (info, done) => {
@@ -291,22 +330,24 @@ class WebSocketServer {
     });
 
     this.webSocketServer.on('connection', this.handleServerConnection);
-    this.webSocketServer.on('close', this.handleServerClosed);
+    this.webSocketServer.on('close', this.handleWebSocketServerClosed);
     this.server.on('close', this.handleServerClosed);
     this.webSocketServer.on('error', this.handleServerError);
     this.server.on('error', this.handleServerError);
     this.server.on('request', this.handleServerRequest);
 
-    const listenProm = utils.promise<void>();
-    this.server.listen(
-      {
-        host,
-        port,
-        ipv6Only,
-      },
-      listenProm.resolveP,
-    );
-    await listenProm.p;
+    if (!this.server.listening) {
+      const listenProm = utils.promise<void>();
+      this.server.listen(
+        {
+          host,
+          port,
+          ipv6Only,
+        },
+        listenProm.resolveP,
+      );
+      await listenProm.p;
+    }
 
     this.addEventListener(
       events.EventWebSocketServerError.name,
