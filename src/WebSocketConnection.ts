@@ -107,20 +107,6 @@ class WebSocketConnection {
    */
   protected streamIdServerBidi: StreamId = 0b01n as StreamId;
 
-  /**
-   * Client initiated unidirectional stream starts at 2.
-   * Increment by 4 to get the next ID.
-   * Currently unsupported.
-   */
-  protected _streamIdClientUni: StreamId = 0b10n as StreamId;
-
-  /**
-   * Server initiated unidirectional stream starts at 3.
-   * Increment by 4 to get the next ID.
-   * Currently unsupported.
-   */
-  protected _streamIdServerUni: StreamId = 0b11n as StreamId;
-
   protected keepAliveTimeOutTimer?: Timer;
   protected keepAliveIntervalTimer?: Timer;
 
@@ -466,14 +452,12 @@ class WebSocketConnection {
   }
 
   @startStop.ready(new errors.ErrorWebSocketConnectionNotRunning())
-  public async streamNew(
-    streamType: 'bidi' = 'bidi',
-  ): Promise<WebSocketStream> {
+  public async streamNew(): Promise<WebSocketStream> {
     return await this.streamIdLock.withF(async () => {
       let streamId: StreamId;
-      if (this.type === 'client' && streamType === 'bidi') {
+      if (this.type === 'client') {
         streamId = this.streamIdClientBidi;
-      } else if (this.type === 'server' && streamType === 'bidi') {
+      } else if (this.type === 'server') {
         streamId = this.streamIdServerBidi;
       }
       const stream = new WebSocketStream({
@@ -498,9 +482,9 @@ class WebSocketConnection {
       stream.addEventListener(EventAll.name, this.handleEventWebSocketStream);
       await stream.start();
       // Ok the stream is opened and working
-      if (this.type === 'client' && streamType === 'bidi') {
+      if (this.type === 'client') {
         this.streamIdClientBidi = (this.streamIdClientBidi + 4n) as StreamId;
-      } else if (this.type === 'server' && streamType === 'bidi') {
+      } else if (this.type === 'server') {
         this.streamIdServerBidi = (this.streamIdServerBidi + 4n) as StreamId;
       }
       return stream;
