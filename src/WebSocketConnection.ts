@@ -407,7 +407,7 @@ class WebSocketConnection {
     // Handle connection failure
     const openErrorHandler = (e) => {
       connectProm.rejectP(
-        new errors.ErrorWebSocketConnection(undefined, {
+        new errors.ErrorWebSocketConnectionLocal(undefined, {
           cause: e,
         }),
       );
@@ -435,31 +435,14 @@ class WebSocketConnection {
           this.peerCert = peerCert;
           authenticateProm.resolveP();
         } catch (e) {
-          const errorCode = utils.ConnectionErrorCode.TLSHandshake;
           const e_ = new errors.ErrorWebSocketConnectionLocal(
             'Failed connection due to custom verification callback',
             {
               cause: e,
               data: {
-                errorCode,
+                errorCode: utils.ConnectionErrorCode.TLSHandshake
               },
             },
-          );
-          this.dispatchEvent(
-            new events.EventWebSocketConnectionError({
-              detail: e_,
-            }),
-          );
-          this.closeLocally = true;
-          this.socket.close(errorCode);
-          this.dispatchEvent(
-            new events.EventWebSocketConnectionClose({
-              detail: {
-                type: 'local',
-                errorCode: utils.ConnectionErrorCode.TLSHandshake,
-                reason: e_.message,
-              },
-            }),
           );
           authenticateProm.rejectP(e_);
         }
@@ -468,48 +451,47 @@ class WebSocketConnection {
     }
 
     // Wait for open
+    // This should only reject with ErrorWebSocketConnectionLocal.
+    // This can either be from a ws.WebSocket error, or abort signal, or TLS handshake error
     try {
       await Promise.race([Promise.all(promises), abortP]);
     } catch (e) {
-      // Socket may already be closed from authentication error
-      this.closeLocally = true;
-      const errorCode = utils.ConnectionErrorCode.ProtocolError;
+      let e_: errors.ErrorWebSocketConnectionLocal<any> = e;
       if (ctx.signal.aborted) {
-        const e_ = new errors.ErrorWebSocketConnectionLocal(
+        e_ = new errors.ErrorWebSocketConnectionLocal(
           'Failed to start WebSocket connection due to start timeout',
           {
             cause: e,
             data: {
-              errorCode,
+              errorCode: utils.ConnectionErrorCode.ProtocolError
             },
           },
         );
-        this.dispatchEvent(
-          new events.EventWebSocketConnectionError({
-            detail: e_,
-          }),
-        );
-        this.closeLocally = true;
-        this.socket.close(errorCode);
-        this.dispatchEvent(
-          new events.EventWebSocketConnectionClose({
-            detail: {
-              type: 'local',
-              errorCode: utils.ConnectionErrorCode.ProtocolError,
-              reason: e_.message,
-            },
-          }),
-        );
       }
-
+      this.dispatchEvent(
+        new events.EventWebSocketConnectionError({
+          detail: e_,
+        }),
+      );
+      // Socket may already be closed from authentication error
+      this.closeLocally = true;
+      const errorCode = e_.data?.errorCode ?? utils.ConnectionErrorCode.ProtocolError;
+      this.socket.close(errorCode);
+      this.dispatchEvent(
+        new events.EventWebSocketConnectionClose({
+          detail: {
+            type: 'local',
+            errorCode,
+            reason: e_.message,
+          },
+        }),
+      );
       this.socket.off('open', openHandler);
       // Upgrade only exists on the ws library, we can use removeAllListeners without worrying
       this.socket.removeAllListeners('upgrade');
       // Close the ws if it's open at this stage
-
       await this.closedP;
-
-      throw e;
+      throw e_;
     } finally {
       ctx.signal.removeEventListener('abort', abortHandler);
       // Upgrade has already been removed by being called once or by the catch
