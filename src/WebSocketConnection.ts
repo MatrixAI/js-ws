@@ -483,9 +483,9 @@ class WebSocketConnection {
       await stream.start();
       // Ok the stream is opened and working
       if (this.type === 'client') {
-        this.streamIdClientBidi = (this.streamIdClientBidi + 4n) as StreamId;
+        this.streamIdClientBidi = (this.streamIdClientBidi + 2n) as StreamId;
       } else if (this.type === 'server') {
-        this.streamIdServerBidi = (this.streamIdServerBidi + 4n) as StreamId;
+        this.streamIdServerBidi = (this.streamIdServerBidi + 2n) as StreamId;
       }
       return stream;
     });
