@@ -123,12 +123,9 @@ class WebSocketConnection {
     const error = evt.detail;
     // In the case of graceful exit, we don't want to log out the error
     if (
-      (
-        error instanceof errors.ErrorWebSocketConnectionLocal
-        ||
-        error instanceof errors.ErrorWebSocketConnectionPeer
-      )
-      && error.data?.errorCode === utils.ConnectionErrorCode.Normal
+      (error instanceof errors.ErrorWebSocketConnectionLocal ||
+        error instanceof errors.ErrorWebSocketConnectionPeer) &&
+      error.data?.errorCode === utils.ConnectionErrorCode.Normal
     ) {
       this.logger.info(utils.formatError(error));
     } else {
@@ -181,9 +178,12 @@ class WebSocketConnection {
     if (!isBinary || data instanceof Array) {
       this.dispatchEvent(
         new events.EventWebSocketConnectionError({
-          detail: new errors.ErrorWebSocketConnectionLocal("data received isn't binary", {
-            cause: new errors.ErrorWebSocketUndefinedBehaviour(),
-          }),
+          detail: new errors.ErrorWebSocketConnectionLocal(
+            "data received isn't binary",
+            {
+              cause: new errors.ErrorWebSocketUndefinedBehaviour(),
+            },
+          ),
         }),
       );
       return;
@@ -201,9 +201,12 @@ class WebSocketConnection {
       // TODO: domain specific error
       this.dispatchEvent(
         new events.EventWebSocketConnectionError('parsing StreamId failed', {
-          detail: new errors.ErrorWebSocketConnectionLocal("data received isn't binary", {
-            cause: e
-          }),
+          detail: new errors.ErrorWebSocketConnectionLocal(
+            "data received isn't binary",
+            {
+              cause: e,
+            },
+          ),
         }),
       );
       return;
@@ -267,14 +270,14 @@ class WebSocketConnection {
       `Peer closed with code ${errorCode}`,
       {
         data: {
-          errorCode
-        }
-      }
-    )
+          errorCode,
+        },
+      },
+    );
     this.dispatchEvent(
       new events.EventWebSocketConnectionError({
         detail: e_,
-      })
+      }),
     );
     this.dispatchEvent(
       new events.EventWebSocketConnectionClose({
@@ -300,7 +303,7 @@ class WebSocketConnection {
     });
     this.dispatchEvent(
       new events.EventWebSocketConnectionError({
-        detail: e_
+        detail: e_,
       }),
     );
     this.closeLocally = true;
@@ -438,14 +441,14 @@ class WebSocketConnection {
             {
               cause: e,
               data: {
-                errorCode
-              }
-            }
+                errorCode,
+              },
+            },
           );
           this.dispatchEvent(
             new events.EventWebSocketConnectionError({
-              detail: e_
-            })
+              detail: e_,
+            }),
           );
           this.closeLocally = true;
           this.socket.close(errorCode);
@@ -454,9 +457,9 @@ class WebSocketConnection {
               detail: {
                 type: 'local',
                 errorCode: utils.ConnectionErrorCode.TLSHandshake,
-                reason: e_.message
-              }
-            })
+                reason: e_.message,
+              },
+            }),
           );
           authenticateProm.rejectP(e_);
         }
@@ -468,7 +471,7 @@ class WebSocketConnection {
     try {
       await Promise.race([Promise.all(promises), abortP]);
     } catch (e) {
-      // socket may already be closed from authentication error
+      // Socket may already be closed from authentication error
       this.closeLocally = true;
       const errorCode = utils.ConnectionErrorCode.ProtocolError;
       if (ctx.signal.aborted) {
@@ -477,14 +480,14 @@ class WebSocketConnection {
           {
             cause: e,
             data: {
-              errorCode
-            }
+              errorCode,
+            },
           },
         );
         this.dispatchEvent(
           new events.EventWebSocketConnectionError({
-            detail: e_
-          })
+            detail: e_,
+          }),
         );
         this.closeLocally = true;
         this.socket.close(errorCode);
@@ -493,9 +496,9 @@ class WebSocketConnection {
             detail: {
               type: 'local',
               errorCode: utils.ConnectionErrorCode.ProtocolError,
-              reason: e_.message
-            }
-          })
+              reason: e_.message,
+            },
+          }),
         );
       }
 
@@ -605,15 +608,17 @@ class WebSocketConnection {
       const reason = 'connection was unable to send data';
       const e_ = new errors.ErrorWebSocketConnectionLocal(reason, {
         cause: new errors.ErrorWebSocketServerInternal(reason, {
-          cause: err
+          cause: err,
         }),
         data: {
           errorCode,
-        }
+        },
       });
-      this.dispatchEvent(new events.EventWebSocketConnectionError({
-        detail: e_
-      }))
+      this.dispatchEvent(
+        new events.EventWebSocketConnectionError({
+          detail: e_,
+        }),
+      );
       this.closeLocally = true;
       this.socket.close(errorCode, reason);
       this.dispatchEvent(
@@ -671,14 +676,12 @@ class WebSocketConnection {
         `Locally closed with code ${errorCode}`,
         {
           data: {
-            errorCode
-          }
-        }
+            errorCode,
+          },
+        },
       );
       this.dispatchEvent(
-        new events.EventWebSocketConnectionError(
-          { detail: e }
-        )
+        new events.EventWebSocketConnectionError({ detail: e }),
       );
       this.closeLocally = true;
       this.socket.close(errorCode, errorMessage);
