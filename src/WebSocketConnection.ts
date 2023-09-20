@@ -23,7 +23,7 @@ import WebSocketStream from './WebSocketStream';
 import * as errors from './errors';
 import * as events from './events';
 import { parseStreamId, StreamMessageType } from './message';
-import { ConnectionErrorCode, promise } from './utils';
+import * as utils from './utils';
 import * as messageUtils from './message/utils';
 
 const timerCleanupReasonSymbol = Symbol('timerCleanupReasonSymbol');
@@ -121,11 +121,19 @@ class WebSocketConnection {
     evt: events.EventWebSocketConnectionError,
   ) => {
     const error = evt.detail;
-    this.logger.error(
-      `${error.name}${'description' in error ? `: ${error.description}` : ''}${
-        error.message !== undefined ? `- ${error.message}` : ''
-      }`,
-    );
+    // In the case of graceful exit, we don't want to log out the error
+    if (
+      (
+        error instanceof errors.ErrorWebSocketConnectionLocal
+        ||
+        error instanceof errors.ErrorWebSocketConnectionPeer
+      )
+      && error.data?.errorCode === utils.ConnectionErrorCode.Normal
+    ) {
+      this.logger.info(utils.formatError(error));
+    } else {
+      this.logger.error(utils.formatError(error));
+    }
   };
 
   protected handleEventWebSocketConnectionClose = async () => {
@@ -173,7 +181,9 @@ class WebSocketConnection {
     if (!isBinary || data instanceof Array) {
       this.dispatchEvent(
         new events.EventWebSocketConnectionError({
-          detail: new errors.ErrorWebSocketUndefinedBehaviour(),
+          detail: new errors.ErrorWebSocketConnectionLocal("data received isn't binary", {
+            cause: new errors.ErrorWebSocketUndefinedBehaviour(),
+          }),
         }),
       );
       return;
@@ -191,7 +201,9 @@ class WebSocketConnection {
       // TODO: domain specific error
       this.dispatchEvent(
         new events.EventWebSocketConnectionError('parsing StreamId failed', {
-          detail: e,
+          detail: new errors.ErrorWebSocketConnectionLocal("data received isn't binary", {
+            cause: e
+          }),
         }),
       );
       return;
@@ -202,7 +214,7 @@ class WebSocketConnection {
       // Because the stream code is 16 bits, and Ack is only the right-most bit set when encoded by big-endian,
       // we can assume that the second byte of the StreamMessageType.Ack will look the same as if it were encoded in a u8
       if (
-        !(remainder.at(0) === 0 && remainder.at(1) === StreamMessageType.Ack)
+        !(remainder.at(1) === StreamMessageType.Ack && remainder.at(0) === 0)
       ) {
         return;
       }
@@ -251,6 +263,19 @@ class WebSocketConnection {
     if (this.closeLocally) {
       return;
     }
+    const e_ = new errors.ErrorWebSocketConnectionPeer(
+      `Peer closed with code ${errorCode}`,
+      {
+        data: {
+          errorCode
+        }
+      }
+    )
+    this.dispatchEvent(
+      new events.EventWebSocketConnectionError({
+        detail: e_,
+      })
+    );
     this.dispatchEvent(
       new events.EventWebSocketConnectionClose({
         detail: {
@@ -263,13 +288,19 @@ class WebSocketConnection {
   };
 
   protected handleSocketError = (err: Error) => {
-    const errorCode = ConnectionErrorCode.InternalServerError;
+    const errorCode = utils.ConnectionErrorCode.InternalServerError;
     const reason = 'An error occurred on the underlying WebSocket instance';
+    const e_ = new errors.ErrorWebSocketConnectionLocal(reason, {
+      data: {
+        errorCode,
+      },
+      cause: new errors.ErrorWebSocketConnectionInternal(reason, {
+        cause: err,
+      }),
+    });
     this.dispatchEvent(
       new events.EventWebSocketConnectionError({
-        detail: new errors.ErrorWebSocketConnectionInternal(reason, {
-          cause: err,
-        }),
+        detail: e_
       }),
     );
     this.closeLocally = true;
@@ -346,7 +377,7 @@ class WebSocketConnection {
       p: closedP,
       resolveP: resolveClosedP,
       rejectP: rejectClosedP,
-    } = promise<void>();
+    } = utils.promise<void>();
     this.closedP = closedP;
     this.resolveClosedP = resolveClosedP;
     this.rejectClosedP = rejectClosedP;
@@ -357,7 +388,7 @@ class WebSocketConnection {
   public async start(@context ctx: ContextTimed): Promise<void> {
     this.logger.info(`Start ${this.constructor.name}`);
     ctx.signal.throwIfAborted();
-    const { p: abortP, rejectP: rejectAbortP } = promise<never>();
+    const { p: abortP, rejectP: rejectAbortP } = utils.promise<never>();
     const abortHandler = () => {
       rejectAbortP(ctx.signal.reason);
     };
@@ -365,7 +396,7 @@ class WebSocketConnection {
 
     const promises: Array<Promise<any>> = [];
 
-    const connectProm = promise<void>();
+    const connectProm = utils.promise<void>();
 
     if (this.socket.readyState === ws.OPEN) {
       connectProm.resolveP();
@@ -386,7 +417,7 @@ class WebSocketConnection {
     promises.push(connectProm.p);
 
     if (this.type === 'client') {
-      const authenticateProm = promise<void>();
+      const authenticateProm = utils.promise<void>();
       this.socket.once('upgrade', async (request) => {
         const tlsSocket = request.socket as TLSSocket;
         const peerCert = tlsSocket.getPeerCertificate(true);
@@ -401,7 +432,33 @@ class WebSocketConnection {
           this.peerCert = peerCert;
           authenticateProm.resolveP();
         } catch (e) {
-          authenticateProm.rejectP(e);
+          const errorCode = utils.ConnectionErrorCode.TLSHandshake;
+          const e_ = new errors.ErrorWebSocketConnectionLocal(
+            'Failed connection due to custom verification callback',
+            {
+              cause: e,
+              data: {
+                errorCode
+              }
+            }
+          );
+          this.dispatchEvent(
+            new events.EventWebSocketConnectionError({
+              detail: e_
+            })
+          );
+          this.closeLocally = true;
+          this.socket.close(errorCode);
+          this.dispatchEvent(
+            new events.EventWebSocketConnectionClose({
+              detail: {
+                type: 'local',
+                errorCode: utils.ConnectionErrorCode.TLSHandshake,
+                reason: e_.message
+              }
+            })
+          );
+          authenticateProm.rejectP(e_);
         }
       });
       promises.push(authenticateProm.p);
@@ -411,11 +468,41 @@ class WebSocketConnection {
     try {
       await Promise.race([Promise.all(promises), abortP]);
     } catch (e) {
+      // socket may already be closed from authentication error
+      this.closeLocally = true;
+      const errorCode = utils.ConnectionErrorCode.ProtocolError;
+      if (ctx.signal.aborted) {
+        const e_ = new errors.ErrorWebSocketConnectionLocal(
+          'Failed to start WebSocket connection due to start timeout',
+          {
+            cause: e,
+            data: {
+              errorCode
+            }
+          },
+        );
+        this.dispatchEvent(
+          new events.EventWebSocketConnectionError({
+            detail: e_
+          })
+        );
+        this.closeLocally = true;
+        this.socket.close(errorCode);
+        this.dispatchEvent(
+          new events.EventWebSocketConnectionClose({
+            detail: {
+              type: 'local',
+              errorCode: utils.ConnectionErrorCode.ProtocolError,
+              reason: e_.message
+            }
+          })
+        );
+      }
+
       this.socket.off('open', openHandler);
       // Upgrade only exists on the ws library, we can use removeAllListeners without worrying
       this.socket.removeAllListeners('upgrade');
       // Close the ws if it's open at this stage
-      this.socket.close(ConnectionErrorCode.ProtocolError);
 
       await this.closedP;
 
@@ -440,7 +527,6 @@ class WebSocketConnection {
     this.addEventListener(
       events.EventWebSocketConnectionError.name,
       this.handleEventWebSocketConnectionError,
-      { once: true },
     );
     this.addEventListener(
       events.EventWebSocketConnectionClose.name,
@@ -503,7 +589,7 @@ class WebSocketConnection {
       array = concatUInt8Array(...data);
     }
     try {
-      const sendProm = promise<void>();
+      const sendProm = utils.promise<void>();
       this.socket.send(array, { binary: true }, (err) => {
         if (err == null) sendProm.resolveP();
         else sendProm.rejectP(err);
@@ -515,8 +601,20 @@ class WebSocketConnection {
         return;
       }
       this.closeLocally = true;
-      const errorCode = ConnectionErrorCode.AbnormalClosure;
+      const errorCode = utils.ConnectionErrorCode.InternalServerError;
       const reason = 'connection was unable to send data';
+      const e_ = new errors.ErrorWebSocketConnectionLocal(reason, {
+        cause: new errors.ErrorWebSocketServerInternal(reason, {
+          cause: err
+        }),
+        data: {
+          errorCode,
+        }
+      });
+      this.dispatchEvent(new events.EventWebSocketConnectionError({
+        detail: e_
+      }))
+      this.closeLocally = true;
       this.socket.close(errorCode, reason);
       this.dispatchEvent(
         new events.EventWebSocketConnectionClose({
@@ -532,7 +630,7 @@ class WebSocketConnection {
   }
 
   public async stop({
-    errorCode = ConnectionErrorCode.Normal,
+    errorCode = utils.ConnectionErrorCode.Normal,
     errorMessage = '',
     force = true,
   }: {
@@ -569,6 +667,19 @@ class WebSocketConnection {
     if (this.socket.readyState === ws.CLOSED) {
       this.resolveClosedP();
     } else {
+      const e = new errors.ErrorWebSocketConnectionLocal(
+        `Locally closed with code ${errorCode}`,
+        {
+          data: {
+            errorCode
+          }
+        }
+      );
+      this.dispatchEvent(
+        new events.EventWebSocketConnectionError(
+          { detail: e }
+        )
+      );
       this.closeLocally = true;
       this.socket.close(errorCode, errorMessage);
       this.dispatchEvent(

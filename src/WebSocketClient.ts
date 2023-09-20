@@ -114,11 +114,6 @@ class WebSocketClient extends EventTarget {
     });
     // Setting up connection events
     connection.addEventListener(
-      events.EventWebSocketConnectionError.name,
-      client.handleEventWebSocketConnectionError,
-      { once: true },
-    );
-    connection.addEventListener(
       events.EventWebSocketConnectionStopped.name,
       client.handleEventWebSocketConnectionStopped,
       { once: true },
@@ -146,11 +141,6 @@ class WebSocketClient extends EventTarget {
       });
     } catch (e) {
       client.connectionMap.delete(connectionId);
-
-      connection.removeEventListener(
-        events.EventWebSocketConnectionError.name,
-        client.handleEventWebSocketConnectionError,
-      );
       connection.removeEventListener(
         events.EventWebSocketConnectionStopped.name,
         client.handleEventWebSocketConnectionStopped,
@@ -203,26 +193,10 @@ class WebSocketClient extends EventTarget {
     }
   };
 
-  protected handleEventWebSocketConnectionError = async (
-    evt: events.EventWebSocketConnectionError,
-  ) => {
-    const detail = evt.detail;
-    // All connection errors are also our domain errors
-    this.dispatchEvent(
-      new events.EventWebSocketClientError({
-        detail,
-      }),
-    );
-  };
-
   protected handleEventWebSocketConnectionStopped = async (
     evt: events.EventWebSocketConnectionStopped,
   ) => {
     const connection = evt.target as WebSocketConnection;
-    connection.removeEventListener(
-      events.EventWebSocketConnectionError.name,
-      this.handleEventWebSocketConnectionError,
-    );
     connection.removeEventListener(
       EventAll.name,
       this.handleEventWebSocketConnection,

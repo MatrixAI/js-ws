@@ -58,7 +58,7 @@ class ErrorWebSocketConnectionStartTimeOut<
 class ErrorWebSocketConnectionKeepAliveTimeOut<
   T,
 > extends ErrorWebSocketConnection<T> {
-  static description = 'WebSocket Connection reached idle timeout';
+  static description = 'WebSocket Connection reached keep-alive timeout';
 }
 
 class ErrorWebSocketConnectionInternal<T> extends ErrorWebSocketConnection<T> {
