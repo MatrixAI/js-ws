@@ -39,8 +39,14 @@ import WebSocketStreamQueue from './WebSocketStreamQueue';
 interface WebSocketStream extends StartStop {}
 /**
  * Events:
+ * - {@link events.EventWebSocketStreamStart}
+ * - {@link events.EventWebSocketStreamStarted}
  * - {@link events.EventWebSocketStreamStop}
  * - {@link events.EventWebSocketStreamStopped}
+ * - {@link events.EventWebSocketStreamError}
+ * - {@link events.EventWebSocketStreamCloseRead}
+ * - {@link events.EventWebSocketStreamCloseWrite}
+ * - {@link events.EventWebSocketStreamSend}
  */
 @StartStop({
   eventStart: events.EventWebSocketStreamStart,
@@ -83,6 +89,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
    * - {@link errors.ErrorWebSocketStreamUnknown} - Unknown error
    * - {@link errors.ErrorWebSocketStreamReadableBufferOverload} - This will happen when the readable buffer is overloaded
    * - {@link errors.ErrorWebSocketStreamReadableParse} - This will happen when the ReadableStream cannot parse an incoming message
+   * - any errors from `.cancel(reason)`
    */
   public readonly readable: ReadableStream<Uint8Array>;
   /**
@@ -92,6 +99,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
    * - {@link errors.ErrorWebSocketStreamUnknown} - Unknown error
    * - {@link errors.ErrorWebSocketStreamReadableBufferOverload} - This will happen when the receiving ReadableStream's buffer is overloaded
    * - {@link errors.ErrorWebSocketStreamReadableParse} - This will happen when the receiving ReadableStream cannot parse a sent message
+   * - any errors from `.cancel(reason)` or `.abort(reason)`
    */
   public readonly writable: WritableStream<Uint8Array>;
 
@@ -486,8 +494,6 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
 
   /**
    * This is factored out and callable by both `writable.abort` and `this.cancel`.
-   *
-   * @throws {errors.ErrorWebSocketStreamInternal}
    */
   protected writableAbort(reason?: any): void {
     // Ignore if already closed

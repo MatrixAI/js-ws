@@ -41,15 +41,7 @@ interface WebSocketServer extends StartStop {}
  * - {@link events.EventWebSocketServerStopped},
  * - {@link events.EventWebSocketServerConnection}
  * - {@link events.EventWebSocketServerError}
- * - {@link events.EventWebSocketConnectionStream}
- * - {@link events.EventWebSocketConnectionStart}
- * - {@link events.EventWebSocketConnectionStarted}
- * - {@link events.EventWebSocketConnectionStop}
- * - {@link events.EventWebSocketConnectionStopped}
- * - {@link events.EventWebSocketConnectionError} - can occur due to a timeout too
- * - {@link events.EventWebSocketConnectionClose}
- * - {@link events.EventWebSocketStreamDestroy}
- * - {@link events.EventWebSocketStreamDestroyed}
+ * - {@link events.EventWebSocketConnection} - all dispatched events from {@link WebSocketConnection}
  */
 @StartStop({
   eventStart: events.EventWebSocketServerStart,
@@ -237,9 +229,12 @@ class WebSocketServer {
   };
 
   /**
-   *
-   * @param logger
-   * @param config
+   * @param opts
+   * @param opts.config - configuration for new connections.
+   * @param opts.server - if not provided, a new server will be created.
+   * @param opts.reasonToCode - reasonToCode for stream errors
+   * @param opts.codeToReason - codeToReason for stream errors
+   * @param opts.logger - default logger is used if not provided
    */
   constructor({
     config,
@@ -291,6 +286,18 @@ class WebSocketServer {
     return this._closed;
   }
 
+
+  /**
+   * Starts the WebSocketServer.
+   *
+   * If the server is shared and it is not listening, it will be started.
+   * If the server is not shared, a server will be created and started.
+   *
+   * @param opts
+   * @param opts.host - host to listen on, defaults to '::'
+   * @param opts.port - port to listen on, defaults to 0
+   * @param opts.ipv6Only - ipv6 only, defaults to false
+   */
   public async start({
     host = '::',
     port = 0,

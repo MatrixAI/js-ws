@@ -40,8 +40,7 @@ interface WebSocketConnection extends startStop.StartStop {}
  * - {@link events.EventWebSocketConnectionStopped}
  * - {@link events.EventWebSocketConnectionError} - can occur due to a timeout too
  * - {@link events.EventWebSocketConnectionClose}
- * - {@link events.EventWebSocketStreamDestroy}
- * - {@link events.EventWebSocketStreamDestroyed}
+ * - {@link events.EventWebSocketStream} - all dispatched events from {@link WebSocketStream}
  */
 @startStop.StartStop({
   eventStart: events.EventWebSocketConnectionStart,
@@ -62,10 +61,9 @@ class WebSocketConnection {
 
   /**
    * Internal stream map.
-   * This is also used by `WebSocketStream`.
    * @internal
    */
-  public readonly streamMap: Map<StreamId, WebSocketStream> = new Map();
+  protected streamMap: Map<StreamId, WebSocketStream> = new Map();
 
   protected logger: Logger;
 
@@ -611,7 +609,12 @@ class WebSocketConnection {
    * Send data on the WebSocket
    * @internal
    */
-  public async send(data: Uint8Array | Array<Uint8Array>) {
+  private async send(data: Uint8Array | Array<Uint8Array>) {
+    if (this.socket.readyState !== ws.OPEN) {
+      this.logger.debug('a message was dropped because the socket is not open');
+      return;
+    }
+
     let array: Uint8Array;
     if (ArrayBuffer.isView(data)) {
       array = data;
@@ -626,11 +629,6 @@ class WebSocketConnection {
       });
       await sendProm.p;
     } catch (err) {
-      if (this[startStop.status] === 'stopping') {
-        this.logger.debug('send error but already stopping');
-        return;
-      }
-      this.socketLocallyClosed = true;
       const errorCode = utils.ConnectionErrorCode.InternalServerError;
       const reason =
         'Connection was unable to send data due to internal WebSocket error';

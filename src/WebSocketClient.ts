@@ -26,16 +26,9 @@ interface WebSocketClient extends createDestroy.CreateDestroy {}
  * Events:
  * - {@link events.EventWebSocketClientDestroy}
  * - {@link events.EventWebSocketClientDestroyed}
- * - {@link events.EventWebSocketClientError}
- * - {@link events.EventWebSocketConnectionStream}
- * - {@link events.EventWebSocketConnectionStart}
- * - {@link events.EventWebSocketConnectionStarted}
- * - {@link events.EventWebSocketConnectionStop}
- * - {@link events.EventWebSocketConnectionStopped}
- * - {@link events.EventWebSocketConnectionError} - can occur due to a timeout too
- * - {@link events.EventWebSocketConnectionClose}
- * - {@link events.EventWebSocketStreamDestroy}
- * - {@link events.EventWebSocketStreamDestroyed}
+ * - {@link events.EventWebSocketClientError} - includes re-dispatched {@link events.EventWebSocketConnectionError}
+ * - {@link events.EventWebSocketClientClose}
+ * - {@link events.EventWebSocketConnection} - all dispatched events from {@link WebSocketConnection}
  */
 @createDestroy.CreateDestroy({
   eventDestroy: events.EventWebSocketClientDestroy,
@@ -43,18 +36,16 @@ interface WebSocketClient extends createDestroy.CreateDestroy {}
 })
 class WebSocketClient extends EventTarget {
   /**
+   * Creates a WebSocketClient
+   *
    * @param obj
-   * @param obj.host - Target host address to connect to
-   * @param obj.port - Target port to connect to
-   * @param obj.expectedNodeIds - Expected NodeIds you are trying to connect to. Will validate the cert chain of the
-   * sever. If none of these NodeIDs are found the connection will be rejected.
-   * @param obj.connectionTimeoutTime - Timeout time used when attempting the connection.
-   * Default is Infinity milliseconds.
-   * @param obj.pingIntervalTime - Time between pings for checking connection health and keep alive.
-   * Default is 1,000 milliseconds.
-   * @param obj.pingTimeoutTimeTime - Time before connection is cleaned up after no ping responses.
-   * Default is 10,000 milliseconds.
-   * @param obj.logger
+   * @param obj.host - target host address to connect to
+   * @param obj.port - target port to connect to
+   * @param obj.config - optional config
+   * @param obj.logger - optional logger
+   *
+   * @throws {errors.ErrorWebSocketClientInvalidHost}
+   * @throws {errors.ErrorWebSocketConnection}
    */
   static async createWebSocketClient({
     host,
@@ -90,7 +81,8 @@ class WebSocketClient extends EventTarget {
 
     const address = `wss://${host_}:${port_}`;
 
-    // RejectUnauthorized must be false when verifyCallback exists
+    // RejectUnauthorized must be false when verifyCallback exists,
+    // This is so that verification can be deferred to the callback rather than the system installed Certs
     const webSocket = new WebSocket(address, {
       rejectUnauthorized:
         wsConfig.verifyPeer && wsConfig.verifyCallback == null,
@@ -235,7 +227,15 @@ class WebSocketClient extends EventTarget {
     return this._closed;
   }
 
-  constructor({
+  /**
+   * Constructor
+   * @param opts
+   * @param opts.address - the address to connect to
+   * @param opts.logger - injected logger
+   * @param opts.connection - injected connection
+   * @internal
+   */
+  public constructor({
     address,
     logger,
     connection,
@@ -253,6 +253,12 @@ class WebSocketClient extends EventTarget {
     this.resolveClosedP = resolveClosedP;
   }
 
+  /**
+   * @param opts
+   * @param opts.errorCode - The error code to send to the server
+   * @param opts.errorMessage - The error message to send to the server
+   * @param opts.force - Whether to force the connection to close, this is default true to force connections and streams to close.
+   */
   public async destroy({
     errorCode = utils.ConnectionErrorCode.Normal,
     errorMessage = '',
