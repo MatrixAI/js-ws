@@ -69,6 +69,10 @@ class WebSocketServer {
    * Configuration for new connections.
    */
   protected config: WebSocketConfig;
+  /**
+   * Connection timeout for new connections.
+   */
+  public connectTimeoutTime?: number;
 
   public readonly connectionMap: WebSocketConnectionMap =
     new WebSocketConnectionMap();
@@ -207,7 +211,7 @@ class WebSocketServer {
     );
     try {
       await connection.start({
-        timer: this.config.connectTimeoutTime,
+        timer: this.connectTimeoutTime,
       });
     } catch (e) {
       connection.removeEventListener(
@@ -241,12 +245,14 @@ class WebSocketServer {
     server,
     reasonToCode,
     codeToReason,
+    connectTimeoutTime,
     logger,
   }: {
     config: WebSocketServerConfigInput;
     server?: https.Server;
     reasonToCode?: StreamReasonToCode;
     codeToReason?: StreamCodeToReason;
+    connectTimeoutTime?: number;
     logger?: Logger;
   }) {
     this.logger = logger ?? new Logger(this.constructor.name);
@@ -254,6 +260,9 @@ class WebSocketServer {
       ...serverDefault,
       ...config,
     };
+
+    this.connectTimeoutTime = connectTimeoutTime;
+
     this.reasonToCode = reasonToCode;
     this.codeToReason = codeToReason;
     const { p: closedP, resolveP: resolveClosedP } = utils.promise();

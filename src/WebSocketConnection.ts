@@ -24,6 +24,7 @@ import * as errors from './errors';
 import * as events from './events';
 import { parseStreamId, StreamMessageType } from './message';
 import * as utils from './utils';
+import { connectTimeoutTime } from './config';
 
 interface WebSocketConnection extends startStop.StartStop {}
 /**
@@ -107,10 +108,10 @@ class WebSocketConnection {
   protected keepAliveTimeOutTimer?: Timer;
   protected keepAliveIntervalTimer?: Timer;
 
-  protected remoteHost: Host;
-  protected remotePort: Port;
-  protected localHost?: Host;
-  protected localPort?: Port;
+  protected _remoteHost: Host;
+  protected _remotePort: Port;
+  protected _localHost?: Host;
+  protected _localPort?: Port;
   protected peerCert?: DetailedPeerCertificate;
 
   /**
@@ -347,10 +348,10 @@ class WebSocketConnection {
   @startStop.ready(new errors.ErrorWebSocketConnectionNotRunning())
   public meta(): ConnectionMetadata {
     return {
-      localHost: this.localHost,
-      localPort: this.localPort,
-      remoteHost: this.remoteHost,
-      remotePort: this.remotePort,
+      localHost: this._localHost,
+      localPort: this._localPort,
+      remoteHost: this._remoteHost,
+      remotePort: this._remotePort,
       peerCert: this.peerCert,
     };
   }
@@ -394,10 +395,10 @@ class WebSocketConnection {
     this.codeToReason = codeToReason;
 
     if (meta != null) {
-      this.remoteHost = meta.remoteHost as Host;
-      this.remotePort = meta.remotePort as Port;
-      this.localHost = meta.localHost as Host | undefined;
-      this.localPort = meta.localPort as Port | undefined;
+      this._remoteHost = meta.remoteHost as Host;
+      this._remotePort = meta.remotePort as Port;
+      this._localHost = meta.localHost as Host | undefined;
+      this._localPort = meta.localPort as Port | undefined;
       this.peerCert = meta.peerCert;
     }
 
@@ -424,8 +425,28 @@ class WebSocketConnection {
     };
   }
 
+  public get remoteHost(): Host {
+    return this._remoteHost;
+  }
+
+  public get remotePort(): Port {
+    return this._remotePort;
+  }
+
+  public get localHost(): Host | undefined {
+    return this._localHost;
+  }
+
+  public get localPort(): Port | undefined {
+    return this._localPort;
+  }
+
+  public get closed() {
+    return this.socket.readyState === ws.CLOSED;
+  }
+
   public start(ctx?: Partial<ContextTimedInput>): PromiseCancellable<void>;
-  @timedCancellable(true, Infinity, errors.ErrorWebSocketConnectionStartTimeOut)
+  @timedCancellable(true, connectTimeoutTime, errors.ErrorWebSocketConnectionStartTimeOut)
   public async start(@context ctx: ContextTimed): Promise<void> {
     this.logger.info(`Start ${this.constructor.name}`);
     if (this.socket.readyState === ws.CLOSED) {
@@ -479,6 +500,8 @@ class WebSocketConnection {
       this.resolveSecureEstablishedP();
     };
     this.socket.once('open', openHandler);
+    // This will always happen, no need to remove the handler
+    this.socket.once('close', this.handleSocketClose);
 
     if (this.type === 'client') {
       this.socket.once('upgrade', async (request) => {
@@ -488,10 +511,10 @@ class WebSocketConnection {
           if (this.config.verifyPeer && this.config.verifyCallback != null) {
             await this.config.verifyCallback?.(peerCert);
           }
-          this.localHost = request.connection.localAddress as Host;
-          this.localPort = request.connection.localPort as Port;
-          this.remoteHost = request.connection.remoteAddress as Host;
-          this.remotePort = request.connection.remotePort as Port;
+          this._localHost = request.connection.localAddress as Host;
+          this._localPort = request.connection.localPort as Port;
+          this._remoteHost = request.connection.remoteAddress as Host;
+          this._remotePort = request.connection.remotePort as Port;
           this.peerCert = peerCert;
         } catch (e) {
           const errorCode = utils.ConnectionErrorCode.TLSHandshake;
@@ -556,7 +579,6 @@ class WebSocketConnection {
     this.socket.on('ping', this.handleSocketPing);
     this.socket.on('pong', this.handleSocketPong);
     this.socket.once('error', this.handleSocketError);
-    this.socket.once('close', this.handleSocketClose);
 
     if (this.config.keepAliveIntervalTime != null) {
       this.startKeepAliveIntervalTimer(this.config.keepAliveIntervalTime);

@@ -14,9 +14,11 @@ import { EventAll, EventDefault } from '@matrixai/events';
 import * as errors from './errors';
 import WebSocketConnection from './WebSocketConnection';
 import WebSocketConnectionMap from './WebSocketConnectionMap';
-import { clientDefault } from './config';
+import { clientDefault, connectTimeoutTime } from './config';
 import * as events from './events';
 import * as utils from './utils';
+import { context, timedCancellable } from '@matrixai/contexts/dist/decorators';
+import { ContextTimed, ContextTimedInput } from '@matrixai/contexts';
 
 interface WebSocketClient extends createDestroy.CreateDestroy {}
 /**
@@ -47,17 +49,35 @@ class WebSocketClient extends EventTarget {
    * @throws {errors.ErrorWebSocketClientInvalidHost}
    * @throws {errors.ErrorWebSocketConnection}
    */
-  static async createWebSocketClient({
-    host,
-    port,
-    config,
-    logger = new Logger(`${this.name}`),
-  }: {
-    host: string;
-    port: number;
-    config?: WebSocketClientConfigInput;
-    logger?: Logger;
-  }): Promise<WebSocketClient> {
+   public static async createWebSocketClient(
+    {
+      host,
+      port,
+      config,
+      logger = new Logger(`${this.name}`),
+    }: {
+      host: string;
+      port: number;
+      config?: WebSocketClientConfigInput;
+      logger?: Logger;
+    },
+    ctx?: Partial<ContextTimedInput>,
+  ): Promise<WebSocketClient>
+  @timedCancellable(true, connectTimeoutTime, errors.ErrorWebSocketClientCreateTimeOut)
+  public static async createWebSocketClient(
+    {
+      host,
+      port,
+      config,
+      logger = new Logger(`${this.name}`),
+    }: {
+      host: string;
+      port: number;
+      config?: WebSocketClientConfigInput;
+      logger?: Logger;
+    },
+    @context ctx: ContextTimed,
+  ): Promise<WebSocketClient> {
     logger.info(`Create ${this.name} to ${host}:${port}`);
     const wsConfig = {
       ...clientDefault,
@@ -132,9 +152,7 @@ class WebSocketClient extends EventTarget {
     client.connectionMap.add(connection);
 
     try {
-      await connection.start({
-        timer: wsConfig.connectTimeoutTime,
-      });
+      await connection.start(ctx);
     } catch (e) {
       client.connectionMap.delete(connectionId);
       connection.removeEventListener(

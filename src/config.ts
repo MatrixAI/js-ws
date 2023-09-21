@@ -1,7 +1,8 @@
 import type { WebSocketConfig } from './types';
 
+const connectTimeoutTime = Infinity;
+
 const serverDefault: WebSocketConfig = {
-  connectTimeoutTime: Infinity,
   keepAliveIntervalTime: Infinity,
   keepAliveTimeoutTime: Infinity,
   streamBufferSize: 1 * 1024 * 1024, // 1MB
@@ -9,11 +10,10 @@ const serverDefault: WebSocketConfig = {
 };
 
 const clientDefault: WebSocketConfig = {
-  connectTimeoutTime: Infinity,
   keepAliveIntervalTime: Infinity,
   keepAliveTimeoutTime: Infinity,
   streamBufferSize: 1 * 1024 * 1024, // 1MB
   verifyPeer: true,
 };
 
-export { serverDefault, clientDefault };
+export { connectTimeoutTime, serverDefault, clientDefault };

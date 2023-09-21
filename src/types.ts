@@ -130,8 +130,6 @@ type WebSocketConfig = {
    */
   verifyCallback?: VerifyCallback;
 
-  connectTimeoutTime: number;
-
   keepAliveTimeoutTime: number;
   /**
    * This controls the interval for keeping alive an idle connection.
