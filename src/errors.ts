@@ -50,7 +50,8 @@ class ErrorWebSocketConnectionNotRunning<
 }
 
 class ErrorWebSocketConnectionClosed<T> extends ErrorWebSocketConnection<T> {
-  static description = 'WebSocket Connection cannot be restarted because it has already been closed';
+  static description =
+    'WebSocket Connection cannot be restarted because it has already been closed';
 }
 
 class ErrorWebSocketConnectionStartTimeOut<

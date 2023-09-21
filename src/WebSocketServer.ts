@@ -114,13 +114,12 @@ class WebSocketServer {
         this.resolveClosedP();
       }
       this.webSocketServer.close(() => this.resolveClosedP());
-      await this.closed;
-    }
-    else {
+      await this.closedP;
+    } else {
       if (!this.webSocketServerClosed) {
-        let wsClosedP = utils.promise();
+        const wsClosedP = utils.promise();
         this.webSocketServer.close(() => wsClosedP.resolveP());
-        await wsClosedP;
+        await wsClosedP.p;
       }
       if (!this.server.listening) {
         this.resolveClosedP();
@@ -162,7 +161,7 @@ class WebSocketServer {
   protected handleWebSocketServerClosed = async () => {
     this.webSocketServerClosed = true;
     this.dispatchEvent(new events.EventWebSocketServerClose());
-  }
+  };
 
   /**
    * Used to propagate error conditions
@@ -269,8 +268,7 @@ class WebSocketServer {
     if (server != null) {
       this.isServerShared = true;
       this.server = server;
-    }
-    else {
+    } else {
       this.isServerShared = false;
     }
   }

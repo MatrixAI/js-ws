@@ -324,7 +324,6 @@ describe(WebSocketClient.name, () => {
 
     const closeDetail = (await closeProm.p).detail;
 
-    console.log(closeDetail.cause);
     expect(closeDetail.data.errorCode).toBe(utils.ConnectionErrorCode.Normal);
 
     await server.stop();

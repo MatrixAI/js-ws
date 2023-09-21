@@ -134,25 +134,22 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       throw error;
     }
     if (
-      error instanceof errors.ErrorWebSocketStreamLocalRead
-      ||
+      error instanceof errors.ErrorWebSocketStreamLocalRead ||
       error instanceof errors.ErrorWebSocketStreamPeerRead
     ) {
       this.dispatchEvent(
         new events.EventWebSocketStreamCloseRead({
           detail: error,
-        })
+        }),
       );
-    }
-    else if (
-      error instanceof errors.ErrorWebSocketStreamLocalWrite
-      ||
+    } else if (
+      error instanceof errors.ErrorWebSocketStreamLocalWrite ||
       error instanceof errors.ErrorWebSocketStreamPeerWrite
     ) {
       this.dispatchEvent(
         new events.EventWebSocketStreamCloseWrite({
-          detail: error
-        })
+          detail: error,
+        }),
       );
     }
   };
@@ -437,9 +434,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
    */
   protected writableClose(): void {
     // Graceful close on the write without any code
-    this.dispatchEvent(
-      new events.EventWebSocketStreamCloseWrite(),
-    );
+    this.dispatchEvent(new events.EventWebSocketStreamCloseWrite());
     this.streamSend({
       type: StreamMessageType.Close,
       payload: StreamShutdown.Read,
@@ -663,9 +658,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
         if (this._readClosed) return;
         this.readableController.close();
         this.resolveReadableP?.();
-        this.dispatchEvent(
-          new events.EventWebSocketStreamCloseRead(),
-        );
+        this.dispatchEvent(new events.EventWebSocketStreamCloseRead());
         this.streamSend({
           type: StreamMessageType.Close,
           payload: StreamShutdown.Write,

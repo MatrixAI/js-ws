@@ -67,7 +67,7 @@ class EventWebSocketConnectionError extends EventWebSocketConnection<
 > {}
 
 class EventWebSocketConnectionClose extends EventWebSocketConnection<
-  | ErrorWebSocketConnectionLocal <unknown>
+  | ErrorWebSocketConnectionLocal<unknown>
   | ErrorWebSocketConnectionPeer<unknown>
   | ErrorWebSocketConnectionKeepAliveTimeOut<unknown>
 > {}

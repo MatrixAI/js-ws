@@ -224,13 +224,12 @@ class WebSocketClient extends EventTarget {
    * Connection errors encompass both graceful closes and non-graceful closes.
    * This also includes `ErrorWebSocketConnectionInternal`
    */
-  protected handleEventWebSocketConnectionError = (evt: events.EventWebSocketConnectionError) => {
+  protected handleEventWebSocketConnectionError = (
+    evt: events.EventWebSocketConnectionError,
+  ) => {
     const error = evt.detail;
-    this.dispatchEvent(new events.EventWebSocketClientError(
-      { detail: error }
-    ));
+    this.dispatchEvent(new events.EventWebSocketClientError({ detail: error }));
   };
-
 
   public get closed() {
     return this._closed;
