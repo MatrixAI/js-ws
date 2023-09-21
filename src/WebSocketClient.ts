@@ -122,6 +122,10 @@ class WebSocketClient extends EventTarget {
       EventAll.name,
       client.handleEventWebSocketConnection,
     );
+    connection.addEventListener(
+      events.EventWebSocketConnectionError.name,
+      client.handleEventWebSocketConnectionError,
+    );
     // Setting up client events
     client.addEventListener(
       events.EventWebSocketClientError.name,
@@ -201,6 +205,10 @@ class WebSocketClient extends EventTarget {
       EventAll.name,
       this.handleEventWebSocketConnection,
     );
+    connection.addEventListener(
+      events.EventWebSocketConnectionError.name,
+      this.handleEventWebSocketConnectionError,
+    );
     this.connectionMap.delete(connection.connectionId);
     this.dispatchEvent(new events.EventWebSocketClientClose());
   };
@@ -210,6 +218,19 @@ class WebSocketClient extends EventTarget {
       this.dispatchEvent(evt.detail.clone());
     }
   };
+
+  /**
+   * All connection errors are redispatched as client errors.
+   * Connection errors encompass both graceful closes and non-graceful closes.
+   * This also includes `ErrorWebSocketConnectionInternal`
+   */
+  protected handleEventWebSocketConnectionError = (evt: events.EventWebSocketConnectionError) => {
+    const error = evt.detail;
+    this.dispatchEvent(new events.EventWebSocketClientError(
+      { detail: error }
+    ));
+  };
+
 
   public get closed() {
     return this._closed;
