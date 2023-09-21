@@ -382,7 +382,7 @@ class WebSocketServer {
       destroyProms.push(
         webSocketConnection.stop({
           errorCode,
-          errorMessage,
+          reason: errorMessage,
           force,
         }),
       );

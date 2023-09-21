@@ -217,7 +217,7 @@ describe(WebSocketClient.name, () => {
       },
     });
 
-    const stream = await client.connection.streamNew('bidi');
+    const stream = await client.connection.newStream();
 
     const reader = stream.readable.getReader();
 
@@ -250,7 +250,7 @@ describe(WebSocketClient.name, () => {
         },
       });
 
-      await client.connection.streamNew('bidi');
+      await client.connection.newStream();
 
       clients.push(client);
     }
@@ -313,19 +313,19 @@ describe(WebSocketClient.name, () => {
       },
     });
 
-    const closeProm = utils.promise<any>();
+    const closeProm = utils.promise<events.EventWebSocketConnectionClose>();
 
     client.connection.addEventListener(
       events.EventWebSocketConnectionClose.name,
-      closeProm.resolveP,
+      closeProm.resolveP as any,
     );
 
     await client.destroy();
 
     const closeDetail = (await closeProm.p).detail;
 
-    expect(closeDetail.type).toEqual('local');
-    expect(closeDetail.errorCode).toBe(utils.ConnectionErrorCode.Normal);
+    console.log(closeDetail.cause);
+    expect(closeDetail.data.errorCode).toBe(utils.ConnectionErrorCode.Normal);
 
     await server.stop();
   });

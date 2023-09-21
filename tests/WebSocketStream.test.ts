@@ -34,7 +34,7 @@ jest.mock('@/WebSocketConnection', () => {
       peerConnection: WebSocketConnection | undefined;
       connectTo: (connection: WebSocketConnection) => void;
       send: (data: Uint8Array) => Promise<void>;
-      streamNew: () => Promise<WebSocketStream>;
+      newStream: () => Promise<WebSocketStream>;
       streamMap: Map<StreamId, WebSocketStream>;
     };
     instance.peerConnection = undefined;
@@ -43,7 +43,7 @@ jest.mock('@/WebSocketConnection', () => {
       peerConnection.peerConnection = instance;
     };
     instance.streamMap = new Map<StreamId, WebSocketStream>();
-    instance.streamNew = async () => {
+    instance.newStream = async () => {
       const stream = new WebSocketStream({
         initiated: 'local',
         streamId: streamIdCounter as StreamId,
@@ -140,7 +140,7 @@ describe(WebSocketStream.name, () => {
     connection1: WebSocketConnection,
     connection2: WebSocketConnection,
   ): Promise<[WebSocketStream, WebSocketStream]> {
-    const stream1 = await connection1.streamNew();
+    const stream1 = await connection1.newStream();
     const createStream2Prom = utils.promise<WebSocketStream>();
     connection2.addEventListener(
       events.EventWebSocketConnectionStream.name,
@@ -196,7 +196,7 @@ describe(WebSocketStream.name, () => {
     );
 
     for (let i = 0; i < streamsNum; i++) {
-      const stream = await connection1.streamNew();
+      const stream = await connection1.newStream();
       streams.push(stream);
     }
     await streamCreationProm.p;

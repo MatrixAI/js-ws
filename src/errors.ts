@@ -49,6 +49,10 @@ class ErrorWebSocketConnectionNotRunning<
   static description = 'WebSocket Connection is not running';
 }
 
+class ErrorWebSocketConnectionClosed<T> extends ErrorWebSocketConnection<T> {
+  static description = 'WebSocket Connection cannot be restarted because it has already been closed';
+}
+
 class ErrorWebSocketConnectionStartTimeOut<
   T,
 > extends ErrorWebSocketConnection<T> {
@@ -65,11 +69,6 @@ class ErrorWebSocketConnectionInternal<T> extends ErrorWebSocketConnection<T> {
   static description = 'WebSocket Connection internal error';
 }
 
-/**
- * Note that TlsFail error codes are documented here:
- * https://github.com/google/boringssl/blob/master/include/openssl/ssl.h
- * This can mean local closure of any code!
- */
 class ErrorWebSocketConnectionLocal<T> extends ErrorWebSocketConnection<T> {
   static description = 'WebSocket Connection local error';
 }
@@ -141,6 +140,7 @@ export {
   ErrorWebSocketClientInvalidHost,
   ErrorWebSocketConnection,
   ErrorWebSocketConnectionNotRunning,
+  ErrorWebSocketConnectionClosed,
   ErrorWebSocketConnectionStartTimeOut,
   ErrorWebSocketConnectionKeepAliveTimeOut,
   ErrorWebSocketConnectionLocal,

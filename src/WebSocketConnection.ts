@@ -24,9 +24,6 @@ import * as errors from './errors';
 import * as events from './events';
 import { parseStreamId, StreamMessageType } from './message';
 import * as utils from './utils';
-import * as messageUtils from './message/utils';
-
-const timerCleanupReasonSymbol = Symbol('timerCleanupReasonSymbol');
 
 interface WebSocketConnection extends startStop.StartStop {}
 /**
@@ -64,7 +61,16 @@ class WebSocketConnection {
   public readonly connectionId: number;
 
   /**
-   * Internal native connection object.
+   * Internal stream map.
+   * This is also used by `WebSocketStream`.
+   * @internal
+   */
+  public readonly streamMap: Map<StreamId, WebSocketStream> = new Map();
+
+  protected logger: Logger;
+
+  /**
+   * Internal native WebSocket object.
    * @internal
    */
   protected socket: ws.WebSocket;
@@ -82,13 +88,6 @@ class WebSocketConnection {
    * Used during `WebSocketStream` creation.
    */
   protected codeToReason: StreamCodeToReason;
-
-  /**
-   * Internal stream map.
-   * This is also used by `WebSocketStream`.
-   * @internal
-   */
-  public readonly streamMap: Map<StreamId, WebSocketStream> = new Map();
 
   /**
    * Stream ID increment lock.
@@ -110,17 +109,50 @@ class WebSocketConnection {
   protected keepAliveTimeOutTimer?: Timer;
   protected keepAliveIntervalTimer?: Timer;
 
-  protected logger: Logger;
   protected remoteHost: Host;
   protected remotePort: Port;
   protected localHost?: Host;
   protected localPort?: Port;
   protected peerCert?: DetailedPeerCertificate;
 
+  /**
+   * Secure connection establishment.
+   * This can resolve or reject.
+   * Will resolve after connection has established and peer certs have been validated.
+   * Rejections cascade down to `secureEstablishedP` and `closedP`.
+   */
+  protected secureEstablished = false;
+  protected secureEstablishedP: Promise<void>;
+  protected resolveSecureEstablishedP: () => void;
+  protected rejectSecureEstablishedP: (reason?: any) => void;
+
+  protected socketLocallyClosed: boolean = false;
+  protected closeSocket: (errorCode?: number, reason?: string) => void;
+  /**
+   * Connection closed promise.
+   * This can resolve or reject.
+   */
+  public readonly closedP: Promise<void>;
+  protected resolveClosedP: () => void;
+
+   /**
+    * This stores the last dispatched error.
+    * If no error has occurred, it will be `null`.
+    */
+  protected errorLast: (
+    | errors.ErrorWebSocketConnectionLocal<unknown>
+    | errors.ErrorWebSocketConnectionPeer<unknown>
+    | errors.ErrorWebSocketConnectionKeepAliveTimeOut<unknown>
+    | errors.ErrorWebSocketConnectionInternal<unknown>
+    | null
+  ) = null;
+
+
   protected handleEventWebSocketConnectionError = (
     evt: events.EventWebSocketConnectionError,
   ) => {
     const error = evt.detail;
+    this.errorLast = error;
     // In the case of graceful exit, we don't want to log out the error
     if (
       (error instanceof errors.ErrorWebSocketConnectionLocal ||
@@ -131,14 +163,36 @@ class WebSocketConnection {
     } else {
       this.logger.error(utils.formatError(error));
     }
+    // If the error is an internal error, throw it to become `EventError`
+    // By default this will become an uncaught exception
+    // Cannot attempt to close the connection, because an internal error is unrecoverable
+    if (error instanceof errors.ErrorWebSocketConnectionInternal) {
+      // Use `EventError` to deal with this
+      throw error;
+    }
+    this.dispatchEvent(
+      new events.EventWebSocketConnectionClose({
+        detail: error
+      })
+    );
   };
 
-  protected handleEventWebSocketConnectionClose = async () => {
+  protected handleEventWebSocketConnectionClose = async (evt: events.EventWebSocketConnectionClose) => {
+    const error = evt.detail;
+    if (!this.secureEstablished) {
+      this.rejectSecureEstablishedP(error);
+    }
     if (this[startStop.running] && this[startStop.status] !== 'stopping') {
       // Failing to force stop is a software error
       await this.stop({
         force: true,
       });
+    }
+  };
+
+  protected handleEventWebSocketStream = (evt: EventAll) => {
+    if (evt.detail instanceof AbstractEvent) {
+      this.dispatchEvent(evt.detail.clone());
     }
   };
 
@@ -159,17 +213,6 @@ class WebSocketConnection {
     stream.removeEventListener(EventAll.name, this.handleEventWebSocketStream);
     this.streamMap.delete(stream.streamId);
   };
-
-  protected handleEventWebSocketStream = (evt: EventAll) => {
-    if (evt.detail instanceof AbstractEvent) {
-      this.dispatchEvent(evt.detail.clone());
-    }
-  };
-
-  protected closeLocally: boolean = false;
-  protected closedP: Promise<void>;
-  protected resolveClosedP: () => void;
-  protected rejectClosedP: (reason?: any) => void;
 
   protected handleSocketMessage = async (
     data: ws.RawData,
@@ -263,14 +306,16 @@ class WebSocketConnection {
   protected handleSocketClose = (errorCode: number, reason: Buffer) => {
     this.resolveClosedP();
     // If this connection isn't closed by the peer, we don't need to event that it's closed
-    if (this.closeLocally) {
+    if (this.socketLocallyClosed) {
       return;
     }
+    // No need to close socket, already closed on receiving event
     const e_ = new errors.ErrorWebSocketConnectionPeer(
       `Peer closed with code ${errorCode}`,
       {
         data: {
           errorCode,
+          reason: reason.toString('utf-8'),
         },
       },
     );
@@ -279,23 +324,16 @@ class WebSocketConnection {
         detail: e_,
       }),
     );
-    this.dispatchEvent(
-      new events.EventWebSocketConnectionClose({
-        detail: {
-          type: 'peer',
-          errorCode,
-          reason: reason.toString('utf-8'),
-        },
-      }),
-    );
   };
 
   protected handleSocketError = (err: Error) => {
     const errorCode = utils.ConnectionErrorCode.InternalServerError;
     const reason = 'An error occurred on the underlying WebSocket instance';
+    this.closeSocket(errorCode, reason);
     const e_ = new errors.ErrorWebSocketConnectionLocal(reason, {
       data: {
         errorCode,
+        reason
       },
       cause: new errors.ErrorWebSocketConnectionInternal(reason, {
         cause: err,
@@ -304,17 +342,6 @@ class WebSocketConnection {
     this.dispatchEvent(
       new events.EventWebSocketConnectionError({
         detail: e_,
-      }),
-    );
-    this.closeLocally = true;
-    this.socket.close(errorCode, reason);
-    this.dispatchEvent(
-      new events.EventWebSocketConnectionClose({
-        detail: {
-          type: 'local',
-          errorCode,
-          reason,
-        },
       }),
     );
   };
@@ -377,50 +404,88 @@ class WebSocketConnection {
     }
 
     const {
+      p: secureEstablishedP,
+      resolveP: resolveSecureEstablishedP,
+      rejectP: rejectSecureEstablishedP,
+    } = utils.promise();
+    this.secureEstablishedP = secureEstablishedP;
+    this.resolveSecureEstablishedP = () => {
+      // This is an idempotent mutation
+      this.secureEstablished = true;
+      resolveSecureEstablishedP();
+    };
+    this.rejectSecureEstablishedP = rejectSecureEstablishedP;
+
+    const {
       p: closedP,
       resolveP: resolveClosedP,
-      rejectP: rejectClosedP,
     } = utils.promise<void>();
     this.closedP = closedP;
     this.resolveClosedP = resolveClosedP;
-    this.rejectClosedP = rejectClosedP;
+
+    this.closeSocket = (errorCode, reason) => {
+      this.socketLocallyClosed = true;
+      this.socket.close(errorCode, reason);
+    }
   }
 
   public start(ctx?: Partial<ContextTimedInput>): PromiseCancellable<void>;
   @timedCancellable(true, Infinity, errors.ErrorWebSocketConnectionStartTimeOut)
   public async start(@context ctx: ContextTimed): Promise<void> {
     this.logger.info(`Start ${this.constructor.name}`);
+    if (this.socket.readyState === ws.CLOSED) {
+      throw new errors.ErrorWebSocketConnectionClosed();
+    }
+    // Are we supposed to throw?
+    // It depends, if the connection start is aborted
+    // In a way, it makes sense for it be thrown
+    // It doesn't just simply complete
     ctx.signal.throwIfAborted();
     const { p: abortP, rejectP: rejectAbortP } = utils.promise<never>();
     const abortHandler = () => {
       rejectAbortP(ctx.signal.reason);
     };
     ctx.signal.addEventListener('abort', abortHandler);
+    this.addEventListener(
+      events.EventWebSocketConnectionError.name,
+      this.handleEventWebSocketConnectionError,
+    );
+    this.addEventListener(
+      events.EventWebSocketConnectionClose.name,
+      this.handleEventWebSocketConnectionClose,
+      { once: true },
+    );
 
-    const promises: Array<Promise<any>> = [];
-
-    const connectProm = utils.promise<void>();
-
+    // If the socket is already open, then the it is already secure and established by the WebSocketServer
     if (this.socket.readyState === ws.OPEN) {
-      connectProm.resolveP();
+      this.resolveSecureEstablishedP();
     }
-    // Handle connection failure
+    // Handle connection failure - Dispatch ConnectionError -> ConnectionClose -> rejectSecureEstablishedP
     const openErrorHandler = (e) => {
-      connectProm.rejectP(
-        new errors.ErrorWebSocketConnectionLocal(undefined, {
-          cause: e,
-        }),
-      );
+      const errorCode = utils.ConnectionErrorCode.InternalServerError;
+      const reason = "WebSocket could not open due to internal error";
+      this.closeSocket(errorCode, reason);
+      this.dispatchEvent(
+        new events.EventWebSocketConnectionError({
+          detail: new errors.ErrorWebSocketConnectionLocal(reason, {
+            cause: new errors.ErrorWebSocketConnectionInternal(reason, {
+              cause: e,
+            }),
+            data: {
+              errorCode,
+              reason
+            }
+          }),
+        })
+      )
     };
     this.socket.once('error', openErrorHandler);
     const openHandler = () => {
-      connectProm.resolveP();
+      this.resolveSecureEstablishedP();
     };
     this.socket.once('open', openHandler);
-    promises.push(connectProm.p);
 
     if (this.type === 'client') {
-      const authenticateProm = utils.promise<void>();
       this.socket.once('upgrade', async (request) => {
         const tlsSocket = request.socket as TLSSocket;
         const peerCert = tlsSocket.getPeerCertificate(true);
@@ -433,65 +498,60 @@ class WebSocketConnection {
           this.remoteHost = request.connection.remoteAddress as Host;
           this.remotePort = request.connection.remotePort as Port;
           this.peerCert = peerCert;
-          authenticateProm.resolveP();
         } catch (e) {
+          const errorCode = utils.ConnectionErrorCode.TLSHandshake;
+          const reason = 'Failed connection due to custom verification callback';
+          this.closeSocket(errorCode, reason);
           const e_ = new errors.ErrorWebSocketConnectionLocal(
-            'Failed connection due to custom verification callback',
+            reason,
             {
               cause: e,
               data: {
-                errorCode: utils.ConnectionErrorCode.TLSHandshake
+                errorCode,
+                reason
               },
             },
           );
-          authenticateProm.rejectP(e_);
+          this.dispatchEvent(new events.EventWebSocketConnectionError({
+            detail: e_
+          }));
         }
       });
-      promises.push(authenticateProm.p);
     }
 
     // Wait for open
     // This should only reject with ErrorWebSocketConnectionLocal.
     // This can either be from a ws.WebSocket error, or abort signal, or TLS handshake error
     try {
-      await Promise.race([Promise.all(promises), abortP]);
+      await Promise.race([this.secureEstablishedP, abortP]);
     } catch (e) {
-      let e_: errors.ErrorWebSocketConnectionLocal<any> = e;
       if (ctx.signal.aborted) {
-        e_ = new errors.ErrorWebSocketConnectionLocal(
-          'Failed to start WebSocket connection due to start timeout',
+        const errorCode = utils.ConnectionErrorCode.ProtocolError;
+        const reason = 'Failed to start WebSocket connection due to start timeout';
+        this.closeSocket(errorCode, reason);
+        const e_ = new errors.ErrorWebSocketConnectionLocal(
+          reason,
           {
             cause: e,
             data: {
-              errorCode: utils.ConnectionErrorCode.ProtocolError
+              errorCode,
+              reason
             },
           },
         );
+        this.dispatchEvent(
+          new events.EventWebSocketConnectionError({
+            detail: e_,
+          }),
+        );
       }
-      this.dispatchEvent(
-        new events.EventWebSocketConnectionError({
-          detail: e_,
-        }),
-      );
-      // Socket may already be closed from authentication error
-      this.closeLocally = true;
-      const errorCode = e_.data?.errorCode ?? utils.ConnectionErrorCode.ProtocolError;
-      this.socket.close(errorCode);
-      this.dispatchEvent(
-        new events.EventWebSocketConnectionClose({
-          detail: {
-            type: 'local',
-            errorCode,
-            reason: e_.message,
-          },
-        }),
-      );
+
       this.socket.off('open', openHandler);
       // Upgrade only exists on the ws library, we can use removeAllListeners without worrying
       this.socket.removeAllListeners('upgrade');
       // Close the ws if it's open at this stage
       await this.closedP;
-      throw e_;
+      throw e;
     } finally {
       ctx.signal.removeEventListener('abort', abortHandler);
       // Upgrade has already been removed by being called once or by the catch
@@ -509,21 +569,11 @@ class WebSocketConnection {
       this.startKeepAliveIntervalTimer(this.config.keepAliveIntervalTime);
     }
 
-    this.addEventListener(
-      events.EventWebSocketConnectionError.name,
-      this.handleEventWebSocketConnectionError,
-    );
-    this.addEventListener(
-      events.EventWebSocketConnectionClose.name,
-      this.handleEventWebSocketConnectionClose,
-      { once: true },
-    );
-
     this.logger.info(`Started ${this.constructor.name}`);
   }
 
   @startStop.ready(new errors.ErrorWebSocketConnectionNotRunning())
-  public async streamNew(): Promise<WebSocketStream> {
+  public async newStream(): Promise<WebSocketStream> {
     return await this.streamIdLock.withF(async () => {
       let streamId: StreamId;
       if (this.type === 'client') {
@@ -585,31 +635,22 @@ class WebSocketConnection {
         this.logger.debug('send error but already stopping');
         return;
       }
-      this.closeLocally = true;
+      this.socketLocallyClosed = true;
       const errorCode = utils.ConnectionErrorCode.InternalServerError;
-      const reason = 'connection was unable to send data';
+      const reason = 'Connection was unable to send data due to internal WebSocket error';
+      this.closeSocket(errorCode, reason);
       const e_ = new errors.ErrorWebSocketConnectionLocal(reason, {
         cause: new errors.ErrorWebSocketServerInternal(reason, {
           cause: err,
         }),
         data: {
           errorCode,
+          reason,
         },
       });
       this.dispatchEvent(
         new events.EventWebSocketConnectionError({
           detail: e_,
-        }),
-      );
-      this.closeLocally = true;
-      this.socket.close(errorCode, reason);
-      this.dispatchEvent(
-        new events.EventWebSocketConnectionClose({
-          detail: {
-            type: 'local',
-            errorCode,
-            reason,
-          },
         }),
       );
       // Will not wait for close, happens asynchronously
@@ -618,14 +659,47 @@ class WebSocketConnection {
 
   public async stop({
     errorCode = utils.ConnectionErrorCode.Normal,
-    errorMessage = '',
+    reason = '',
     force = true,
   }: {
     errorCode?: number;
-    errorMessage?: string;
+    reason?: string;
     force?: boolean;
   } = {}) {
     this.logger.info(`Stop ${this.constructor.name}`);
+    this.stopKeepAliveIntervalTimer();
+    if (this.socket.readyState !== ws.CLOSING && this.socket.readyState !== ws.CLOSED) {
+      this.closeSocket(errorCode, reason);
+      const e = new errors.ErrorWebSocketConnectionLocal(
+        `Locally closed with code ${errorCode}`,
+        {
+          data: {
+            errorCode,
+            reason,
+          },
+        },
+      );
+      this.dispatchEvent(
+        new events.EventWebSocketConnectionError(
+          { detail: e }
+        )
+      );
+    }
+
+    // Cleaning up existing streams
+    const streamsDestroyP: Array<Promise<void>> = [];
+    this.logger.debug('triggering stream destruction');
+    for (const stream of this.streamMap.values()) {
+      streamsDestroyP.push(
+        stream.stop({
+          reason: this.errorLast,
+          force: force || this.socket.readyState === ws.CLOSED || this.socket.readyState === ws.CLOSING,
+        })
+      );
+    }
+    await Promise.all(streamsDestroyP);
+    // Waiting for `closedP` to resolve
+    await this.closedP;
     // Remove event listeners before possible event dispatching to avoid recursion
     this.removeEventListener(
       events.EventWebSocketConnectionError.name,
@@ -635,54 +709,11 @@ class WebSocketConnection {
       events.EventWebSocketConnectionClose.name,
       this.handleEventWebSocketConnectionClose,
     );
-    this.stopKeepAliveIntervalTimer();
-
-    // Cleaning up existing streams
-    const streamsDestroyP: Array<Promise<void>> = [];
-    this.logger.debug('triggering stream destruction');
-    for (const stream of this.streamMap.values()) {
-      if (force) {
-        await stream.stop();
-      }
-      streamsDestroyP.push(stream.closedP);
-    }
-    this.logger.debug('waiting for streams to destroy');
-    await Promise.all(streamsDestroyP);
-    this.logger.debug('streams destroyed');
-
-    // Socket Cleanup
-    if (this.socket.readyState === ws.CLOSED) {
-      this.resolveClosedP();
-    } else {
-      const e = new errors.ErrorWebSocketConnectionLocal(
-        `Locally closed with code ${errorCode}`,
-        {
-          data: {
-            errorCode,
-          },
-        },
-      );
-      this.dispatchEvent(
-        new events.EventWebSocketConnectionError({ detail: e }),
-      );
-      this.closeLocally = true;
-      this.socket.close(errorCode, errorMessage);
-      this.dispatchEvent(
-        new events.EventWebSocketConnectionClose({
-          detail: {
-            type: 'local',
-            errorCode,
-            reason: errorMessage,
-          },
-        }),
-      );
-    }
-    await this.closedP;
     this.socket.off('message', this.handleSocketMessage);
     this.socket.off('ping', this.handleSocketPing);
     this.socket.off('pong', this.handleSocketPong);
     this.socket.off('error', this.handleSocketError);
-    this.keepAliveTimeOutTimer?.cancel(timerCleanupReasonSymbol);
+    this.stopKeepAliveTimeoutTimer();
 
     this.logger.info(`Stopped ${this.constructor.name}`);
   }
@@ -690,7 +721,8 @@ class WebSocketConnection {
   protected setKeepAliveTimeoutTimer(): void {
     const logger = this.logger.getChild('timer');
     const timeout = this.config.keepAliveTimeoutTime;
-    const keepAliveTimeOutHandler = () => {
+    const keepAliveTimeOutHandler = async (signal: AbortSignal) => {
+      if (signal.aborted) return;
       if (this.socket.readyState === ws.CLOSED) {
         this.resolveClosedP();
         return;
@@ -698,13 +730,6 @@ class WebSocketConnection {
       this.dispatchEvent(
         new events.EventWebSocketConnectionError({
           detail: new errors.ErrorWebSocketConnectionKeepAliveTimeOut(),
-        }),
-      );
-      this.dispatchEvent(
-        new events.EventWebSocketConnectionClose({
-          detail: {
-            type: 'timeout',
-          },
         }),
       );
     };
@@ -722,6 +747,13 @@ class WebSocketConnection {
         handler: keepAliveTimeOutHandler,
       });
     }
+  }
+
+  /**
+   * Stops the keep alive interval timer
+   */
+  protected stopKeepAliveTimeoutTimer(): void {
+    this.keepAliveIntervalTimer?.cancel();
   }
 
   protected startKeepAliveIntervalTimer(ms: number): void {
@@ -742,7 +774,7 @@ class WebSocketConnection {
    * Stops the keep alive interval timer
    */
   protected stopKeepAliveIntervalTimer(): void {
-    this.keepAliveIntervalTimer?.cancel(timerCleanupReasonSymbol);
+    this.keepAliveIntervalTimer?.cancel();
   }
 }
 

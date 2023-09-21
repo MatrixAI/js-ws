@@ -67,12 +67,9 @@ class EventWebSocketConnectionError extends EventWebSocketConnection<
 > {}
 
 class EventWebSocketConnectionClose extends EventWebSocketConnection<
-  | {
-      type: 'local' | 'peer';
-      errorCode: number;
-      reason: string;
-    }
-  | { type: 'timeout' }
+  | ErrorWebSocketConnectionLocal <unknown>
+  | ErrorWebSocketConnectionPeer<unknown>
+  | ErrorWebSocketConnectionKeepAliveTimeOut<unknown>
 > {}
 
 // Stream events

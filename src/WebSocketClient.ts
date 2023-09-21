@@ -247,7 +247,7 @@ class WebSocketClient extends EventTarget {
       // Failing this is a software error
       await this.connection.stop({
         errorCode,
-        errorMessage,
+        reason: errorMessage,
         force,
       });
       this.dispatchEvent(new events.EventWebSocketClientClose());

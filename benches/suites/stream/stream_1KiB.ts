@@ -62,7 +62,7 @@ async function main() {
     },
   });
 
-  const stream = await client.connection.streamNew();
+  const stream = await client.connection.newStream();
   const writer = stream.writable.getWriter();
 
   const readProm = (async () => {
