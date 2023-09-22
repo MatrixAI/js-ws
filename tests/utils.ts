@@ -1,24 +1,28 @@
 import type { X509Certificate } from '@peculiar/x509';
-import { Crypto } from '@peculiar/webcrypto';
+import type WebSocketClient from '@/WebSocketClient';
+import type WebSocketServer from '@/WebSocketServer';
+import type WebSocketStream from '@/WebSocketStream';
+import * as peculiarWebcrypto from '@peculiar/webcrypto';
 import * as x509 from '@peculiar/x509';
-import { never } from '@/utils';
+import * as ws from 'ws';
+import fc from 'fast-check';
+import { StreamCodeToReason, StreamReasonToCode } from '@/types';
 
 /**
  * WebCrypto polyfill from @peculiar/webcrypto
  * This behaves differently with respect to Ed25519 keys
  * See: https://github.com/PeculiarVentures/webcrypto/issues/55
  */
-const webcrypto = new Crypto();
-
-/**
- * Monkey patches the global crypto object polyfill. This doesn't work on node 20, as globalThis has been made read-only.
- */
-// globalThis.crypto = webcrypto;
+const webcrypto = new peculiarWebcrypto.Crypto();
 
 x509.cryptoProvider.set(webcrypto);
 
 async function sleep(ms: number): Promise<void> {
   return await new Promise<void>((r) => setTimeout(r, ms));
+}
+
+async function yieldMicro(): Promise<void> {
+  return await new Promise<void>((r) => queueMicrotask(r));
 }
 
 async function randomBytes(data: ArrayBuffer) {
@@ -532,6 +536,101 @@ async function verifyHMAC(
   return webcrypto.subtle.verify('HMAC', cryptoKey, sig, data);
 }
 
+/**
+ * Zero-copy wraps ArrayBuffer-like objects into Buffer
+ * This supports ArrayBuffer, TypedArrays and the NodeJS Buffer
+ */
+function bufferWrap(
+  array: BufferSource,
+  offset?: number,
+  length?: number,
+): Buffer {
+  if (Buffer.isBuffer(array)) {
+    return array;
+  } else if (ArrayBuffer.isView(array)) {
+    return Buffer.from(
+      array.buffer,
+      offset ?? array.byteOffset,
+      length ?? array.byteLength,
+    );
+  } else {
+    return Buffer.from(array, offset, length);
+  }
+}
+
+const bufferArb = (constraints?: fc.IntArrayConstraints) => {
+  return fc.uint8Array(constraints).map(bufferWrap);
+};
+
+type Messages = Array<Uint8Array>;
+
+type StreamData = {
+  messages: Messages;
+  startDelay: number;
+  endDelay: number;
+  delays: Array<number>;
+};
+
+/**
+ * This is used to have a stream run concurrently in the background.
+ * Will resolve once stream has completed.
+ * This will send the data provided with delays provided.
+ * Will consume stream with provided delays between reads.
+ */
+const handleStreamProm = async (stream: WebSocketStream, streamData: StreamData) => {
+  const messages = streamData.messages;
+  const delays = streamData.delays;
+  const writeProm = (async () => {
+    // Write data
+    let count = 0;
+    const writer = stream.writable.getWriter();
+    for (const message of messages) {
+      await writer.write(message);
+      await sleep(delays[count % delays.length]);
+      count += 1;
+    }
+    await sleep(streamData.endDelay);
+    await writer.close();
+  })();
+  const readProm = (async () => {
+    // Consume readable
+    let count = 0;
+    for await (const _ of stream.readable) {
+      // Do nothing with delay,
+      await sleep(delays[count % delays.length]);
+      count += 1;
+    }
+  })();
+  try {
+    await Promise.all([writeProm, readProm]);
+  } finally {
+    await stream.stop().catch(() => {});
+    // @ts-ignore: kidnap logger
+    const streamLogger = stream.logger;
+    streamLogger.info(
+      `stream result ${JSON.stringify(
+        await Promise.allSettled([readProm, writeProm]),
+      )}`,
+    );
+  }
+};
+
+/**
+ * Creates a formatted string listing the connection state.
+ */
+function wsStats(webSocket: ws.WebSocket, label: string) {
+  return `
+----${label}----
+established: ${webSocket.readyState === ws.OPEN},
+closing: ${webSocket.readyState === ws.CLOSING},
+closed: ${webSocket.readyState === ws.CLOSED},
+binary type: ${webSocket.binaryType},
+buffered amount: ${webSocket.bufferedAmount},
+url: ${webSocket.url},
+protocol: ${webSocket.protocol},
+`;
+}
+
 type KeyTypes = 'RSA' | 'ECDSA' | 'ED25519';
 type TLSConfigs = {
   key: string;
@@ -565,10 +664,7 @@ async function generateConfig(type: KeyTypes): Promise<TLSConfigs> {
         privateKeyPem = (await keyPairEd25519ToPEM(keysLeaf)).privateKey;
       }
       break;
-    default:
-      never();
   }
-
   const certCa = await generateCertificate({
     certId: '0',
     duration: 100000,
@@ -588,8 +684,104 @@ async function generateConfig(type: KeyTypes): Promise<TLSConfigs> {
   };
 }
 
+async function generateTLSConfig(
+  type: 'RSA' | 'ECDSA' | 'Ed25519'
+): Promise<{
+  leafKeyPair: { publicKey: JsonWebKey; privateKey: JsonWebKey };
+  leafKeyPairPEM: { publicKey: string; privateKey: string };
+  leafCert: X509Certificate;
+  leafCertPEM: string;
+  caKeyPair: { publicKey: JsonWebKey; privateKey: JsonWebKey };
+  caKeyPairPEM: { publicKey: string; privateKey: string };
+  caCert: X509Certificate;
+  caCertPEM: string;
+}> {
+  let leafKeyPair: { publicKey: JsonWebKey; privateKey: JsonWebKey };
+  let leafKeyPairPEM: { publicKey: string; privateKey: string };
+  let caKeyPair: { publicKey: JsonWebKey; privateKey: JsonWebKey };
+  let caKeyPairPEM: { publicKey: string; privateKey: string };
+  switch (type) {
+    case 'RSA':
+      {
+        leafKeyPair = await generateKeyPairRSA();
+        leafKeyPairPEM = await keyPairRSAToPEM(leafKeyPair);
+        caKeyPair = await generateKeyPairRSA();
+        caKeyPairPEM = await keyPairRSAToPEM(caKeyPair);
+      }
+      break;
+    case 'ECDSA':
+      {
+        leafKeyPair = await generateKeyPairECDSA();
+        leafKeyPairPEM = await keyPairECDSAToPEM(leafKeyPair);
+        caKeyPair = await generateKeyPairECDSA();
+        caKeyPairPEM = await keyPairECDSAToPEM(caKeyPair);
+      }
+      break;
+    case 'Ed25519':
+      {
+        leafKeyPair = await generateKeyPairEd25519();
+        leafKeyPairPEM = await keyPairEd25519ToPEM(leafKeyPair);
+        caKeyPair = await generateKeyPairEd25519();
+        caKeyPairPEM = await keyPairEd25519ToPEM(caKeyPair);
+      }
+      break;
+  }
+  const caCert = await generateCertificate({
+    certId: '0',
+    issuerPrivateKey: caKeyPair.privateKey,
+    subjectKeyPair: caKeyPair,
+    duration: 60 * 60 * 24 * 365 * 10,
+  });
+  const leafCert = await generateCertificate({
+    certId: '1',
+    issuerPrivateKey: caKeyPair.privateKey,
+    subjectKeyPair: leafKeyPair,
+    duration: 60 * 60 * 24 * 365 * 10,
+  });
+  return {
+    leafKeyPair,
+    leafKeyPairPEM,
+    leafCert,
+    leafCertPEM: certToPEM(leafCert),
+    caKeyPair,
+    caKeyPairPEM,
+    caCert,
+    caCertPEM: certToPEM(caCert),
+  };
+}
+
+/**
+ * This will create a `reasonToCode` and `codeToReason` functions that will
+ * allow errors to "jump" the network boundary. It does this by mapping the
+ * errors to an incrementing code and returning them on the other end of the
+ * connection.
+ *
+ * Note: this should ONLY be used for testing as it requires the client and
+ * server to share the same instance of `reasonToCode` and `codeToReason`.
+ */
+function createReasonConverters() {
+  const reasonMap = new Map<bigint, any>();
+  let code = 0n;
+
+  const reasonToCode: StreamReasonToCode = (_type, reason) => {
+    code++;
+    reasonMap.set(code, reason);
+    return code;
+  };
+
+  const codeToReason: StreamCodeToReason = (_type, code) => {
+    return reasonMap.get(code) ?? new Error('Reason not found');
+  };
+
+  return {
+    reasonToCode,
+    codeToReason,
+  };
+}
+
 export {
   sleep,
+  yieldMicro,
   randomBytes,
   generateKeyPairRSA,
   generateKeyPairECDSA,
@@ -602,7 +794,13 @@ export {
   generateKeyHMAC,
   signHMAC,
   verifyHMAC,
+  bufferWrap,
+  bufferArb,
+  handleStreamProm,
+  wsStats,
+  generateTLSConfig,
   generateConfig,
+  createReasonConverters,
 };
 
-export type { KeyTypes, TLSConfigs };
+export type { Messages, StreamData, KeyTypes, TLSConfigs };

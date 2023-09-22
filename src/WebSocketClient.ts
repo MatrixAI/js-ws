@@ -1,7 +1,7 @@
 import type {
   Host,
   Port,
-  VerifyCallback,
+  TLSVerifyCallback,
   WebSocketClientConfigInput,
   WebSocketConfig,
 } from './types';
@@ -101,7 +101,7 @@ class WebSocketClient extends EventTarget {
 
     const address = `wss://${host_}:${port_}`;
 
-    // RejectUnauthorized must be false when verifyCallback exists,
+    // RejectUnauthorized must be false when TLSVerifyCallback exists,
     // This is so that verification can be deferred to the callback rather than the system installed Certs
     const webSocket = new WebSocket(address, {
       rejectUnauthorized:
@@ -109,6 +109,7 @@ class WebSocketClient extends EventTarget {
       key: wsConfig.key as any,
       cert: wsConfig.cert as any,
       ca: wsConfig.ca as any,
+      checkServerIdentity: () => false
     });
 
     const connectionId = 0;

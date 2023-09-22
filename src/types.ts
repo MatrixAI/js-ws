@@ -73,10 +73,15 @@ type ConnectionMetadata = {
   localPort?: number;
   remoteHost: string;
   remotePort: number;
-  peerCert?: DetailedPeerCertificate;
+  localCertsChain: Array<Uint8Array>;
+  localCACertsChain: Array<Uint8Array>;
+  remoteCertsChain: Array<Uint8Array>;
 };
 
-type VerifyCallback = (peerCert: DetailedPeerCertificate) => Promise<void>;
+type TLSVerifyCallback = (
+  certs: Array<Uint8Array>,
+  ca: Array<Uint8Array>
+) => PromiseLike<void>;
 
 type WebSocketConfig = {
   /**
@@ -128,7 +133,7 @@ type WebSocketConfig = {
    * fails.
    * Will be ignored if `verifyPeer` is false.
    */
-  verifyCallback?: VerifyCallback;
+  verifyCallback?: TLSVerifyCallback;
 
   keepAliveTimeoutTime: number;
   /**
@@ -170,7 +175,7 @@ export type {
   StreamReasonToCode,
   StreamCodeToReason,
   ConnectionMetadata,
-  VerifyCallback,
+  TLSVerifyCallback,
   WebSocketConfig,
   WebSocketClientConfigInput,
   WebSocketServerConfigInput,

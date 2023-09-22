@@ -10,7 +10,7 @@ import type {
   WebSocketServerConfigInput,
 } from './types';
 import type { EventAll } from '@matrixai/events';
-import type { TLSSocket } from 'tls';
+import type { DetailedPeerCertificate, TLSSocket } from 'tls';
 import https from 'https';
 import { AbstractEvent } from '@matrixai/events';
 import {
@@ -184,8 +184,13 @@ class WebSocketServer {
     webSocket: ws.WebSocket,
     request: IncomingMessage,
   ) => {
+
     const httpSocket = request.connection;
     const connectionId = this.connectionMap.allocateId();
+    const peerCert = (httpSocket as TLSSocket).getPeerCertificate(true);
+    const peerCertChain = utils.toPeerCertChain(peerCert);
+    const localCACertsChain = utils.collectPEMs(this.config.ca).map(utils.pemToDER);
+    const localCertsChain = utils.collectPEMs(this.config.cert).map(utils.pemToDER);
     const connection = new WebSocketConnection({
       type: 'server',
       connectionId: connectionId,
@@ -194,10 +199,12 @@ class WebSocketServer {
         remotePort: httpSocket.remotePort ?? 0,
         localHost: httpSocket.localAddress ?? '',
         localPort: httpSocket.localPort ?? 0,
-        peerCert: (httpSocket as TLSSocket).getPeerCertificate(true),
+        localCACertsChain,
+        localCertsChain,
+        remoteCertsChain: peerCertChain,
       },
       socket: webSocket,
-      config: this.config,
+      config: { ...this.config },
       reasonToCode: this.reasonToCode,
       codeToReason: this.codeToReason,
       logger: this.logger.getChild(
@@ -331,15 +338,21 @@ class WebSocketServer {
     this.webSocketServer = new ws.WebSocketServer({
       server: this.server,
       verifyClient: async (info, done) => {
-        const peerCert = (info.req.socket as TLSSocket).getPeerCertificate(
-          true,
-        );
-        try {
-          await this.config.verifyCallback?.(peerCert);
-          done(true);
-        } catch (e) {
-          done(false, 525, 'TLS Handshake Failed');
+        // Since this will only be done before the opening of a WebSocketConnection, there is no need to worry about the CA deviating from the WebSocketConnection's config.
+        if (this.config.verifyPeer && this.config.verifyCallback != null) {
+          const peerCert = (info.req.socket as TLSSocket).getPeerCertificate(
+            true,
+          );
+          const peerCertChain = utils.toPeerCertChain(peerCert);
+          const ca = utils.collectPEMs(this.config.ca).map(utils.pemToDER);
+          try {
+            await this.config.verifyCallback(peerCertChain, ca);
+            return done(true);
+          } catch (e) {
+            return done(false, 525, 'TLS Handshake Failed');
+          }
         }
+        done(true);
       },
     });
 

@@ -112,7 +112,9 @@ class WebSocketConnection {
   protected _remotePort: Port;
   protected _localHost?: Host;
   protected _localPort?: Port;
-  protected peerCert?: DetailedPeerCertificate;
+  protected certDERs: Array<Uint8Array> = [];
+  protected caDERs: Array<Uint8Array> = [];
+  protected remoteCertDERs: Array<Uint8Array> = [];
 
   /**
    * Secure connection establishment.
@@ -345,6 +347,25 @@ class WebSocketConnection {
     );
   };
 
+  /**
+   * Gets an array of certificates in DER format starting on the leaf.
+   */
+  public getLocalCertsChain(): Array<Uint8Array> {
+    return this.certDERs;
+  }
+
+  public getLocalCACertsChain(): Array<Uint8Array> {
+    return this.caDERs;
+  }
+
+  /**
+   * Gets an array of certificates in DER format starting on the leaf.
+   */
+  public getRemoteCertsChain(): Array<Uint8Array> {
+    return this.remoteCertDERs;
+  }
+
+
   @startStop.ready(new errors.ErrorWebSocketConnectionNotRunning())
   public meta(): ConnectionMetadata {
     return {
@@ -352,7 +373,9 @@ class WebSocketConnection {
       localPort: this._localPort,
       remoteHost: this._remoteHost,
       remotePort: this._remotePort,
-      peerCert: this.peerCert,
+      localCACertsChain: this.caDERs,
+      localCertsChain: this.certDERs,
+      remoteCertsChain: this.remoteCertDERs,
     };
   }
 
@@ -399,7 +422,9 @@ class WebSocketConnection {
       this._remotePort = meta.remotePort as Port;
       this._localHost = meta.localHost as Host | undefined;
       this._localPort = meta.localPort as Port | undefined;
-      this.peerCert = meta.peerCert;
+      this.caDERs = meta.localCACertsChain;
+      this.certDERs = meta.localCertsChain;
+      this.remoteCertDERs = meta.remoteCertsChain;
     }
 
     const {
@@ -507,15 +532,20 @@ class WebSocketConnection {
       this.socket.once('upgrade', async (request) => {
         const tlsSocket = request.socket as TLSSocket;
         const peerCert = tlsSocket.getPeerCertificate(true);
+        const peerCertChain = utils.toPeerCertChain(peerCert);
+        const localCertChain = utils.collectPEMs(this.config.cert).map(utils.pemToDER);
+        const ca = utils.collectPEMs(this.config.ca).map(utils.pemToDER);
         try {
           if (this.config.verifyPeer && this.config.verifyCallback != null) {
-            await this.config.verifyCallback?.(peerCert);
+            await this.config.verifyCallback?.(peerCertChain, ca);
           }
           this._localHost = request.connection.localAddress as Host;
           this._localPort = request.connection.localPort as Port;
           this._remoteHost = request.connection.remoteAddress as Host;
           this._remotePort = request.connection.remotePort as Port;
-          this.peerCert = peerCert;
+          this.caDERs = ca;
+          this.certDERs = localCertChain;
+          this.remoteCertDERs = peerCertChain;
         } catch (e) {
           const errorCode = utils.ConnectionErrorCode.TLSHandshake;
           const reason =
