@@ -312,15 +312,18 @@ class WebSocketServer {
    * @param opts
    * @param opts.host - host to listen on, defaults to '::'
    * @param opts.port - port to listen on, defaults to 0
+   * @param opts.path - the path the WebSocketServer should respond to upgrade requests on
    * @param opts.ipv6Only - ipv6 only, defaults to false
    */
   public async start({
     host = '::',
     port = 0,
+    path,
     ipv6Only = false,
   }: {
     host?: string;
     port?: number;
+    path?: string;
     ipv6Only?: boolean;
   } = {}): Promise<void> {
     this.logger.info(`Starting ${this.constructor.name}`);
@@ -337,6 +340,7 @@ class WebSocketServer {
 
     this.webSocketServer = new ws.WebSocketServer({
       server: this.server,
+      path,
       verifyClient: async (info, done) => {
         // Since this will only be done before the opening of a WebSocketConnection, there is no need to worry about the CA deviating from the WebSocketConnection's config.
         if (this.config.verifyPeer && this.config.verifyCallback != null) {
