@@ -443,6 +443,14 @@ async function generateCertificate({
     publicKey: subjectPublicCryptoKey,
     signingKey: subjectPrivateCryptoKey,
     extensions: [
+      new x509.SubjectAlternativeNameExtension([
+        {
+          type: "ip", value: "127.0.0.1"
+        },
+        {
+          type: "ip", value: "::1"
+        }
+      ]),
       new x509.BasicConstraintsExtension(true, undefined, true),
       new x509.KeyUsagesExtension(
         x509.KeyUsageFlags.keyCertSign |

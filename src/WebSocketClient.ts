@@ -109,7 +109,6 @@ class WebSocketClient extends EventTarget {
       key: wsConfig.key as any,
       cert: wsConfig.cert as any,
       ca: wsConfig.ca as any,
-      checkServerIdentity: () => false
     });
 
     const connectionId = 0;

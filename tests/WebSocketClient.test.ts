@@ -9,6 +9,7 @@ import WebSocketServer from "@/WebSocketServer";
 import { KeyTypes } from "./utils";
 import { DetailedPeerCertificate } from "tls";
 import { fc, testProp } from "@fast-check/jest";
+import WebSocketConnection from "@/WebSocketConnection";
 
 describe(WebSocketClient.name, () => {
   const logger = new Logger(`${WebSocketClient.name} Test`, LogLevel.WARN, [
@@ -449,422 +450,302 @@ describe(WebSocketClient.name, () => {
       await server.stop();
     });
   });
-  // describe('handles random packets', () => {
-  //   testProp(
-  //     'client handles random noise from server',
-  //     [
-  //       fc.array(fc.uint8Array({ minLength: 1 }), { minLength: 5 }).noShrink(),
-  //       fc.array(fc.uint8Array({ minLength: 1 }), { minLength: 5 }).noShrink(),
-  //     ],
-  //     async (data, messages) => {
-  //       const tlsConfig = await testsUtils.generateConfig('RSA');
-  //       const server = new WebSocketServer({
-  //         logger: logger.getChild(WebSocketServer.name),
-  //         config: {
-  //           key: tlsConfig.key,
-  //           cert: tlsConfig.cert,
-  //           verifyPeer: false,
-  //         },
-  //       });
-  //       const connectionEventProm = promise<events.EventWebSocketServerConnection>();
-  //       server.addEventListener(
-  //         events.EventWebSocketServerConnection.name,
-  //         (e: events.EventWebSocketServerConnection) =>
-  //           connectionEventProm.resolveP(e),
-  //       );
-  //       await server.start({
-  //         host: localhost,
-  //       });
-  //       const client = await WebSocketClient.createWebSocketClient({
-  //         host: '::ffff:127.0.0.1',
-  //         port: server.port,
-  //         logger: logger.getChild(WebSocketClient.name),
-  //         config: {
-  //           verifyPeer: false,
-  //         },
-  //       });
-  //       const conn = (await connectionEventProm.p).detail;
-  //       // Do the test
-  //       const serverStreamProms: Array<Promise<void>> = [];
-  //       conn.addEventListener(
-  //         events.EventWebSocketConnectionStream.name,
-  //         (streamEvent: events.EventWebSocketConnectionStream) => {
-  //           const stream = streamEvent.detail;
-  //           const streamProm = stream.readable.pipeTo(stream.writable);
-  //           serverStreamProms.push(streamProm);
-  //         },
-  //       );
-  //       // Sending random data to client from the perspective of the server
-  //       let running = true;
-  //       const randomDataProm = (async () => {
-  //         let count = 0;
-  //         while (running) {
-  //           await socket.send(
-  //             data[count % data.length],
-  //             client.localPort,
-  //             '127.0.0.1',
-  //           );
-  //           await sleep(5);
-  //           count += 1;
-  //         }
-  //       })();
-  //       // We want to check that things function fine between bad data
-  //       const randomActivityProm = (async () => {
-  //         const stream = await client.connection.newStream();
-  //         await Promise.all([
-  //           (async () => {
-  //             // Write data
-  //             const writer = stream.writable.getWriter();
-  //             for (const message of messages) {
-  //               await writer.write(message);
-  //               await sleep(7);
-  //             }
-  //             await writer.close();
-  //           })(),
-  //           (async () => {
-  //             // Consume readable
-  //             for await (const _ of stream.readable) {
-  //               // Do nothing
-  //             }
-  //           })(),
-  //         ]);
-  //         running = false;
-  //       })();
-  //       // Wait for running activity to finish, should complete without error
-  //       await Promise.all([
-  //         randomActivityProm,
-  //         serverStreamProms,
-  //         randomDataProm,
-  //       ]);
-  //       await client.destroy({ force: true });
-  //       await server.stop();
-  //       await socket.stop();
+  describe.each(types)('custom TLS verification with %s', (type) => {
+    test('server succeeds custom verification', async () => {
+      const tlsConfigs = await testsUtils.generateConfig(type);
+      const server = new WebSocketServer({
+        logger: logger.getChild(WebSocketServer.name),
+        config: {
+          key: tlsConfigs.key,
+          cert: tlsConfigs.cert,
+          verifyPeer: false,
+        },
+      });
+      const handleConnectionEventProm = promise<any>();
+      server.addEventListener(
+        events.EventWebSocketServerConnection.name,
+        handleConnectionEventProm.resolveP,
+      );
+      await server.start({
+        host: localhost,
+      });
+      // Connection should succeed
+      const verifyProm = promise<Array<Uint8Array> | undefined>();
+      const client = await WebSocketClient.createWebSocketClient({
+        host: localhost,
+        port: server.port,
+        logger: logger.getChild(WebSocketClient.name),
+        config: {
+          verifyPeer: true,
+          verifyCallback: async (certs) => {
+            verifyProm.resolveP(certs);
+          },
+        },
+      });
+      await handleConnectionEventProm.p;
+      await expect(verifyProm.p).toResolve();
+      await client.destroy();
+      await server.stop();
+    });
+    test('server fails custom verification', async () => {
+      const tlsConfigs = await testsUtils.generateConfig(type);
+      const server = new WebSocketServer({
+        logger: logger.getChild(WebSocketServer.name),
+        config: {
+          key: tlsConfigs.key,
+          cert: tlsConfigs.cert,
+          verifyPeer: false,
+        },
+      });
+      const handleConnectionEventProm = promise<WebSocketConnection>();
+      server.addEventListener(
+        events.EventWebSocketServerConnection.name,
+        (event: events.EventWebSocketServerConnection) =>
+          handleConnectionEventProm.resolveP(event.detail),
+      );
+      await server.start({
+        host: localhost,
+      });
+      // Connection should fail
+      const clientProm = WebSocketClient.createWebSocketClient({
+        host: localhost,
+        port: server.port,
+        logger: logger.getChild(WebSocketClient.name),
+        config: {
+          verifyPeer: true,
+          verifyCallback: () => {
+            throw Error('SOME ERROR');
+          },
+        },
+      });
+      clientProm.catch(() => {});
+
+      // verification by peer happens after connection is securely established and started
+      const serverConn = await handleConnectionEventProm.p;
+      const serverErrorProm = promise<never>();
+      serverConn.addEventListener(
+        events.EventWebSocketConnectionError.name,
+        (evt: events.EventWebSocketConnectionError) => serverErrorProm.rejectP(evt.detail)
+      );
+      await expect(serverErrorProm.p).rejects.toThrow(errors.ErrorWebSocketConnectionPeer);
+      await expect(clientProm).rejects.toThrow(
+        errors.ErrorWebSocketConnectionLocal,
+      );
+
+      await server.stop();
+    });
+    test('client succeeds custom verification', async () => {
+      const tlsConfigs = await testsUtils.generateConfig(type);
+      const verifyProm = promise<Array<Uint8Array> | undefined>();
+      const server = new WebSocketServer({
+        logger: logger.getChild(WebSocketServer.name),
+        config: {
+          key: tlsConfigs.key,
+          cert: tlsConfigs.cert,
+          verifyPeer: true,
+          verifyCallback: async (certs) => {
+            verifyProm.resolveP(certs);
+          },
+        },
+      });
+      const handleConnectionEventProm = promise<any>();
+      server.addEventListener(
+        events.EventWebSocketServerConnection.name,
+        handleConnectionEventProm.resolveP,
+      );
+      await server.start({
+        host: localhost,
+      });
+      // Connection should succeed
+      const client = await WebSocketClient.createWebSocketClient({
+        host: localhost,
+        port: server.port,
+        logger: logger.getChild(WebSocketClient.name),
+        config: {
+          verifyPeer: false,
+          key: tlsConfigs.key,
+          cert: tlsConfigs.cert,
+        },
+      });
+      await handleConnectionEventProm.p;
+      await expect(verifyProm.p).toResolve();
+      await client.destroy();
+      await server.stop();
+    });
+    test('client fails custom verification', async () => {
+      const tlsConfigs = await testsUtils.generateConfig(type);
+      const server = new WebSocketServer({
+        logger: logger.getChild(WebSocketServer.name),
+        config: {
+          key: tlsConfigs.key,
+          cert: tlsConfigs.cert,
+          verifyPeer: true,
+          verifyCallback: () => {
+            throw Error('SOME ERROR');
+          },
+        },
+      });
+      const handleConnectionEventProm = promise<WebSocketConnection>();
+      server.addEventListener(
+        events.EventWebSocketServerConnection.name,
+        (event: events.EventWebSocketServerConnection) =>
+          handleConnectionEventProm.resolveP(event.detail),
+      );
+      await server.start({
+        host: localhost,
+        port: 55555,
+      });
+      // Connection should fail
+      await expect(
+        WebSocketClient.createWebSocketClient({
+          host: localhost,
+          port: server.port,
+          logger: logger.getChild(WebSocketClient.name),
+          config: {
+            key: tlsConfigs.key,
+            cert: tlsConfigs.cert,
+            verifyPeer: false,
+          },
+        })
+      ).rejects.toHaveProperty(['cause', 'name'], errors.ErrorWebSocketConnectionInternal.name);
+
+      // // Server connection is never emitted
+      await Promise.race([
+        handleConnectionEventProm.p.then(() => {
+          throw Error('Server connection should not be emitted');
+        }),
+        // Allow some time
+        testsUtils.sleep(200),
+      ]);
+
+      await server.stop();
+    });
+  });
+  test('Connections are established and secured quickly', async () => {
+    const tlsConfigServer = await testsUtils.generateConfig(defaultType);
+
+    const connectionEventProm = promise<events.EventWebSocketServerConnection>();
+    const server = new WebSocketServer({
+      logger: logger.getChild(WebSocketServer.name),
+      config: {
+        key: tlsConfigServer.key,
+        cert: tlsConfigServer.cert,
+        verifyPeer: false,
+      },
+    });
+    server.addEventListener(
+      events.EventWebSocketServerConnection.name,
+      (e: events.EventWebSocketServerConnection) => connectionEventProm.resolveP(e),
+    );
+    await server.start({
+      host: localhost,
+      port: 55555,
+    });
+    // If the server is slow to respond then this will time out.
+    //  Then main cause of this was the server not processing the initial packet
+    //  that creates the `WebSocketConnection`, as a result, the whole creation waited
+    //  an extra 1 second for the client to retry the initial packet.
+    const client = await WebSocketClient.createWebSocketClient(
+      {
+        host: localhost,
+        port: server.port,
+        logger: logger.getChild(WebSocketClient.name),
+        config: {
+          verifyPeer: false,
+        },
+      },
+      { timer: 500 },
+    );
+    await connectionEventProm.p;
+    await client.destroy({ force: true });
+    await server.stop({ force: true });
+  });
+  // test('socket stopping first triggers client destruction', async () => {
+  //   const tlsConfigServer = await testsUtils.generateConfig(defaultType);
+
+  //   const connectionEventProm = promise<WebSocketConnection>();
+  //   const server = new WebSocketServer({
+  //     logger: logger.getChild(WebSocketServer.name),
+  //     config: {
+  //       key: tlsConfigServer.key,
+  //       cert: tlsConfigServer.cert,
+  //       verifyPeer: false,
   //     },
-  //     { numRuns: 1 },
+  //   });
+  //   server.addEventListener(
+  //     events.EventWebSocketServerConnection.name,
+  //     (e: events.EventWebSocketServerConnection) => connectionEventProm.resolveP(e.detail),
   //   );
-  //   testProp(
-  //     'client handles random noise from external',
-  //     [
-  //       fc.array(fc.uint8Array({ minLength: 1 }), { minLength: 5 }).noShrink(),
-  //       fc.array(fc.uint8Array({ minLength: 1 }), { minLength: 5 }).noShrink(),
-  //     ],
-  //     async (data, messages) => {
-  //       const tlsConfig = await testsUtils.generateConfig('RSA');
-  //       const socket = new WebSocketSocket({
-  //         logger: logger.getChild('socket'),
-  //       });
-  //       await socket.start({
-  //         host: localhost,
-  //       });
-  //       const server = new WebSocketServer({
-  //         crypto: {
-  //           key,
-  //           ops: serverCryptoOps,
-  //         },
-  //         logger: logger.getChild(WebSocketServer.name),
-  //         config: {
-  //           key: tlsConfig.key,
-  //           cert: tlsConfig.cert,
-  //           verifyPeer: false,
-  //         },
-  //       });
-  //       socketCleanMethods.extractSocket(server);
-  //       const connectionEventProm = promise<events.EventWebSocketServerConnection>();
-  //       server.addEventListener(
-  //         events.EventWebSocketServerConnection.name,
-  //         (e: events.EventWebSocketServerConnection) =>
-  //           connectionEventProm.resolveP(e),
-  //       );
-  //       await server.start({
-  //         host: localhost,
-  //       });
-  //       const client = await WebSocketClient.createWebSocketClient({
-  //         host: '::ffff:127.0.0.1',
-  //         port: server.port,
-  //         localHost: '::',
-  //         crypto: {
-  //           ops: clientCryptoOps,
-  //         },
-  //         logger: logger.getChild(WebSocketClient.name),
-  //         config: {
-  //           verifyPeer: false,
-  //         },
-  //       });
-  //       socketCleanMethods.extractSocket(client);
-  //       const conn = (await connectionEventProm.p).detail;
-  //       // Do the test
-  //       const serverStreamProms: Array<Promise<void>> = [];
-  //       conn.addEventListener(
-  //         events.EventWebSocketConnectionStream.name,
-  //         (streamEvent: events.EventWebSocketConnectionStream) => {
-  //           const stream = streamEvent.detail;
-  //           const streamProm = stream.readable.pipeTo(stream.writable);
-  //           serverStreamProms.push(streamProm);
-  //         },
-  //       );
-  //       // Sending random data to client from the perspective of the server
-  //       let running = true;
-  //       const randomDataProm = (async () => {
-  //         let count = 0;
-  //         while (running) {
-  //           await socket.send(
-  //             data[count % data.length],
-  //             client.localPort,
-  //             '127.0.0.1',
-  //           );
-  //           await sleep(5);
-  //           count += 1;
-  //         }
-  //       })();
-  //       // We want to check that things function fine between bad data
-  //       const randomActivityProm = (async () => {
-  //         const stream = await client.connection.newStream();
-  //         await Promise.all([
-  //           (async () => {
-  //             // Write data
-  //             const writer = stream.writable.getWriter();
-  //             for (const message of messages) {
-  //               await writer.write(message);
-  //               await sleep(7);
-  //             }
-  //             await writer.close();
-  //           })(),
-  //           (async () => {
-  //             // Consume readable
-  //             for await (const _ of stream.readable) {
-  //               // Do nothing
-  //             }
-  //           })(),
-  //         ]);
-  //         running = false;
-  //       })();
-  //       // Wait for running activity to finish, should complete without error
-  //       await Promise.all([
-  //         randomActivityProm,
-  //         serverStreamProms,
-  //         randomDataProm,
-  //       ]);
-  //       await client.destroy({ force: true });
-  //       await server.stop();
-  //       await socket.stop();
-  //     },
-  //     { numRuns: 1 },
+  //   await server.start({
+  //     host: localhost,
+  //     port: 55555,
+  //   });
+  //   // If the server is slow to respond then this will time out.
+  //   //  Then main cause of this was the server not processing the initial packet
+  //   //  that creates the `WebSocketConnection`, as a result, the whole creation waited
+  //   //  an extra 1 second for the client to retry the initial packet.
+  //   const client = await WebSocketClient.createWebSocketClient(
+  //     {
+  //       host: localhost,
+  //       port: server.port,
+  //       logger: logger.getChild(WebSocketClient.name),
+  //       config: {
+  //         verifyPeer: false,
+  //       },
+  //     });
+
+  //   const serverConnection = await connectionEventProm.p;
+  //   // handling server connection error event
+  //   const serverConnectionErrorProm = promise<never>();
+  //   serverConnection.addEventListener(
+  //     events.EventWebSocketConnectionError.name,
+  //     (evt: events.EventWebSocketConnectionError) => serverConnectionErrorProm.rejectP(evt.detail),
+  //     {once: true},
   //   );
-  //   testProp(
-  //     'server handles random noise from client',
-  //     [
-  //       fc.array(fc.uint8Array({ minLength: 1 }), { minLength: 5 }).noShrink(),
-  //       fc.array(fc.uint8Array({ minLength: 1 }), { minLength: 5 }).noShrink(),
-  //     ],
-  //     async (data, messages) => {
-  //       const tlsConfig = await testsUtils.generateConfig('RSA');
-  //       const socket = new WebSocketSocket({
-  //         logger: logger.getChild('socket'),
-  //       });
-  //       await socket.start({
-  //         host: localhost,
-  //       });
-  //       const server = new WebSocketServer({
-  //         crypto: {
-  //           key,
-  //           ops: serverCryptoOps,
-  //         },
-  //         logger: logger.getChild(WebSocketServer.name),
-  //         config: {
-  //           key: tlsConfig.key,
-  //           cert: tlsConfig.cert,
-  //           verifyPeer: false,
-  //         },
-  //       });
-  //       socketCleanMethods.extractSocket(server);
-  //       const connectionEventProm = promise<events.EventWebSocketServerConnection>();
-  //       server.addEventListener(
-  //         events.EventWebSocketServerConnection.name,
-  //         (e: events.EventWebSocketServerConnection) =>
-  //           connectionEventProm.resolveP(e),
-  //       );
-  //       await server.start({
-  //         host: localhost,
-  //       });
-  //       const client = await WebSocketClient.createWebSocketClient({
-  //         host: localhost,
-  //         port: server.port,
-  //         socket,
-  //         crypto: {
-  //           ops: clientCryptoOps,
-  //         },
-  //         logger: logger.getChild(WebSocketClient.name),
-  //         config: {
-  //           verifyPeer: false,
-  //         },
-  //       });
-  //       socketCleanMethods.extractSocket(client);
-  //       const conn = (await connectionEventProm.p).detail;
-  //       // Do the test
-  //       const serverStreamProms: Array<Promise<void>> = [];
-  //       conn.addEventListener(
-  //         events.EventWebSocketConnectionStream.name,
-  //         (streamEvent: events.EventWebSocketConnectionStream) => {
-  //           const stream = streamEvent.detail;
-  //           const streamProm = stream.readable.pipeTo(stream.writable);
-  //           serverStreamProms.push(streamProm);
-  //         },
-  //       );
-  //       // Sending random data to client from the perspective of the server
-  //       let running = true;
-  //       const randomDataProm = (async () => {
-  //         let count = 0;
-  //         while (running) {
-  //           await socket.send(
-  //             data[count % data.length],
-  //             server.port,
-  //             '127.0.0.1',
-  //           );
-  //           await sleep(5);
-  //           count += 1;
-  //         }
-  //       })();
-  //       // We want to check that things function fine between bad data
-  //       const randomActivityProm = (async () => {
-  //         const stream = await client.connection.newStream();
-  //         await Promise.all([
-  //           (async () => {
-  //             // Write data
-  //             const writer = stream.writable.getWriter();
-  //             for (const message of messages) {
-  //               await writer.write(message);
-  //               await sleep(7);
-  //             }
-  //             await writer.close();
-  //           })(),
-  //           (async () => {
-  //             // Consume readable
-  //             for await (const _ of stream.readable) {
-  //               // Do nothing
-  //             }
-  //           })(),
-  //         ]);
-  //         running = false;
-  //       })();
-  //       // Wait for running activity to finish, should complete without error
-  //       await Promise.all([
-  //         randomActivityProm,
-  //         serverStreamProms,
-  //         randomDataProm,
-  //       ]);
-  //       await client.destroy({ force: true });
-  //       await server.stop();
-  //       await socket.stop();
-  //     },
-  //     { numRuns: 1 },
+
+  //   // Handling client connection error event
+  //   const clientConnectionErrorProm = promise<never>();
+  //   client.connection.addEventListener(
+  //     events.EventWebSocketConnectionError.name,
+  //     (evt: events.EventWebSocketConnectionError) => clientConnectionErrorProm.rejectP(evt.detail),
+  //     {once: true},
   //   );
-  //   testProp(
-  //     'server handles random noise from external',
-  //     [
-  //       fc.array(fc.uint8Array({ minLength: 1 }), { minLength: 5 }).noShrink(),
-  //       fc.array(fc.uint8Array({ minLength: 1 }), { minLength: 5 }).noShrink(),
-  //     ],
-  //     async (data, messages) => {
-  //       const tlsConfig = await testsUtils.generateConfig('RSA');
-  //       const socket = new WebSocketSocket({
-  //         logger: logger.getChild('socket'),
-  //       });
-  //       await socket.start({
-  //         host: localhost,
-  //       });
-  //       const server = new WebSocketServer({
-  //         crypto: {
-  //           key,
-  //           ops: serverCryptoOps,
-  //         },
-  //         logger: logger.getChild(WebSocketServer.name),
-  //         config: {
-  //           key: tlsConfig.key,
-  //           cert: tlsConfig.cert,
-  //           verifyPeer: false,
-  //         },
-  //       });
-  //       socketCleanMethods.extractSocket(server);
-  //       const connectionEventProm = promise<events.EventWebSocketServerConnection>();
-  //       server.addEventListener(
-  //         events.EventWebSocketServerConnection.name,
-  //         (e: events.EventWebSocketServerConnection) =>
-  //           connectionEventProm.resolveP(e),
-  //       );
-  //       await server.start({
-  //         host: localhost,
-  //       });
-  //       const client = await WebSocketClient.createWebSocketClient({
-  //         host: localhost,
-  //         port: server.port,
-  //         localHost: localhost,
-  //         crypto: {
-  //           ops: clientCryptoOps,
-  //         },
-  //         logger: logger.getChild(WebSocketClient.name),
-  //         config: {
-  //           verifyPeer: false,
-  //         },
-  //       });
-  //       socketCleanMethods.extractSocket(client);
-  //       const conn = (await connectionEventProm.p).detail;
-  //       // Do the test
-  //       const serverStreamProms: Array<Promise<void>> = [];
-  //       conn.addEventListener(
-  //         events.EventWebSocketConnectionStream.name,
-  //         (streamEvent: events.EventWebSocketConnectionStream) => {
-  //           const stream = streamEvent.detail;
-  //           const streamProm = stream.readable.pipeTo(stream.writable);
-  //           serverStreamProms.push(streamProm);
-  //         },
-  //       );
-  //       // Sending random data to client from the perspective of the server
-  //       let running = true;
-  //       const randomDataProm = (async () => {
-  //         let count = 0;
-  //         while (running) {
-  //           await socket.send(
-  //             data[count % data.length],
-  //             server.port,
-  //             '127.0.0.1',
-  //           );
-  //           await sleep(5);
-  //           count += 1;
-  //         }
-  //       })();
-  //       // We want to check that things function fine between bad data
-  //       const randomActivityProm = (async () => {
-  //         const stream = await client.connection.newStream();
-  //         await Promise.all([
-  //           (async () => {
-  //             // Write data
-  //             const writer = stream.writable.getWriter();
-  //             for (const message of messages) {
-  //               await writer.write(message);
-  //               await sleep(7);
-  //             }
-  //             await writer.close();
-  //           })(),
-  //           (async () => {
-  //             // Consume readable
-  //             for await (const _ of stream.readable) {
-  //               // Do nothing
-  //             }
-  //           })(),
-  //         ]);
-  //         running = false;
-  //       })();
-  //       // Wait for running activity to finish, should complete without error
-  //       await Promise.all([
-  //         randomActivityProm,
-  //         serverStreamProms,
-  //         randomDataProm,
-  //       ]);
-  //       await client.destroy({ force: true });
-  //       await server.stop();
-  //       await socket.stop();
-  //     },
-  //     { numRuns: 1 },
+
+  //   // handling client destroy event
+  //   const clientConnectionStoppedProm = promise<void>();
+  //   client.connection.addEventListener(
+  //     events.EventWebSocketConnectionStopped.name,
+  //     () => clientConnectionStoppedProm.resolveP(),
+  //     {once: true},
   //   );
-  // });
+
+  //   // handling client error event
+  //   const clientErrorProm = promise<never>();
+  //   client.addEventListener(
+  //     events.EventWebSocketClientError.name,
+  //     (evt: events.EventWebSocketClientError) => clientErrorProm.rejectP(evt.detail),
+  //     {once: true},
+  //   );
+
+  //   // handling client destroy event
+  //   const clientDestroyedProm = promise<void>();
+  //   client.addEventListener(
+  //     events.EventWebSocketClientDestroyed.name,
+  //     () => clientDestroyedProm.resolveP(),
+  //     {once: true},
+  //   );
+
+
+  //   // Socket failure triggers client connection local failure
+  //   await expect(clientConnectionErrorProm.p).rejects.toThrow(errors.ErrorWebSocketConnectionLocal);
+  //   await expect(clientErrorProm.p).rejects.toThrow(errors.ErrorWebSocketClientSocketNotRunning);
+  //   await clientDestroyedProm.p;
+  //   await clientConnectionStoppedProm.p;
+
+  //   // Socket failure will not trigger any close frame since transport has failed so server connection will time out
+  //   await expect(serverConnectionErrorProm.p).rejects.toThrow(errors.ErrorWebSocketConnectionIdleTimeout);
+
+  //   await client.destroy({ force: true });
+  //   await server.stop({ force: true });
+  // })
 });
