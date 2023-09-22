@@ -1,15 +1,15 @@
-import { promise, pemToDER, ConnectionErrorCode } from "@/utils";
+import type { KeyTypes } from './utils';
+import type WebSocketConnection from '@/WebSocketConnection';
+import { DetailedPeerCertificate } from 'tls';
+import Logger, { formatting, LogLevel, StreamHandler } from '@matrixai/logger';
+import { X509Certificate } from '@peculiar/x509';
+import { fc, testProp } from '@fast-check/jest';
+import { promise, pemToDER, ConnectionErrorCode } from '@/utils';
 import * as events from '@/events';
 import * as errors from '@/errors';
+import WebSocketClient from '@/WebSocketClient';
+import WebSocketServer from '@/WebSocketServer';
 import * as testsUtils from './utils';
-import WebSocketClient from "@/WebSocketClient";
-import Logger, { formatting, LogLevel, StreamHandler } from "@matrixai/logger";
-import { X509Certificate } from "@peculiar/x509";
-import WebSocketServer from "@/WebSocketServer";
-import { KeyTypes } from "./utils";
-import { DetailedPeerCertificate } from "tls";
-import { fc, testProp } from "@fast-check/jest";
-import WebSocketConnection from "@/WebSocketConnection";
 
 describe(WebSocketClient.name, () => {
   const logger = new Logger(`${WebSocketClient.name} Test`, LogLevel.WARN, [
@@ -19,10 +19,11 @@ describe(WebSocketClient.name, () => {
   ]);
   const localhost = '127.0.0.1';
   const types: Array<KeyTypes> = ['RSA', 'ECDSA', 'ED25519'];
-  // const types: Array<KeyTypes> = ['RSA'];
+  // Const types: Array<KeyTypes> = ['RSA'];
   const defaultType = types[0];
   test('to ipv6 server succeeds', async () => {
-    const connectionEventProm = promise<events.EventWebSocketServerConnection>();
+    const connectionEventProm =
+      promise<events.EventWebSocketServerConnection>();
     const tlsConfigServer = await testsUtils.generateConfig(defaultType);
     const server = new WebSocketServer({
       logger: logger.getChild(WebSocketServer.name),
@@ -58,7 +59,8 @@ describe(WebSocketClient.name, () => {
     await server.stop();
   });
   test('to dual stack server succeeds', async () => {
-    const connectionEventProm = promise<events.EventWebSocketServerConnection>();
+    const connectionEventProm =
+      promise<events.EventWebSocketServerConnection>();
     const tlsConfigServer = await testsUtils.generateConfig(defaultType);
     const server = new WebSocketServer({
       logger: logger.getChild(WebSocketServer.name),
@@ -106,7 +108,10 @@ describe(WebSocketClient.name, () => {
             verifyPeer: false,
           },
         }),
-      ).rejects.toHaveProperty(["cause", "name"], errors.ErrorWebSocketConnectionInternal.name);
+      ).rejects.toHaveProperty(
+        ['cause', 'name'],
+        errors.ErrorWebSocketConnectionInternal.name,
+      );
     });
     test('client times out with ctx timer while starting', async () => {
       const tlsConfigServer = await testsUtils.generateConfig(defaultType);
@@ -118,7 +123,7 @@ describe(WebSocketClient.name, () => {
           verifyPeer: true,
           verifyCallback: async () => {
             await testsUtils.sleep(1000);
-          }
+          },
         },
       });
       await server.start({
@@ -151,7 +156,7 @@ describe(WebSocketClient.name, () => {
           verifyPeer: true,
           verifyCallback: async () => {
             await testsUtils.sleep(1000);
-          }
+          },
         },
       });
       await server.start({
@@ -189,7 +194,7 @@ describe(WebSocketClient.name, () => {
       await server.start({
         host: localhost,
       });
-      let peerCertChainProm = promise<Array<Uint8Array>>();
+      const peerCertChainProm = promise<Array<Uint8Array>>();
       const client1 = await WebSocketClient.createWebSocketClient({
         host: localhost,
         port: server.port,
@@ -242,7 +247,7 @@ describe(WebSocketClient.name, () => {
         cert: tlsConfig2.cert,
       });
       // Starting a new connection has a different peerCertChain
-      let peerCertChainProm = promise<Array<Uint8Array>>();
+      const peerCertChainProm = promise<Array<Uint8Array>>();
       const client2 = await WebSocketClient.createWebSocketClient({
         host: localhost,
         port: server.port,
@@ -254,7 +259,9 @@ describe(WebSocketClient.name, () => {
           },
         },
       });
-      expect((await peerCertChainProm.p)[0].buffer).toEqual(pemToDER(tlsConfig2.cert).buffer);
+      expect((await peerCertChainProm.p)[0].buffer).toEqual(
+        pemToDER(tlsConfig2.cert).buffer,
+      );
       await client1.destroy();
       await client2.destroy();
       await server.stop();
@@ -403,7 +410,7 @@ describe(WebSocketClient.name, () => {
       await server.start({
         host: localhost,
       });
-      // connection succeeds but peer will reject shortly after
+      // Connection succeeds but peer will reject shortly after
       await expect(
         WebSocketClient.createWebSocketClient({
           host: localhost,
@@ -414,7 +421,7 @@ describe(WebSocketClient.name, () => {
             cert: tlsConfigs2.cert,
             verifyPeer: false,
           },
-        })
+        }),
       ).toReject();
 
       await server.stop();
@@ -520,14 +527,17 @@ describe(WebSocketClient.name, () => {
       });
       clientProm.catch(() => {});
 
-      // verification by peer happens after connection is securely established and started
+      // Verification by peer happens after connection is securely established and started
       const serverConn = await handleConnectionEventProm.p;
       const serverErrorProm = promise<never>();
       serverConn.addEventListener(
         events.EventWebSocketConnectionError.name,
-        (evt: events.EventWebSocketConnectionError) => serverErrorProm.rejectP(evt.detail)
+        (evt: events.EventWebSocketConnectionError) =>
+          serverErrorProm.rejectP(evt.detail),
       );
-      await expect(serverErrorProm.p).rejects.toThrow(errors.ErrorWebSocketConnectionPeer);
+      await expect(serverErrorProm.p).rejects.toThrow(
+        errors.ErrorWebSocketConnectionPeer,
+      );
       await expect(clientProm).rejects.toThrow(
         errors.ErrorWebSocketConnectionLocal,
       );
@@ -606,8 +616,11 @@ describe(WebSocketClient.name, () => {
             cert: tlsConfigs.cert,
             verifyPeer: false,
           },
-        })
-      ).rejects.toHaveProperty(['cause', 'name'], errors.ErrorWebSocketConnectionInternal.name);
+        }),
+      ).rejects.toHaveProperty(
+        ['cause', 'name'],
+        errors.ErrorWebSocketConnectionInternal.name,
+      );
 
       // // Server connection is never emitted
       await Promise.race([
@@ -624,7 +637,8 @@ describe(WebSocketClient.name, () => {
   test('Connections are established and secured quickly', async () => {
     const tlsConfigServer = await testsUtils.generateConfig(defaultType);
 
-    const connectionEventProm = promise<events.EventWebSocketServerConnection>();
+    const connectionEventProm =
+      promise<events.EventWebSocketServerConnection>();
     const server = new WebSocketServer({
       logger: logger.getChild(WebSocketServer.name),
       config: {
@@ -635,7 +649,8 @@ describe(WebSocketClient.name, () => {
     });
     server.addEventListener(
       events.EventWebSocketServerConnection.name,
-      (e: events.EventWebSocketServerConnection) => connectionEventProm.resolveP(e),
+      (e: events.EventWebSocketServerConnection) =>
+        connectionEventProm.resolveP(e),
     );
     await server.start({
       host: localhost,
@@ -660,7 +675,7 @@ describe(WebSocketClient.name, () => {
     await client.destroy({ force: true });
     await server.stop({ force: true });
   });
-  // test('socket stopping first triggers client destruction', async () => {
+  // Test('socket stopping first triggers client destruction', async () => {
   //   const tlsConfigServer = await testsUtils.generateConfig(defaultType);
 
   //   const connectionEventProm = promise<WebSocketConnection>();
@@ -734,7 +749,6 @@ describe(WebSocketClient.name, () => {
   //     () => clientDestroyedProm.resolveP(),
   //     {once: true},
   //   );
-
 
   //   // Socket failure triggers client connection local failure
   //   await expect(clientConnectionErrorProm.p).rejects.toThrow(errors.ErrorWebSocketConnectionLocal);

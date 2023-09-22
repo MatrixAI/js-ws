@@ -5,20 +5,20 @@ import type {
   WebSocketClientConfigInput,
   WebSocketConfig,
 } from './types';
+import type { ContextTimed, ContextTimedInput } from '@matrixai/contexts';
 import { AbstractEvent } from '@matrixai/events';
 import { createDestroy } from '@matrixai/async-init';
 import Logger from '@matrixai/logger';
 import WebSocket from 'ws';
 import { Validator } from 'ip-num';
 import { EventAll, EventDefault } from '@matrixai/events';
+import { context, timedCancellable } from '@matrixai/contexts/dist/decorators';
 import * as errors from './errors';
 import WebSocketConnection from './WebSocketConnection';
 import WebSocketConnectionMap from './WebSocketConnectionMap';
 import { clientDefault, connectTimeoutTime } from './config';
 import * as events from './events';
 import * as utils from './utils';
-import { context, timedCancellable } from '@matrixai/contexts/dist/decorators';
-import { ContextTimed, ContextTimedInput } from '@matrixai/contexts';
 
 interface WebSocketClient extends createDestroy.CreateDestroy {}
 /**
@@ -49,7 +49,7 @@ class WebSocketClient extends EventTarget {
    * @throws {errors.ErrorWebSocketClientInvalidHost}
    * @throws {errors.ErrorWebSocketConnection}
    */
-   public static async createWebSocketClient(
+  public static async createWebSocketClient(
     {
       host,
       port,
@@ -62,8 +62,12 @@ class WebSocketClient extends EventTarget {
       logger?: Logger;
     },
     ctx?: Partial<ContextTimedInput>,
-  ): Promise<WebSocketClient>
-  @timedCancellable(true, connectTimeoutTime, errors.ErrorWebSocketClientCreateTimeOut)
+  ): Promise<WebSocketClient>;
+  @timedCancellable(
+    true,
+    connectTimeoutTime,
+    errors.ErrorWebSocketClientCreateTimeOut,
+  )
   public static async createWebSocketClient(
     {
       host,

@@ -365,7 +365,6 @@ class WebSocketConnection {
     return this.remoteCertDERs;
   }
 
-
   @startStop.ready(new errors.ErrorWebSocketConnectionNotRunning())
   public meta(): ConnectionMetadata {
     return {
@@ -471,7 +470,11 @@ class WebSocketConnection {
   }
 
   public start(ctx?: Partial<ContextTimedInput>): PromiseCancellable<void>;
-  @timedCancellable(true, connectTimeoutTime, errors.ErrorWebSocketConnectionStartTimeOut)
+  @timedCancellable(
+    true,
+    connectTimeoutTime,
+    errors.ErrorWebSocketConnectionStartTimeOut,
+  )
   public async start(@context ctx: ContextTimed): Promise<void> {
     this.logger.info(`Start ${this.constructor.name}`);
     if (this.socket.readyState === ws.CLOSED) {
@@ -533,7 +536,9 @@ class WebSocketConnection {
         const tlsSocket = request.socket as TLSSocket;
         const peerCert = tlsSocket.getPeerCertificate(true);
         const peerCertChain = utils.toPeerCertChain(peerCert);
-        const localCertChain = utils.collectPEMs(this.config.cert).map(utils.pemToDER);
+        const localCertChain = utils
+          .collectPEMs(this.config.cert)
+          .map(utils.pemToDER);
         const ca = utils.collectPEMs(this.config.ca).map(utils.pemToDER);
         try {
           if (this.config.verifyPeer && this.config.verifyCallback != null) {

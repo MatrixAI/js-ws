@@ -78,7 +78,7 @@ jest.mock('@/WebSocketConnection', () => {
         data = messageUtils.concatUInt8Array(...array);
       }
       const { data: streamId, remainder } = messageUtils.parseStreamId(data);
-      //@ts-ignore
+      // @ts-ignore: protected property
       let stream = instance.peerConnection!.streamMap.get(streamId);
       if (stream == null) {
         if (
@@ -97,19 +97,19 @@ jest.mock('@/WebSocketConnection', () => {
         stream.addEventListener(
           events.EventWebSocketStreamSend.name,
           async (evt: any) => {
-            //@ts-ignore
+            // @ts-ignore: protected property
             await instance.peerConnection!.send(evt.msg);
           },
         );
         stream.addEventListener(
           events.EventWebSocketStreamStopped.name,
           () => {
-            //@ts-ignore
+            // @ts-ignore: protected property
             instance.peerConnection!.streamMap.delete(streamId);
           },
           { once: true },
         );
-        //@ts-ignore
+        // @ts-ignore: protected property
         instance.peerConnection!.streamMap.set(stream.streamId, stream);
         await stream.start();
         instance.peerConnection!.dispatchEvent(

@@ -1,8 +1,8 @@
 import type { Callback, Host, Port, PromiseDeconstructed } from './types';
-import * as errors from './errors';
 import type { DetailedPeerCertificate } from 'tls';
-import { IPv4, IPv6, Validator } from 'ip-num';
 import * as dns from 'dns';
+import { IPv4, IPv6, Validator } from 'ip-num';
+import * as errors from './errors';
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder('utf-8');
@@ -168,7 +168,7 @@ async function resolveHost(
       host = await resolveHostname(host);
       return resolveHost(host, resolveHostname);
     } catch {
-      // todo specific resolve host error.
+      // Todo specific resolve host error.
       throw new errors.ErrorWebSocket();
     }
   }
@@ -186,7 +186,7 @@ function isPort(port: any): port is Port {
  * Throws if port is invalid, otherwise returns port as Port.
  */
 function toPort(port: any): Port {
-  // todo specific resolve host error.`
+  // Todo specific resolve host error.`
   if (!isPort(port)) throw new errors.ErrorWebSocket();
   return port;
 }
@@ -311,7 +311,7 @@ function resolvesZeroIP(host: Host): Host {
   }
 }
 
-// async function mintToken(
+// Async function mintToken(
 //   dcid: QUICConnectionId,
 //   peerHost: Host,
 //   crypto: QUICServerCrypto,
@@ -374,7 +374,7 @@ async function sleep(ms: number): Promise<void> {
 
 function toPeerCertChain(peerCert: DetailedPeerCertificate): Array<Uint8Array> {
   let currentCert = peerCert;
-  let visitedCerts: Set<Uint8Array> = new Set();
+  const visitedCerts: Set<Uint8Array> = new Set();
   while (currentCert != null && !visitedCerts.has(currentCert.raw)) {
     visitedCerts.add(currentCert.raw);
     currentCert = currentCert.issuerCertificate;
@@ -387,7 +387,7 @@ function toPeerCertChain(peerCert: DetailedPeerCertificate): Array<Uint8Array> {
  * This can be used for keys, certs and ca.
  */
 function collectPEMs(
-  pems?: string | Array<string> | Uint8Array | Array<Uint8Array>
+  pems?: string | Array<string> | Uint8Array | Array<Uint8Array>,
 ): Array<string> {
   const pemsChain: Array<string> = [];
   if (typeof pems === 'string') {
@@ -423,9 +423,11 @@ function pemToDER(pem: string): Uint8Array {
  */
 function derToPEM(der: Uint8Array): string {
   const data = Buffer.from(der.buffer, der.byteOffset, der.byteLength);
-  const contents = data.toString('base64')
-    .replace(/(.{64})/g, '$1\n')
-    .trimEnd() + '\n';
+  const contents =
+    data
+      .toString('base64')
+      .replace(/(.{64})/g, '$1\n')
+      .trimEnd() + '\n';
   return `-----BEGIN CERTIFICATE-----\n${contents}-----END CERTIFICATE-----\n`;
 }
 
@@ -434,11 +436,10 @@ function derToPEM(der: Uint8Array): string {
  * Example: `Error: description - message`
  */
 function formatError(error: Error): string {
-  return `${error.name}${'description' in error ? `: ${error.description}` : ''}${
-    error.message !== undefined ? ` - ${error.message}` : ''
-  }`;
+  return `${error.name}${
+    'description' in error ? `: ${error.description}` : ''
+  }${error.message !== undefined ? ` - ${error.message}` : ''}`;
 }
-
 
 /**
  * WebSocketConnection error/close codes
@@ -491,5 +492,5 @@ export {
   pemToDER,
   derToPEM,
   formatError,
-  ConnectionErrorCode
+  ConnectionErrorCode,
 };

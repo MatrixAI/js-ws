@@ -184,13 +184,16 @@ class WebSocketServer {
     webSocket: ws.WebSocket,
     request: IncomingMessage,
   ) => {
-
     const httpSocket = request.connection;
     const connectionId = this.connectionMap.allocateId();
     const peerCert = (httpSocket as TLSSocket).getPeerCertificate(true);
     const peerCertChain = utils.toPeerCertChain(peerCert);
-    const localCACertsChain = utils.collectPEMs(this.config.ca).map(utils.pemToDER);
-    const localCertsChain = utils.collectPEMs(this.config.cert).map(utils.pemToDER);
+    const localCACertsChain = utils
+      .collectPEMs(this.config.ca)
+      .map(utils.pemToDER);
+    const localCertsChain = utils
+      .collectPEMs(this.config.cert)
+      .map(utils.pemToDER);
     const connection = new WebSocketConnection({
       type: 'server',
       connectionId: connectionId,
@@ -301,7 +304,6 @@ class WebSocketServer {
   public get closed() {
     return this._closed;
   }
-
 
   /**
    * Starts the WebSocketServer.

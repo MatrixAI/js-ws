@@ -2,11 +2,11 @@ import type { X509Certificate } from '@peculiar/x509';
 import type WebSocketClient from '@/WebSocketClient';
 import type WebSocketServer from '@/WebSocketServer';
 import type WebSocketStream from '@/WebSocketStream';
+import type { StreamCodeToReason, StreamReasonToCode } from '@/types';
 import * as peculiarWebcrypto from '@peculiar/webcrypto';
 import * as x509 from '@peculiar/x509';
 import * as ws from 'ws';
 import fc from 'fast-check';
-import { StreamCodeToReason, StreamReasonToCode } from '@/types';
 
 /**
  * WebCrypto polyfill from @peculiar/webcrypto
@@ -445,11 +445,13 @@ async function generateCertificate({
     extensions: [
       new x509.SubjectAlternativeNameExtension([
         {
-          type: "ip", value: "127.0.0.1"
+          type: 'ip',
+          value: '127.0.0.1',
         },
         {
-          type: "ip", value: "::1"
-        }
+          type: 'ip',
+          value: '::1',
+        },
       ]),
       new x509.BasicConstraintsExtension(true, undefined, true),
       new x509.KeyUsagesExtension(
@@ -585,7 +587,10 @@ type StreamData = {
  * This will send the data provided with delays provided.
  * Will consume stream with provided delays between reads.
  */
-const handleStreamProm = async (stream: WebSocketStream, streamData: StreamData) => {
+const handleStreamProm = async (
+  stream: WebSocketStream,
+  streamData: StreamData,
+) => {
   const messages = streamData.messages;
   const delays = streamData.delays;
   const writeProm = (async () => {
@@ -692,9 +697,7 @@ async function generateConfig(type: KeyTypes): Promise<TLSConfigs> {
   };
 }
 
-async function generateTLSConfig(
-  type: 'RSA' | 'ECDSA' | 'Ed25519'
-): Promise<{
+async function generateTLSConfig(type: 'RSA' | 'ECDSA' | 'Ed25519'): Promise<{
   leafKeyPair: { publicKey: JsonWebKey; privateKey: JsonWebKey };
   leafKeyPairPEM: { publicKey: string; privateKey: string };
   leafCert: X509Certificate;

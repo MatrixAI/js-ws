@@ -80,7 +80,7 @@ type ConnectionMetadata = {
 
 type TLSVerifyCallback = (
   certs: Array<Uint8Array>,
-  ca: Array<Uint8Array>
+  ca: Array<Uint8Array>,
 ) => PromiseLike<void>;
 
 type WebSocketConfig = {
