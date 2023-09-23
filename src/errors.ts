@@ -1,4 +1,5 @@
-import { AbstractError } from '@matrixai/errors';
+import { AbstractError, POJO } from '@matrixai/errors';
+import { ConnectionError } from './types';
 
 class ErrorWebSocket<T> extends AbstractError<T> {
   static description = 'WebSocket error';
@@ -70,12 +71,42 @@ class ErrorWebSocketConnectionInternal<T> extends ErrorWebSocketConnection<T> {
   static description = 'WebSocket Connection internal error';
 }
 
+/**
+ * Note that TlsFail error codes are documented here:
+ * https://github.com/google/boringssl/blob/master/include/openssl/ssl.h
+ */
 class ErrorWebSocketConnectionLocal<T> extends ErrorWebSocketConnection<T> {
   static description = 'WebSocket Connection local error';
+  declare data: POJO & ConnectionError;
+  constructor(
+    message: string = '',
+    options: {
+      timestamp?: Date;
+      data: POJO & ConnectionError;
+      cause?: T;
+    }
+  ) {
+    super(message, options);
+  }
+}
+
+class ErrorWebSocketConnectionLocalTLS<T> extends ErrorWebSocketConnectionLocal<T> {
+  static description = 'WebSocket Connection local TLS error';
 }
 
 class ErrorWebSocketConnectionPeer<T> extends ErrorWebSocketConnection<T> {
   static description = 'WebSocket Connection peer error';
+  declare data: POJO & ConnectionError;
+  constructor(
+    message: string = '',
+    options: {
+      timestamp?: Date;
+      data: POJO & ConnectionError;
+      cause?: T;
+    }
+  ) {
+    super(message, options);
+  }
 }
 
 // Stream
@@ -145,6 +176,7 @@ export {
   ErrorWebSocketConnectionStartTimeOut,
   ErrorWebSocketConnectionKeepAliveTimeOut,
   ErrorWebSocketConnectionLocal,
+  ErrorWebSocketConnectionLocalTLS,
   ErrorWebSocketConnectionPeer,
   ErrorWebSocketConnectionInternal,
   ErrorWebSocketStream,

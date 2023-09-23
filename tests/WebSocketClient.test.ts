@@ -109,8 +109,8 @@ describe(WebSocketClient.name, () => {
           },
         }),
       ).rejects.toHaveProperty(
-        ['cause', 'name'],
-        errors.ErrorWebSocketConnectionInternal.name,
+        ['name'],
+        errors.ErrorWebSocketConnectionLocal.name,
       );
     });
     test('client times out with ctx timer while starting', async () => {
@@ -393,7 +393,7 @@ describe(WebSocketClient.name, () => {
             verifyPeer: true,
           },
         }),
-      ).toReject();
+      ).rejects.toHaveProperty('name', errors.ErrorWebSocketConnectionLocalTLS.name);
       await server.stop();
     });
     test('graceful failure verifying client', async () => {
@@ -422,7 +422,7 @@ describe(WebSocketClient.name, () => {
             verifyPeer: false,
           },
         }),
-      ).toReject();
+      ).rejects.toHaveProperty('name', errors.ErrorWebSocketConnectionPeer.name);
 
       await server.stop();
     });
@@ -440,6 +440,7 @@ describe(WebSocketClient.name, () => {
       await server.start({
         host: localhost,
       });
+      server.addEventListener(errors.ErrorWebSocketConnectionLocalTLS.name, (e) => console.log(e))
       // Connection should fail
       await expect(
         WebSocketClient.createWebSocketClient({
@@ -452,7 +453,7 @@ describe(WebSocketClient.name, () => {
             verifyPeer: true,
           },
         }),
-      ).toReject();
+      ).rejects.toHaveProperty('name', errors.ErrorWebSocketConnectionLocalTLS.name);
 
       await server.stop();
     });
@@ -617,10 +618,7 @@ describe(WebSocketClient.name, () => {
             verifyPeer: false,
           },
         }),
-      ).rejects.toHaveProperty(
-        ['cause', 'name'],
-        errors.ErrorWebSocketConnectionInternal.name,
-      );
+      ).rejects.toHaveProperty('name', 'ErrorWebSocketConnectionPeer');
 
       // // Server connection is never emitted
       await Promise.race([

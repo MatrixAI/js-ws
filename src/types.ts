@@ -162,6 +162,11 @@ interface Parsed<T> {
   remainder: Uint8Array;
 }
 
+type ConnectionError = {
+  errorCode: number;
+  reason: string;
+};
+
 export type {
   Opaque,
   Callback,
@@ -180,4 +185,5 @@ export type {
   WebSocketClientConfigInput,
   WebSocketServerConfigInput,
   Parsed,
+  ConnectionError
 };

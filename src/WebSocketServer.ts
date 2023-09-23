@@ -355,7 +355,8 @@ class WebSocketServer {
             await this.config.verifyCallback(peerCertChain, ca);
             return done(true);
           } catch (e) {
-            return done(false, 525, 'TLS Handshake Failed');
+            info.req.destroy(e);
+            return;
           }
         }
         done(true);
