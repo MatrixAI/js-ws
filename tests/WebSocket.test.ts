@@ -1,11 +1,9 @@
-import { X509Certificate } from '@peculiar/x509';
 import Logger, { formatting, LogLevel, StreamHandler } from '@matrixai/logger';
 import { status } from '@matrixai/async-init';
 import * as events from '@/events';
 import WebSocketClient from '@/WebSocketClient';
 import WebSocketServer from '@/WebSocketServer';
 import * as utils from '@/utils';
-import * as errors from '@/errors';
 import * as testsUtils from './utils';
 
 // Process.on('unhandledRejection', (reason) => {

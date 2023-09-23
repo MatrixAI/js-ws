@@ -1,6 +1,4 @@
 import type { X509Certificate } from '@peculiar/x509';
-import type WebSocketClient from '@/WebSocketClient';
-import type WebSocketServer from '@/WebSocketServer';
 import type WebSocketStream from '@/WebSocketStream';
 import type { StreamCodeToReason, StreamReasonToCode } from '@/types';
 import * as peculiarWebcrypto from '@peculiar/webcrypto';

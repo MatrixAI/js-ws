@@ -1,5 +1,6 @@
-import { AbstractError, POJO } from '@matrixai/errors';
-import { ConnectionError } from './types';
+import type { POJO } from '@matrixai/errors';
+import type { ConnectionError } from './types';
+import { AbstractError } from '@matrixai/errors';
 
 class ErrorWebSocket<T> extends AbstractError<T> {
   static description = 'WebSocket error';
@@ -84,13 +85,15 @@ class ErrorWebSocketConnectionLocal<T> extends ErrorWebSocketConnection<T> {
       timestamp?: Date;
       data: POJO & ConnectionError;
       cause?: T;
-    }
+    },
   ) {
     super(message, options);
   }
 }
 
-class ErrorWebSocketConnectionLocalTLS<T> extends ErrorWebSocketConnectionLocal<T> {
+class ErrorWebSocketConnectionLocalTLS<
+  T,
+> extends ErrorWebSocketConnectionLocal<T> {
   static description = 'WebSocket Connection local TLS error';
 }
 
@@ -103,7 +106,7 @@ class ErrorWebSocketConnectionPeer<T> extends ErrorWebSocketConnection<T> {
       timestamp?: Date;
       data: POJO & ConnectionError;
       cause?: T;
-    }
+    },
   ) {
     super(message, options);
   }

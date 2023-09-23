@@ -1,10 +1,7 @@
 import type { KeyTypes } from './utils';
 import type WebSocketConnection from '@/WebSocketConnection';
-import { DetailedPeerCertificate } from 'tls';
 import Logger, { formatting, LogLevel, StreamHandler } from '@matrixai/logger';
-import { X509Certificate } from '@peculiar/x509';
-import { fc, testProp } from '@fast-check/jest';
-import { promise, pemToDER, ConnectionErrorCode } from '@/utils';
+import { promise, pemToDER } from '@/utils';
 import * as events from '@/events';
 import * as errors from '@/errors';
 import WebSocketClient from '@/WebSocketClient';
@@ -393,7 +390,10 @@ describe(WebSocketClient.name, () => {
             verifyPeer: true,
           },
         }),
-      ).rejects.toHaveProperty('name', errors.ErrorWebSocketConnectionLocalTLS.name);
+      ).rejects.toHaveProperty(
+        'name',
+        errors.ErrorWebSocketConnectionLocalTLS.name,
+      );
       await server.stop();
     });
     test('graceful failure verifying client', async () => {
@@ -422,7 +422,10 @@ describe(WebSocketClient.name, () => {
             verifyPeer: false,
           },
         }),
-      ).rejects.toHaveProperty('name', errors.ErrorWebSocketConnectionPeer.name);
+      ).rejects.toHaveProperty(
+        'name',
+        errors.ErrorWebSocketConnectionPeer.name,
+      );
 
       await server.stop();
     });
@@ -440,7 +443,6 @@ describe(WebSocketClient.name, () => {
       await server.start({
         host: localhost,
       });
-      server.addEventListener(errors.ErrorWebSocketConnectionLocalTLS.name, (e) => console.log(e))
       // Connection should fail
       await expect(
         WebSocketClient.createWebSocketClient({
@@ -453,7 +455,10 @@ describe(WebSocketClient.name, () => {
             verifyPeer: true,
           },
         }),
-      ).rejects.toHaveProperty('name', errors.ErrorWebSocketConnectionLocalTLS.name);
+      ).rejects.toHaveProperty(
+        'name',
+        errors.ErrorWebSocketConnectionLocalTLS.name,
+      );
 
       await server.stop();
     });

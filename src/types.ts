@@ -1,5 +1,3 @@
-import type { DetailedPeerCertificate } from 'tls';
-
 // Async
 
 /**
@@ -185,5 +183,5 @@ export type {
   WebSocketClientConfigInput,
   WebSocketServerConfigInput,
   Parsed,
-  ConnectionError
+  ConnectionError,
 };

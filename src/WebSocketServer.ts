@@ -3,25 +3,18 @@ import type tls from 'tls';
 import type {
   Host,
   Port,
-  PromiseDeconstructed,
   StreamCodeToReason,
   StreamReasonToCode,
   WebSocketConfig,
   WebSocketServerConfigInput,
 } from './types';
 import type { EventAll } from '@matrixai/events';
-import type { DetailedPeerCertificate, TLSSocket } from 'tls';
+import type { TLSSocket } from 'tls';
 import https from 'https';
 import { AbstractEvent } from '@matrixai/events';
-import {
-  StartStop,
-  status,
-  running,
-  ready,
-} from '@matrixai/async-init/dist/StartStop';
+import { StartStop, running, ready } from '@matrixai/async-init/dist/StartStop';
 import Logger from '@matrixai/logger';
 import * as ws from 'ws';
-import { EventDefault } from '@matrixai/events';
 import * as errors from './errors';
 import * as events from './events';
 import * as utils from './utils';

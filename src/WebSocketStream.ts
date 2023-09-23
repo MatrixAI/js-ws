@@ -20,7 +20,6 @@ import {
   ready,
   running,
   status,
-  initLock,
 } from '@matrixai/async-init/dist/StartStop';
 import Logger from '@matrixai/logger';
 import { generateStreamId } from './message';

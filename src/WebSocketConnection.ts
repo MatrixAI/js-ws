@@ -4,12 +4,11 @@ import type {
   ConnectionMetadata,
   Host,
   Port,
-  RemoteInfo,
   StreamCodeToReason,
   StreamReasonToCode,
   WebSocketConfig,
 } from './types';
-import type { DetailedPeerCertificate, TLSSocket } from 'tls';
+import type { TLSSocket } from 'tls';
 import type { StreamId } from './message';
 import { startStop } from '@matrixai/async-init';
 import { Lock } from '@matrixai/async-locks';
@@ -17,7 +16,7 @@ import { context, timedCancellable } from '@matrixai/contexts/dist/decorators';
 import Logger from '@matrixai/logger';
 import * as ws from 'ws';
 import { Timer } from '@matrixai/timer';
-import { AbstractEvent, EventAll, EventDefault } from '@matrixai/events';
+import { AbstractEvent, EventAll } from '@matrixai/events';
 import { concatUInt8Array } from './message';
 import WebSocketStream from './WebSocketStream';
 import * as errors from './errors';
@@ -223,16 +222,13 @@ class WebSocketConnection {
       const reason = "WebSocket received data received that wasn't binary";
       this.dispatchEvent(
         new events.EventWebSocketConnectionError({
-          detail: new errors.ErrorWebSocketConnectionLocal(
-            reason,
-            {
-              cause: new errors.ErrorWebSocketUndefinedBehaviour(),
-              data: {
-                errorCode: utils.ConnectionErrorCode.InternalServerError,
-                reason
-              }
+          detail: new errors.ErrorWebSocketConnectionLocal(reason, {
+            cause: new errors.ErrorWebSocketUndefinedBehaviour(),
+            data: {
+              errorCode: utils.ConnectionErrorCode.InternalServerError,
+              reason,
             },
-          ),
+          }),
         }),
       );
       return;
@@ -248,19 +244,16 @@ class WebSocketConnection {
       remainder = postStreamIdRemainder;
     } catch (e) {
       // TODO: domain specific error
-      const reason = "Parsing streamId failed"
+      const reason = 'Parsing streamId failed';
       this.dispatchEvent(
         new events.EventWebSocketConnectionError({
-          detail: new errors.ErrorWebSocketConnectionLocal(
-            reason,
-            {
-              cause: e,
-              data: {
-                errorCode: utils.ConnectionErrorCode.InternalServerError,
-                reason
-              }
+          detail: new errors.ErrorWebSocketConnectionLocal(reason, {
+            cause: e,
+            data: {
+              errorCode: utils.ConnectionErrorCode.InternalServerError,
+              reason,
             },
-          ),
+          }),
         }),
       );
       return;
@@ -518,53 +511,45 @@ class WebSocketConnection {
       let reason: string;
       let errorCode: number;
       switch (e.code) {
-        case "UNABLE_TO_VERIFY_LEAF_SIGNATURE":
+        case 'UNABLE_TO_VERIFY_LEAF_SIGNATURE':
           errorCode = utils.ConnectionErrorCode.TLSHandshake;
-          reason = 'WebSocket could not open due to failure to verify a peer\'s TLS certificate';
-          e_ = new errors.ErrorWebSocketConnectionLocalTLS(
-            reason,
-            {
+          reason =
+            "WebSocket could not open due to failure to verify a peer's TLS certificate";
+          e_ = new errors.ErrorWebSocketConnectionLocalTLS(reason, {
+            cause: e,
+            data: {
+              errorCode,
+              reason,
+            },
+          });
+          break;
+        case 'ECONNRESET':
+          reason = 'WebSocket could not open due to socket closure by peer';
+          (errorCode = utils.ConnectionErrorCode.AbnormalClosure),
+            (e_ = new errors.ErrorWebSocketConnectionPeer(reason, {
               cause: e,
               data: {
                 errorCode,
                 reason,
-              }
-            }
-          );
-          break;
-        case "ECONNRESET":
-          reason = 'WebSocket could not open due to socket closure by peer';
-          errorCode = utils.ConnectionErrorCode.AbnormalClosure,
-          e_ = new errors.ErrorWebSocketConnectionPeer(
-            reason,
-            {
-              cause: e,
-              data: {
-                errorCode,
-                reason
-              }
-            }
-          );
+              },
+            }));
           break;
         default:
           reason = 'WebSocket could not open due to internal error';
-          errorCode = utils.ConnectionErrorCode.InternalServerError,
-          e_ = new errors.ErrorWebSocketConnectionLocal(
-            reason,
-            {
+          (errorCode = utils.ConnectionErrorCode.InternalServerError),
+            (e_ = new errors.ErrorWebSocketConnectionLocal(reason, {
               cause: e,
               data: {
                 errorCode,
-                reason
-              }
-            }
-          );
+                reason,
+              },
+            }));
           break;
       }
       this.closeSocket(errorCode, reason);
       this.dispatchEvent(
         new events.EventWebSocketConnectionError({
-          detail: e_
+          detail: e_,
         }),
       );
     };
@@ -600,7 +585,7 @@ class WebSocketConnection {
           const errorCode = utils.ConnectionErrorCode.TLSHandshake;
           const reason =
             'Failed connection due to custom verification callback';
-          // request.destroy() will make the socket dispatch a 'close' event,
+          // Request.destroy() will make the socket dispatch a 'close' event,
           // so I'm setting socketLocallyClosed to true, as that is what is happening.
           this.socketLocallyClosed = true;
           request.destroy(e);
