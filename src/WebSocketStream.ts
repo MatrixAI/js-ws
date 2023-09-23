@@ -120,6 +120,9 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   protected resolveWritableP?: () => void;
   protected rejectWritableP?: (reason?: any) => void;
 
+  /**
+   * Resolved when the stream has been completely closed (both readable and writable sides).
+   */
   public readonly closedP: Promise<void>;
   protected resolveClosedP: () => void;
 
@@ -263,6 +266,9 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     return this._readClosed;
   }
 
+  /**
+   * Whether the stream has been completely closed (both readable and writable sides).
+   */
   public get closed() {
     return this._readClosed && this._writeClosed;
   }
@@ -277,8 +283,6 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
    * If force is false then it will just wait for readable and writable to be closed.
    *
    * Unlike WebSocketConnection, this defaults to true for force.
-   *
-   * @throws {errors.ErrorWebSocketStreamInternal}
    */
   public async stop({
     force = true,
@@ -328,8 +332,6 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
    *
    * Calling this will lead an asynchronous destruction of this `WebSocketStream` instance.
    * This could throw actually. But cancellation is likely to have occurred.
-   *
-   * @throws {errors.ErrorWebSocketStreamInternal}
    */
   public cancel(reason?: any) {
     this.readableCancel(reason);

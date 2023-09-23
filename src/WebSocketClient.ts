@@ -1,7 +1,4 @@
-import type {
-  Port,
-  WebSocketClientConfigInput,
-} from './types';
+import type { Port, WebSocketClientConfigInput } from './types';
 import type { ContextTimed, ContextTimedInput } from '@matrixai/contexts';
 import { AbstractEvent } from '@matrixai/events';
 import { createDestroy } from '@matrixai/async-init';
@@ -44,7 +41,7 @@ class WebSocketClient extends EventTarget {
    * @param obj.logger - optional logger
    *
    * @throws {errors.ErrorWebSocketClientInvalidHost}
-   * @throws {errors.ErrorWebSocketConnection}
+   * @throws {errors.ErrorWebSocketConnection} - re-dispatched from {@link WebSocketConnection}
    */
   public static async createWebSocketClient(
     {
@@ -180,11 +177,20 @@ class WebSocketClient extends EventTarget {
     return client;
   }
 
+  /**
+   * The connection of the client.
+   */
   public readonly connection: WebSocketConnection;
+  /**
+   * Resolved when the underlying server is closed.
+   */
   public readonly closedP: Promise<void>;
 
   protected logger: Logger;
 
+  /**
+   * Map of connections with connectionId keys that correspond to WebSocketConnection values.
+   */
   public readonly connectionMap: WebSocketConnectionMap =
     new WebSocketConnectionMap();
   protected address: string;
@@ -242,6 +248,9 @@ class WebSocketClient extends EventTarget {
     this.dispatchEvent(new events.EventWebSocketClientError({ detail: error }));
   };
 
+  /**
+   * Boolean that indicates whether the internal server is closed or not.
+   */
   public get closed() {
     return this._closed;
   }
@@ -273,10 +282,11 @@ class WebSocketClient extends EventTarget {
   }
 
   /**
+   * Destroys WebSocketClient
    * @param opts
-   * @param opts.errorCode - The error code to send to the server
-   * @param opts.errorMessage - The error message to send to the server
-   * @param opts.force - Whether to force the connection to close, this is default true to force connections and streams to close.
+   * @param opts.errorCode - The error code to send to connections on closing
+   * @param opts.errorMessage - The error message to send to connections on closing
+   * @param opts.force - When force is false, the returned promise will wait for all streams and connections to close naturally before resolving.
    */
   public async destroy({
     errorCode = utils.ConnectionErrorCode.Normal,

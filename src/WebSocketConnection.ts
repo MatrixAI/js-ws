@@ -349,23 +349,29 @@ class WebSocketConnection {
   };
 
   /**
-   * Gets an array of certificates in DER format starting on the leaf.
+   * Gets an array of local certificates in DER format starting on the leaf.
    */
   public getLocalCertsChain(): Array<Uint8Array> {
     return this.certDERs;
   }
 
+  /**
+   * Gets an array of CA certificates in DER format starting on the leaf.
+   */
   public getLocalCACertsChain(): Array<Uint8Array> {
     return this.caDERs;
   }
 
   /**
-   * Gets an array of certificates in DER format starting on the leaf.
+   * Gets an array of peer certificates in DER format starting on the leaf.
    */
   public getRemoteCertsChain(): Array<Uint8Array> {
     return this.remoteCertDERs;
   }
 
+  /**
+   * Gets the connection metadata.
+   */
   @startStop.ready(new errors.ErrorWebSocketConnectionNotRunning())
   public meta(): ConnectionMetadata {
     return {
@@ -450,26 +456,46 @@ class WebSocketConnection {
     };
   }
 
+  /**
+   * The host of the peer.
+   */
   public get remoteHost(): Host {
     return this._remoteHost;
   }
 
+  /**
+   * The port of the peer.
+   */
   public get remotePort(): Port {
     return this._remotePort;
   }
 
+  /**
+   * The local host of the socket.
+   */
   public get localHost(): Host | undefined {
     return this._localHost;
   }
 
+  /**
+   * The local port of the socket.
+   */
   public get localPort(): Port | undefined {
     return this._localPort;
   }
 
+  /**
+   * Whether the underlying WebSocket has been closed.
+   */
   public get closed() {
     return this.socket.readyState === ws.CLOSED;
   }
 
+  /**
+   * Start the connection.
+   * @param ctx
+   * @internal
+   */
   public start(ctx?: Partial<ContextTimedInput>): PromiseCancellable<void>;
   @timedCancellable(
     true,
@@ -656,6 +682,9 @@ class WebSocketConnection {
     this.logger.info(`Started ${this.constructor.name}`);
   }
 
+  /**
+   * Creates a new bidirectional WebSocketStream.
+   */
   @startStop.ready(new errors.ErrorWebSocketConnectionNotRunning())
   public async newStream(): Promise<WebSocketStream> {
     return await this.streamIdLock.withF(async () => {
@@ -698,7 +727,6 @@ class WebSocketConnection {
 
   /**
    * Send data on the WebSocket
-   * @internal
    */
   private async send(data: Uint8Array | Array<Uint8Array>) {
     if (this.socket.readyState !== ws.OPEN) {
@@ -742,6 +770,13 @@ class WebSocketConnection {
     }
   }
 
+  /**
+   * Stops WebSocketConnection
+   * @param opts
+   * @param opts.errorCode - The error code to send to the peer on closing
+   * @param opts.errorMessage - The error message to send to the peer on closing
+   * @param opts.force - When force is false, the returned promise will wait for all streams to close naturally before resolving.
+   */
   public async stop({
     errorCode = utils.ConnectionErrorCode.Normal,
     reason = '',

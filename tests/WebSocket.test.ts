@@ -40,8 +40,8 @@ describe(WebSocketClient.name, () => {
     });
 
     await WebSocketClient.createWebSocketClient({
-      host: server.getHost(),
-      port: server.getPort(),
+      host: server.host,
+      port: server.port,
       logger,
       config: {
         verifyPeer: false,
@@ -67,8 +67,8 @@ describe(WebSocketClient.name, () => {
     });
 
     await WebSocketClient.createWebSocketClient({
-      host: server.getHost(),
-      port: server.getPort(),
+      host: server.host,
+      port: server.port,
       logger,
       config: {
         verifyPeer: false,
@@ -87,8 +87,8 @@ describe(WebSocketClient.name, () => {
     await server.start({ host: ipv4Host });
 
     const client = await WebSocketClient.createWebSocketClient({
-      host: server.getHost(),
-      port: server.getPort(),
+      host: server.host,
+      port: server.port,
       logger,
       config: {
         verifyPeer: false,
@@ -120,8 +120,8 @@ describe(WebSocketClient.name, () => {
     const clients: Array<WebSocketClient> = [];
     for (let i = 0; i < conns; i++) {
       const client = await WebSocketClient.createWebSocketClient({
-        host: server.getHost(),
-        port: server.getPort(),
+        host: server.host,
+        port: server.port,
         logger,
         config: {
           verifyPeer: false,
@@ -183,8 +183,8 @@ describe(WebSocketClient.name, () => {
     });
 
     const client = await WebSocketClient.createWebSocketClient({
-      host: server.getHost(),
-      port: server.getPort(),
+      host: server.host,
+      port: server.port,
       logger,
       config: {
         verifyPeer: false,

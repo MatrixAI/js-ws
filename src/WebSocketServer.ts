@@ -34,7 +34,6 @@ interface WebSocketServer extends StartStop {}
  * - {@link events.EventWebSocketServerStopped},
  * - {@link events.EventWebSocketServerConnection}
  * - {@link events.EventWebSocketServerError}
- * - {@link events.EventWebSocketConnection} - all dispatched events from {@link WebSocketConnection}
  */
 @StartStop({
   eventStart: events.EventWebSocketServerStart,
@@ -67,6 +66,9 @@ class WebSocketServer {
    */
   public connectTimeoutTime?: number;
 
+  /**
+   * Map of connections with connectionId keys that correspond to WebSocketConnection values.
+   */
   public readonly connectionMap: WebSocketConnectionMap =
     new WebSocketConnectionMap();
   protected server: https.Server;
@@ -74,6 +76,9 @@ class WebSocketServer {
   protected webSocketServerClosed = false;
 
   protected _closed: boolean = false;
+  /**
+   * Resolved when the underlying server is closed.
+   */
   public readonly closedP: Promise<void>;
   protected resolveClosedP: () => void;
 
@@ -291,8 +296,7 @@ class WebSocketServer {
   }
 
   /**
-   * This just means the server is no longer accepting connections.
-   * Like deregistered from a server.
+   * Boolean that indicates whether the internal server is closed or not.
    */
   public get closed() {
     return this._closed;
@@ -394,6 +398,13 @@ class WebSocketServer {
     this.logger.info(`Started ${this.constructor.name}`);
   }
 
+  /**
+   * Stops WebSocketServer
+   * @param opts
+   * @param opts.errorCode - The error code to send to connections on closing
+   * @param opts.errorMessage - The error message to send to connections on closing
+   * @param opts.force - When force is false, the returned promise will wait for all streams and connections to close naturally before resolving.
+   */
   public async stop({
     errorCode = utils.ConnectionErrorCode.Normal,
     errorMessage = '',
@@ -443,16 +454,10 @@ class WebSocketServer {
     this.logger.info(`Stopped ${this.constructor.name}`);
   }
 
-  @ready(new errors.ErrorWebSocketServerNotRunning())
-  public getPort(): number {
-    return this._port;
-  }
-
-  @ready(new errors.ErrorWebSocketServerNotRunning())
-  public getHost(): string {
-    return this._host;
-  }
-
+  /**
+   * Updates the server config.
+   * Existing connections will not be affected.
+   */
   @ready(new errors.ErrorWebSocketServerNotRunning())
   public updateConfig(config: WebSocketServerConfigInput): void {
     const tlsServer = this.server as tls.Server;

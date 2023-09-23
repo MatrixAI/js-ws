@@ -155,11 +155,6 @@ type WebSocketServerConfigInput = Partial<WebSocketConfig> & {
   cert: string | Array<string> | Uint8Array | Array<Uint8Array>;
 };
 
-interface Parsed<T> {
-  data: T;
-  remainder: Uint8Array;
-}
-
 type ConnectionError = {
   errorCode: number;
   reason: string;
@@ -182,6 +177,5 @@ export type {
   WebSocketConfig,
   WebSocketClientConfigInput,
   WebSocketServerConfigInput,
-  Parsed,
   ConnectionError,
 };
