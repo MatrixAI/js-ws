@@ -169,7 +169,7 @@ async function resolveHost(
       return resolveHost(host, resolveHostname);
     } catch {
       // Todo specific resolve host error.
-      throw new errors.ErrorWebSocket();
+      throw new errors.ErrorWebSocketHostInvalid();
     }
   }
 }
@@ -187,7 +187,7 @@ function isPort(port: any): port is Port {
  */
 function toPort(port: any): Port {
   // Todo specific resolve host error.`
-  if (!isPort(port)) throw new errors.ErrorWebSocket();
+  if (!isPort(port)) throw new errors.ErrorWebSocketPortInvalid();
   return port;
 }
 

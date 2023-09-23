@@ -6,6 +6,14 @@ class ErrorWebSocket<T> extends AbstractError<T> {
   static description = 'WebSocket error';
 }
 
+class ErrorWebSocketHostInvalid<T> extends AbstractError<T> {
+  static description = 'Host provided was not valid';
+}
+
+class ErrorWebSocketPortInvalid<T> extends AbstractError<T> {
+  static description = 'Port provided was not valid';
+}
+
 // Server
 
 class ErrorWebSocketServer<T> extends ErrorWebSocket<T> {
@@ -32,11 +40,6 @@ class ErrorWebSocketClientCreateTimeOut<T> extends ErrorWebSocketClient<T> {
 
 class ErrorWebSocketClientDestroyed<T> extends ErrorWebSocketClient<T> {
   static description = 'WebSocket Client is destroyed';
-}
-
-class ErrorWebSocketClientInvalidHost<T> extends ErrorWebSocketClient<T> {
-  static description =
-    'WebSocket Client cannot be created with the specified host';
 }
 
 // Connection
@@ -166,13 +169,14 @@ class ErrorWebSocketUndefinedBehaviour<T> extends ErrorWebSocket<T> {
 
 export {
   ErrorWebSocket,
+  ErrorWebSocketHostInvalid,
+  ErrorWebSocketPortInvalid,
   ErrorWebSocketServer,
   ErrorWebSocketServerNotRunning,
   ErrorWebSocketServerInternal,
   ErrorWebSocketClient,
   ErrorWebSocketClientCreateTimeOut,
   ErrorWebSocketClientDestroyed,
-  ErrorWebSocketClientInvalidHost,
   ErrorWebSocketConnection,
   ErrorWebSocketConnectionNotRunning,
   ErrorWebSocketConnectionClosed,

@@ -50,10 +50,10 @@ type Address = Opaque<'Address', string>;
 
 // Misc
 
-type RemoteInfo = {
-  host: Host;
-  port: Port;
-};
+/**
+ * Custom hostname resolution. It is expected this returns an IP address.
+ */
+type ResolveHostname = (hostname: string) => string | PromiseLike<string>;
 
 /**
  * Maps reason (most likely an exception) to a stream code.
@@ -169,7 +169,7 @@ export type {
   Hostname,
   Port,
   Address,
-  RemoteInfo,
+  ResolveHostname,
   StreamReasonToCode,
   StreamCodeToReason,
   ConnectionMetadata,

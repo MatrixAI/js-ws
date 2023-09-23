@@ -3,6 +3,7 @@ import type tls from 'tls';
 import type {
   Host,
   Port,
+  ResolveHostname,
   StreamCodeToReason,
   StreamReasonToCode,
   WebSocketConfig,
@@ -61,6 +62,7 @@ class WebSocketServer {
    * Configuration for new connections.
    */
   protected config: WebSocketConfig;
+  protected resolveHostname: ResolveHostname;
   /**
    * Connection timeout for new connections.
    */
@@ -250,6 +252,7 @@ class WebSocketServer {
    */
   constructor({
     config,
+    resolveHostname = utils.resolveHostname,
     server,
     reasonToCode,
     codeToReason,
@@ -257,6 +260,7 @@ class WebSocketServer {
     logger,
   }: {
     config: WebSocketServerConfigInput;
+    resolveHostname?: ResolveHostname;
     server?: https.Server;
     reasonToCode?: StreamReasonToCode;
     codeToReason?: StreamCodeToReason;
@@ -268,6 +272,7 @@ class WebSocketServer {
       ...serverDefault,
       ...config,
     };
+    this.resolveHostname = resolveHostname;
 
     this.connectTimeoutTime = connectTimeoutTime;
 
@@ -326,6 +331,11 @@ class WebSocketServer {
     ipv6Only?: boolean;
   } = {}): Promise<void> {
     this.logger.info(`Starting ${this.constructor.name}`);
+    let [host_] = await utils.resolveHost(
+      host,
+      this.resolveHostname
+    );
+    const port_ = utils.toPort(port);
     if (!this.isServerShared) {
       this.server = https.createServer({
         rejectUnauthorized:
@@ -336,7 +346,6 @@ class WebSocketServer {
         ca: this.config.ca as any,
       });
     }
-
     this.webSocketServer = new ws.WebSocketServer({
       server: this.server,
       path,
@@ -371,8 +380,8 @@ class WebSocketServer {
       const listenProm = utils.promise<void>();
       this.server.listen(
         {
-          host,
-          port,
+          host: host_,
+          port: port_,
           ipv6Only,
         },
         listenProm.resolveP,
@@ -390,11 +399,10 @@ class WebSocketServer {
       { once: true },
     );
 
-    const address = this.server.address();
-    if (address == null || typeof address === 'string') utils.never();
-    this._port = address.port;
-    this.logger.debug(`Listening on port ${this._port}`);
-    this._host = address.address ?? '127.0.0.1';
+    const serverAddress = this.server.address();
+    if (serverAddress == null || typeof serverAddress === 'string') utils.never();
+    this._port = serverAddress.port;
+    this._host = serverAddress.address ?? '127.0.0.1';
     this.logger.info(`Started ${this.constructor.name}`);
   }
 

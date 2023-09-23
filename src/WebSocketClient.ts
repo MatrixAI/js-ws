@@ -1,10 +1,9 @@
-import type { Port, WebSocketClientConfigInput } from './types';
+import type { ResolveHostname, WebSocketClientConfigInput } from './types';
 import type { ContextTimed, ContextTimedInput } from '@matrixai/contexts';
 import { AbstractEvent } from '@matrixai/events';
 import { createDestroy } from '@matrixai/async-init';
 import Logger from '@matrixai/logger';
 import WebSocket from 'ws';
-import { Validator } from 'ip-num';
 import { EventAll } from '@matrixai/events';
 import { context, timedCancellable } from '@matrixai/contexts/dist/decorators';
 import * as errors from './errors';
@@ -40,7 +39,8 @@ class WebSocketClient extends EventTarget {
    * @param obj.config - optional config
    * @param obj.logger - optional logger
    *
-   * @throws {errors.ErrorWebSocketClientInvalidHost}
+   * @throws {errors.ErrorWebSocketHostInvalid}
+   * @throws {errors.ErrorWebSocketPortInvalid}
    * @throws {errors.ErrorWebSocketConnection} - re-dispatched from {@link WebSocketConnection}
    */
   public static async createWebSocketClient(
@@ -67,11 +67,13 @@ class WebSocketClient extends EventTarget {
       host,
       port,
       config,
+      resolveHostname = utils.resolveHostname,
       logger = new Logger(`${this.name}`),
     }: {
       host: string;
       port: number;
       config?: WebSocketClientConfigInput;
+      resolveHostname?: ResolveHostname;
       logger?: Logger;
     },
     @context ctx: ContextTimed,
@@ -82,22 +84,18 @@ class WebSocketClient extends EventTarget {
       ...config,
     };
 
-    let host_: string;
-    if (Validator.isValidIPv4String(host)[0]) {
-      host_ = host;
-    } else if (Validator.isValidIPv6String(host)[0]) {
-      host_ = `[${host}]`;
-    } else {
-      throw new errors.ErrorWebSocketClientInvalidHost();
-    }
-    let port_: Port;
-    if (port >= 0 && port <= 65535) {
-      port_ = port as Port;
-    } else {
-      throw new errors.ErrorWebSocketClientInvalidHost();
-    }
+    let [host_] = await utils.resolveHost(
+      host,
+      resolveHostname
+    );
+    const port_ = utils.toPort(port);
+    // If the target host is in fact a zero IP, it cannot be used
+    // as a target host, so we need to resolve it to a non-zero IP
+    // in this case, 0.0.0.0 is resolved to 127.0.0.1 and :: and ::0 is
+    // resolved to ::1
+    host_ = utils.resolvesZeroIP(host_);
 
-    const address = `wss://${host_}:${port_}`;
+    const address = `wss://${utils.buildAddress(host_, port_)}`;
 
     // RejectUnauthorized must be false when TLSVerifyCallback exists,
     // This is so that verification can be deferred to the callback rather than the system installed Certs
