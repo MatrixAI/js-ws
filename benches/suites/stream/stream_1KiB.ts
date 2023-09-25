@@ -55,7 +55,7 @@ async function main() {
   });
   const client = await WebSocketClient.createWebSocketClient({
     host,
-    port: wsServer.getPort(),
+    port: wsServer.port,
     logger,
     config: {
       verifyPeer: false,

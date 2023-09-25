@@ -39,7 +39,7 @@ async function main() {
   });
   const client = await WebSocketClient.createWebSocketClient({
     host,
-    port: wsServer.getPort(),
+    port: wsServer.port,
     logger,
     config: {
       verifyPeer: false,
@@ -50,6 +50,7 @@ async function main() {
   const summary = await b.suite(
     summaryName(__filename),
     b.add('send 1KiB of data over connection', async () => {
+      // @ts-ignore: protected property
       await client.connection.send(data1KiB);
     }),
     ...suiteCommon,
