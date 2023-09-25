@@ -165,9 +165,10 @@ build:windows:
     - windows
   before_script:
     - mkdir -Force "$CI_PROJECT_DIR/tmp"
+    # so that refreshenv will resolve to the correct Powershell alias
+    - Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
   script:
     - .\scripts\choco-install.ps1
-    - Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
     - refreshenv
     - npm install --ignore-scripts
     - $env:Path = "$(npm root)\.bin;" + $env:Path
