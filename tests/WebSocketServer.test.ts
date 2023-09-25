@@ -2,6 +2,11 @@ import type { X509Certificate } from '@peculiar/x509';
 import Logger, { LogLevel, StreamHandler, formatting } from '@matrixai/logger';
 import WebSocketServer from '@/WebSocketServer';
 import * as testsUtils from './utils';
+import * as utils from '@/utils';
+import * as events from '@/events';
+import { Host } from '@/types';
+import { startStop } from '@matrixai/async-init';
+import WebSocketClient from '@/WebSocketClient';
 
 describe(WebSocketServer.name, () => {
   const logger = new Logger(`${WebSocketServer.name} Test`, LogLevel.WARN, [
@@ -195,38 +200,115 @@ describe(WebSocketServer.name, () => {
       expect(typeof webSocketServer.port).toBe('number');
       await webSocketServer.stop();
     });
-    // Test('listen on hostname', async () => {
-    //   const webSocketServer = new WebSocketServer({
-    //     config: {
-    //       key: keyPairEd25519PEM.privateKey,
-    //       cert: certEd25519PEM,
-    //     },
-    //     logger: logger.getChild('WebSocketServer'),
-    //   });
-    //   await webSocketServer.start({
-    //     host: 'localhost',
-    //   });
-    //   // Default to using dns lookup, which uses the OS DNS resolver
-    //   const host = await utils.resolveHostname('localhost');
-    //   expect(webSocketServer.host).toBe(host);
-    //   expect(typeof webSocketServer.port).toBe('number');
-    //   await webSocketServer.stop();
-    // });
-    // test('listen on hostname and custom resolver', async () => {
-    //   const webSocketServer = new WebSocketServer({
-    //     config: {
-    //       key: keyPairEd25519PEM.privateKey,
-    //       cert: certEd25519PEM,
-    //     },
-    //     resolveHostname: () => '127.0.0.1' as Host,
-    //     logger: logger.getChild('WebSocketServer'),
-    //   });
-    //   await webSocketServer.start({
-    //     host: 'abcdef',
-    //   });
-    //   expect(webSocketServer.host).toBe('127.0.0.1');
-    //   expect(typeof webSocketServer.port).toBe('number');
-    //   await webSocketServer.stop();
-    // });
+    test('listen on hostname', async () => {
+      const webSocketServer = new WebSocketServer({
+        config: {
+          key: keyPairEd25519PEM.privateKey,
+          cert: certEd25519PEM,
+        },
+        logger: logger.getChild('WebSocketServer'),
+      });
+      await webSocketServer.start({
+        host: 'localhost',
+      });
+      // Default to using dns lookup, which uses the OS DNS resolver
+      const host = await utils.resolveHostname('localhost');
+      expect(webSocketServer.host).toBe(host);
+      expect(typeof webSocketServer.port).toBe('number');
+      await webSocketServer.stop();
+    });
+    test('listen on hostname and custom resolver', async () => {
+      const webSocketServer = new WebSocketServer({
+        config: {
+          key: keyPairEd25519PEM.privateKey,
+          cert: certEd25519PEM,
+        },
+        resolveHostname: () => '127.0.0.1' as Host,
+        logger: logger.getChild('WebSocketServer'),
+      });
+      await webSocketServer.start({
+        host: 'abcdef',
+      });
+      expect(webSocketServer.host).toBe('127.0.0.1');
+      expect(typeof webSocketServer.port).toBe('number');
+      await webSocketServer.stop();
+    });
+  });
+  describe('stops on internal server failure', () => {
+    test('handles https server failure', async () => {
+      const server = new WebSocketServer({
+        config: {
+          key: keyPairEd25519PEM.privateKey,
+          cert: certEd25519PEM,
+        },
+        logger: logger.getChild('WebSocketServer'),
+      });
+      await server.start({ host: '::' });
+
+      const closeP = utils.promise<void>();
+      // @ts-ignore: protected property
+      server.server.close(() => {
+        closeP.resolveP();
+      });
+      await closeP.p;
+
+      // The webSocketServer should stop itself
+      expect(server[startStop.status]).toBe(null);
+    });
+    test('handles WebSocket server failure', async () => {
+      const server = new WebSocketServer({
+        config: {
+          key: keyPairEd25519PEM.privateKey,
+          cert: certEd25519PEM,
+        },
+        logger: logger.getChild('WebSocketServer'),
+      });
+      await server.start({ host: '::' });
+
+      const closeP = utils.promise<void>();
+      // @ts-ignore: protected property
+      server.webSocketServer.close(() => {
+        closeP.resolveP();
+      });
+      await closeP.p;
+
+      // The WebSocketServer should stop itself
+      expect(server[startStop.status]).toBe(null);
+    });
+  });
+  test('handles multiple connections', async () => {
+    const conns = 10;
+    let serverConns = 0;
+
+    const server = new WebSocketServer({
+      config: {
+        key: keyPairEd25519PEM.privateKey,
+        cert: certEd25519PEM,
+      },
+      logger: logger.getChild('WebSocketServer'),
+    });
+    await server.start({ host: '::' });
+
+    server.addEventListener(events.EventWebSocketServerConnection.name, () => {
+      serverConns++;
+    });
+
+    const clients: Array<WebSocketClient> = [];
+    for (let i = 0; i < conns; i++) {
+      const client = await WebSocketClient.createWebSocketClient({
+        host: server.host,
+        port: server.port,
+        logger: logger.getChild('WebSocketClient'),
+        config: {
+          verifyPeer: false,
+        },
+      });
+
+      await client.connection.newStream();
+
+      clients.push(client);
+    }
+    expect(serverConns).toBe(conns);
+    await server.stop({ force: true });
   });
 });
