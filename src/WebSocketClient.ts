@@ -196,7 +196,22 @@ class WebSocketClient extends EventTarget {
     evt: events.EventWebSocketClientError,
   ) => {
     const error = evt.detail;
-    this.logger.error(utils.formatError(error));
+    if (
+      (error instanceof errors.ErrorWebSocketConnectionLocal ||
+        error instanceof errors.ErrorWebSocketConnectionPeer) &&
+      error.data?.errorCode === utils.ConnectionErrorCode.Normal
+    ) {
+      this.logger.info(utils.formatError(error));
+    } else {
+      this.logger.error(utils.formatError(error));
+    }
+    // If the error is an internal error, throw it to become `EventError`
+    // By default this will become an uncaught exception
+    // Cannot attempt to close the connection, because an internal error is unrecoverable
+    if (error instanceof errors.ErrorWebSocketConnectionInternal) {
+      // Use `EventError` to deal with this
+      throw error;
+    }
   };
 
   protected handleEventWebSocketClientClose = async () => {
