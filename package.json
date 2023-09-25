@@ -1,6 +1,6 @@
 {
   "name": "@matrixai/ws",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Matrix AI",
   "contributors": [
     {
@@ -8,9 +8,12 @@
     },
     {
       "name": "Brian Botha"
+    },
+    {
+      "name": "Amy Yan"
     }
   ],
-  "description": "WebSockets",
+  "description": "WebSocket Streaming Wrapper",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
