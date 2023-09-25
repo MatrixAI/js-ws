@@ -7,6 +7,7 @@ import * as utils from '@/utils';
 import * as events from '@/events';
 import WebSocketClient from '@/WebSocketClient';
 import * as testsUtils from './utils';
+import * as nodeUtil from 'util';
 
 describe(WebSocketServer.name, () => {
   const logger = new Logger(`${WebSocketServer.name} Test`, LogLevel.WARN, [
@@ -310,5 +311,56 @@ describe(WebSocketServer.name, () => {
     }
     expect(serverConns).toBe(conns);
     await server.stop({ force: true });
+  });
+  test('handles WebSocket server restart', async () => {
+    const server = new WebSocketServer({
+      config: {
+        key: keyPairEd25519PEM.privateKey,
+        cert: certEd25519PEM,
+      },
+      logger: logger.getChild(WebSocketServer.name),
+    });
+
+    const expectPending = (prom: Promise<any>) => {
+      expect(nodeUtil.inspect(prom).includes("pending")).toBe(true);
+    }
+
+    // closedP should be pending after constructor
+
+    expectPending(server.closedP);
+
+    const preInitialStartClosedP = server.closedP;
+
+    await server.start({ host: '::' });
+
+    // closedP should not be reset after first start
+
+    expect(server.closedP).toBe(preInitialStartClosedP);
+
+    // closedP should be pending after constructor
+
+    expectPending(server.closedP);
+
+    await server.stop();
+
+    await expect(server.closedP).toResolve();
+
+    expect(server[startStop.status]).toBe(null);
+
+    await server.start({ host: '::' });
+
+    // closedP should not be reset after first start
+
+    expect(server.closedP).not.toBe(preInitialStartClosedP);
+
+    // closedP should be pending after server restart
+
+    expectPending(server.closedP);
+
+    await server.stop();
+
+    await expect(server.closedP).toResolve();
+
+    expect(server[startStop.status]).toBe(null);
   });
 });

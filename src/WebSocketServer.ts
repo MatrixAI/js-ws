@@ -76,13 +76,13 @@ class WebSocketServer {
     new WebSocketConnectionMap();
   protected server: https.Server;
   protected webSocketServer: ws.WebSocketServer;
-  protected webSocketServerClosed = false;
+  protected webSocketServerClosed: boolean = false;
 
   protected _closed: boolean = false;
   /**
    * Resolved when the underlying server is closed.
    */
-  public readonly closedP: Promise<void>;
+  protected _closedP: Promise<void>;
   protected resolveClosedP: () => void;
 
   protected _port: number;
@@ -111,7 +111,7 @@ class WebSocketServer {
         this.resolveClosedP();
       }
       this.webSocketServer.close(() => this.resolveClosedP());
-      await this.closedP;
+      await this._closedP;
     } else {
       if (!this.webSocketServerClosed) {
         const wsClosedP = utils.promise();
@@ -122,7 +122,7 @@ class WebSocketServer {
         this.resolveClosedP();
       }
       this.server.close(() => this.resolveClosedP());
-      await this.closedP;
+      await this._closedP;
     }
 
     this._closed = true;
@@ -296,8 +296,10 @@ class WebSocketServer {
 
     this.reasonToCode = reasonToCode;
     this.codeToReason = codeToReason;
+
+    // needs to be reset on each start
     const { p: closedP, resolveP: resolveClosedP } = utils.promise();
-    this.closedP = closedP;
+    this._closedP = closedP;
     this.resolveClosedP = resolveClosedP;
 
     if (server != null) {
@@ -320,9 +322,14 @@ class WebSocketServer {
 
   /**
    * Boolean that indicates whether the internal server is closed or not.
+   * This will be initially be false when `WebSocketServer` is constructed.
    */
   public get closed() {
     return this._closed;
+  }
+
+  public get closedP(): Promise<void> {
+    return this._closedP;
   }
 
   /**
@@ -420,6 +427,17 @@ class WebSocketServer {
     }
     this._port = serverAddress.port;
     this._host = serverAddress.address ?? '127.0.0.1';
+
+    // if this._closed is true, then we are restarting the server.
+    if (this._closedP == null || this._closed) {
+      const { p: closedP, resolveP: resolveClosedP } = utils.promise();
+      this._closedP = closedP;
+      this.resolveClosedP = resolveClosedP;
+    }
+    this.webSocketServerClosed = false;
+    this._closed = false;
+
+
     this.logger.info(`Started ${this.constructor.name}`);
   }
 
