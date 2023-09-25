@@ -41,6 +41,12 @@ interface WebSocketConnection extends startStop.StartStop {}
  * - {@link events.EventWebSocketConnectionError} - can occur due to a timeout too
  * - {@link events.EventWebSocketConnectionClose}
  * - {@link events.EventWebSocketStream} - all dispatched events from {@link WebSocketStream}
+ *
+ * Note that on TLS verification failure, {@link events.EventWebSocketConnectionError} is emitted with the following `event.detail`:
+ * - If we failed to verify the peer, the `event.detail` will be an instance of {@link errors.ErrorWebSocketConnectionLocalTLS}.
+ * - If the peer failed to verify us, the `event.detail` will be an instance of {@link errors.ErrorWebSocketConnectionPeer} with an error code of {@link utils.ConnectionErrorCode.AbnormalClosure}.
+ *
+ * The reason for this is that when the peer fails to verify us, Node only tells us that the TCP socket has been reset, but not why.
  */
 @startStop.StartStop({
   eventStart: events.EventWebSocketConnectionStart,
@@ -350,6 +356,10 @@ class WebSocketConnection {
 
   /**
    * Gets an array of local certificates in DER format starting on the leaf.
+   *
+   * This will be empty if:
+   * - the connection was instantiated by a `WebSocketServer` with an injected `https.Server` or
+   * - the connection was instantiated by a `WebSocketClient` running in a browser
    */
   public getLocalCertsChain(): Array<Uint8Array> {
     return this.certDERs;
@@ -357,6 +367,10 @@ class WebSocketConnection {
 
   /**
    * Gets an array of CA certificates in DER format starting on the leaf.
+   *
+   * This will be empty if:
+   * - the connection was instantiated by a `WebSocketServer` with an injected `https.Server` or
+   * - the connection was instantiated by a `WebSocketClient` running in a browser
    */
   public getLocalCACertsChain(): Array<Uint8Array> {
     return this.caDERs;
@@ -364,6 +378,8 @@ class WebSocketConnection {
 
   /**
    * Gets an array of peer certificates in DER format starting on the leaf.
+   *
+   * This will be empty if the connection was instantiated by a `WebSocketClient` running in a browser.
    */
   public getRemoteCertsChain(): Array<Uint8Array> {
     return this.remoteCertDERs;
@@ -371,6 +387,11 @@ class WebSocketConnection {
 
   /**
    * Gets the connection metadata.
+   *
+   * Some certs may be unavailable with certain injected config options or on certain platforms, please @see:
+   * - {@link WebSocketConnection.getLocalCertsChain}
+   * - {@link WebSocketConnection.getLocalCACertsChain}
+   * - {@link WebSocketConnection.getRemoteCertsChain}
    */
   @startStop.ready(new errors.ErrorWebSocketConnectionNotRunning())
   public meta(): ConnectionMetadata {

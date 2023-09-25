@@ -155,6 +155,16 @@ type WebSocketServerConfigInput = Partial<WebSocketConfig> & {
   cert: string | Array<string> | Uint8Array | Array<Uint8Array>;
 };
 
+type WebSocketServerConfigInputWithInjectedServer = Partial<
+  WebSocketConfig & {
+    key: undefined;
+    cert: undefined;
+    ca: undefined;
+    verifyCallback: undefined;
+    verifyPeer: undefined;
+  }
+>;
+
 type ConnectionError = {
   errorCode: number;
   reason: string;
@@ -177,5 +187,6 @@ export type {
   WebSocketConfig,
   WebSocketClientConfigInput,
   WebSocketServerConfigInput,
+  WebSocketServerConfigInputWithInjectedServer,
   ConnectionError,
 };

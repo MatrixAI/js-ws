@@ -8,6 +8,7 @@ import type {
   StreamReasonToCode,
   WebSocketConfig,
   WebSocketServerConfigInput,
+  WebSocketServerConfigInputWithInjectedServer,
 } from './types';
 import type { EventAll } from '@matrixai/events';
 import type { TLSSocket } from 'tls';
@@ -243,6 +244,13 @@ class WebSocketServer {
   };
 
   /**
+   * WebSocketServer.constructor
+   *
+   * - if `opts.server` is not provided, `.start` will create a new `https` server.
+   * - if `opts.server` is provided and not already listening, `.start` make the server start listening and use the provided server.
+   * - if `opts.server` is provided and already listening, `.start` use the provided server.
+   * - if `opts.server` is provided, `verifyCallback` and `verifyPeer` must be `undefined`, and the TLS verification policy will follow that of the underlying server.
+   *
    * @param opts
    * @param opts.config - configuration for new connections.
    * @param opts.server - if not provided, a new server will be created.
@@ -258,15 +266,25 @@ class WebSocketServer {
     codeToReason,
     connectTimeoutTime,
     logger,
-  }: {
-    config: WebSocketServerConfigInput;
-    resolveHostname?: ResolveHostname;
-    server?: https.Server;
-    reasonToCode?: StreamReasonToCode;
-    codeToReason?: StreamCodeToReason;
-    connectTimeoutTime?: number;
-    logger?: Logger;
-  }) {
+  }:
+    | {
+        config: WebSocketServerConfigInput;
+        resolveHostname?: ResolveHostname;
+        server?: undefined;
+        reasonToCode?: StreamReasonToCode;
+        codeToReason?: StreamCodeToReason;
+        connectTimeoutTime?: number;
+        logger?: Logger;
+      }
+    | {
+        config?: WebSocketServerConfigInputWithInjectedServer;
+        resolveHostname?: ResolveHostname;
+        server: https.Server;
+        reasonToCode?: StreamReasonToCode;
+        codeToReason?: StreamCodeToReason;
+        connectTimeoutTime?: number;
+        logger?: Logger;
+      }) {
     this.logger = logger ?? new Logger(this.constructor.name);
     this.config = {
       ...serverDefault,
