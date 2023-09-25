@@ -678,6 +678,9 @@ class WebSocketConnection {
     if (this.config.keepAliveIntervalTime != null) {
       this.startKeepAliveIntervalTimer(this.config.keepAliveIntervalTime);
     }
+    if (this.config.keepAliveTimeoutTime != null) {
+      this.setKeepAliveTimeoutTimer();
+    }
 
     this.logger.info(`Started ${this.constructor.name}`);
   }
@@ -788,6 +791,7 @@ class WebSocketConnection {
   } = {}) {
     this.logger.info(`Stop ${this.constructor.name}`);
     this.stopKeepAliveIntervalTimer();
+    this.stopKeepAliveTimeoutTimer();
     if (
       this.socket.readyState !== ws.CLOSING &&
       this.socket.readyState !== ws.CLOSED
@@ -837,7 +841,6 @@ class WebSocketConnection {
     this.socket.off('ping', this.handleSocketPing);
     this.socket.off('pong', this.handleSocketPong);
     this.socket.off('error', this.handleSocketError);
-    this.stopKeepAliveTimeoutTimer();
 
     this.logger.info(`Stopped ${this.constructor.name}`);
   }
@@ -866,6 +869,7 @@ class WebSocketConnection {
       this.keepAliveTimeOutTimer.reset(timeout);
     } else {
       logger.debug(`timeout created with delay ${timeout}`);
+      this.keepAliveTimeOutTimer?.cancel();
       this.keepAliveTimeOutTimer = new Timer({
         delay: timeout,
         handler: keepAliveTimeOutHandler,
@@ -877,7 +881,7 @@ class WebSocketConnection {
    * Stops the keep alive interval timer
    */
   protected stopKeepAliveTimeoutTimer(): void {
-    this.keepAliveIntervalTimer?.cancel();
+    this.keepAliveTimeOutTimer?.cancel();
   }
 
   protected startKeepAliveIntervalTimer(ms: number): void {
