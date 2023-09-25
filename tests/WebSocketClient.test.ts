@@ -609,7 +609,6 @@ describe(WebSocketClient.name, () => {
       );
       await server.start({
         host: localhost,
-        port: 55555,
       });
       // Connection should fail
       await expect(
