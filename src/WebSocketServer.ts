@@ -331,10 +331,7 @@ class WebSocketServer {
     ipv6Only?: boolean;
   } = {}): Promise<void> {
     this.logger.info(`Starting ${this.constructor.name}`);
-    let [host_] = await utils.resolveHost(
-      host,
-      this.resolveHostname
-    );
+    const [host_] = await utils.resolveHost(host, this.resolveHostname);
     const port_ = utils.toPort(port);
     if (!this.isServerShared) {
       this.server = https.createServer({
@@ -400,7 +397,9 @@ class WebSocketServer {
     );
 
     const serverAddress = this.server.address();
-    if (serverAddress == null || typeof serverAddress === 'string') utils.never();
+    if (serverAddress == null || typeof serverAddress === 'string') {
+      utils.never();
+    }
     this._port = serverAddress.port;
     this._host = serverAddress.address ?? '127.0.0.1';
     this.logger.info(`Started ${this.constructor.name}`);

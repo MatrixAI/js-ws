@@ -3,8 +3,8 @@ import * as events from '@/events';
 import WebSocketClient from '@/WebSocketClient';
 import WebSocketServer from '@/WebSocketServer';
 import * as utils from '@/utils';
-import * as testsUtils from './utils';
 import WebSocketConnection from '@/WebSocketConnection';
+import * as testsUtils from './utils';
 
 // Process.on('unhandledRejection', (reason) => {
 //   console.log(reason); // log the reason including the stack trace

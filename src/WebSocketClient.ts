@@ -84,10 +84,7 @@ class WebSocketClient extends EventTarget {
       ...config,
     };
 
-    let [host_] = await utils.resolveHost(
-      host,
-      resolveHostname
-    );
+    let [host_] = await utils.resolveHost(host, resolveHostname);
     const port_ = utils.toPort(port);
     // If the target host is in fact a zero IP, it cannot be used
     // as a target host, so we need to resolve it to a non-zero IP
