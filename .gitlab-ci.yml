@@ -223,7 +223,7 @@ build:prerelease:
   needs:
     - build:dist
     - build:linux
-    - build:windows
+    # - build:windows
     - build:macos
   # Don't interrupt publishing job
   interruptible: false
@@ -249,8 +249,8 @@ integration:merge:
     - build:merge
     - job: build:linux
       optional: true
-    - job: build:windows
-      optional: true
+    # - job: build:windows
+    #   optional: true
     - job: build:macos
       optional: true
   # Requires mutual exclusion
@@ -285,7 +285,7 @@ release:distribution:
   needs:
     - build:dist
     - build:linux
-    - build:windows
+    # - build:windows
     - build:macos
     - integration:merge
   # Don't interrupt publishing job
