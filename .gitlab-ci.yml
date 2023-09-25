@@ -167,7 +167,8 @@ build:windows:
     - mkdir -Force "$CI_PROJECT_DIR/tmp"
   script:
     - .\scripts\choco-install.ps1
-    - Update-SessionEnvironment
+    - Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
+    - refreshenv
     - npm install --ignore-scripts
     - $env:Path = "$(npm root)\.bin;" + $env:Path
     - npm test -- --ci --coverage
