@@ -656,7 +656,6 @@ describe(WebSocketClient.name, () => {
     );
     await server.start({
       host: localhost,
-      port: 55555,
     });
     // If the server is slow to respond then this will time out.
     //  Then main cause of this was the server not processing the initial packet
@@ -695,7 +694,6 @@ describe(WebSocketClient.name, () => {
   //   );
   //   await server.start({
   //     host: localhost,
-  //     port: 55555,
   //   });
   //   // If the server is slow to respond then this will time out.
   //   //  Then main cause of this was the server not processing the initial packet
