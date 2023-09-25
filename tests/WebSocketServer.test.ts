@@ -86,7 +86,7 @@ describe(WebSocketServer.name, () => {
           key: keyPairRSAPEM.privateKey,
           cert: certRSAPEM,
         },
-        logger: logger.getChild('WebSocketServer'),
+        logger: logger.getChild(WebSocketServer.name),
       });
       await webSocketServer.start();
       // Default to dual-stack
@@ -100,7 +100,7 @@ describe(WebSocketServer.name, () => {
           key: keyPairECDSAPEM.privateKey,
           cert: certECDSAPEM,
         },
-        logger: logger.getChild('WebSocketServer'),
+        logger: logger.getChild(WebSocketServer.name),
       });
       await webSocketServer.start();
       // Default to dual-stack
@@ -114,7 +114,7 @@ describe(WebSocketServer.name, () => {
           key: keyPairEd25519PEM.privateKey,
           cert: certEd25519PEM,
         },
-        logger: logger.getChild('WebSocketServer'),
+        logger: logger.getChild(WebSocketServer.name),
       });
       await webSocketServer.start();
       // Default to dual-stack
@@ -130,7 +130,7 @@ describe(WebSocketServer.name, () => {
           key: keyPairEd25519PEM.privateKey,
           cert: certEd25519PEM,
         },
-        logger: logger.getChild('WebSocketServer'),
+        logger: logger.getChild(WebSocketServer.name),
       });
       await webSocketServer.start({
         host: '127.0.0.1',
@@ -145,7 +145,7 @@ describe(WebSocketServer.name, () => {
           key: keyPairEd25519PEM.privateKey,
           cert: certEd25519PEM,
         },
-        logger: logger.getChild('WebSocketServer'),
+        logger: logger.getChild(WebSocketServer.name),
       });
       await webSocketServer.start({
         host: '::1',
@@ -160,7 +160,7 @@ describe(WebSocketServer.name, () => {
           key: keyPairEd25519PEM.privateKey,
           cert: certEd25519PEM,
         },
-        logger: logger.getChild('WebSocketServer'),
+        logger: logger.getChild(WebSocketServer.name),
       });
       await webSocketServer.start({
         host: '::',
@@ -177,7 +177,7 @@ describe(WebSocketServer.name, () => {
           key: keyPairEd25519PEM.privateKey,
           cert: certEd25519PEM,
         },
-        logger: logger.getChild('WebSocketServer'),
+        logger: logger.getChild(WebSocketServer.name),
       });
       await webSocketServer.start({
         host: '::ffff:127.0.0.1',
@@ -190,7 +190,7 @@ describe(WebSocketServer.name, () => {
           key: keyPairEd25519PEM.privateKey,
           cert: certEd25519PEM,
         },
-        logger: logger.getChild('WebSocketServer'),
+        logger: logger.getChild(WebSocketServer.name),
       });
       await webSocketServer.start({
         host: '::ffff:7f00:1',
@@ -206,7 +206,7 @@ describe(WebSocketServer.name, () => {
           key: keyPairEd25519PEM.privateKey,
           cert: certEd25519PEM,
         },
-        logger: logger.getChild('WebSocketServer'),
+        logger: logger.getChild(WebSocketServer.name),
       });
       await webSocketServer.start({
         host: 'localhost',
@@ -224,7 +224,7 @@ describe(WebSocketServer.name, () => {
           cert: certEd25519PEM,
         },
         resolveHostname: () => '127.0.0.1' as Host,
-        logger: logger.getChild('WebSocketServer'),
+        logger: logger.getChild(WebSocketServer.name),
       });
       await webSocketServer.start({
         host: 'abcdef',
@@ -241,7 +241,7 @@ describe(WebSocketServer.name, () => {
           key: keyPairEd25519PEM.privateKey,
           cert: certEd25519PEM,
         },
-        logger: logger.getChild('WebSocketServer'),
+        logger: logger.getChild(WebSocketServer.name),
       });
       await server.start({ host: '::' });
 
@@ -261,7 +261,7 @@ describe(WebSocketServer.name, () => {
           key: keyPairEd25519PEM.privateKey,
           cert: certEd25519PEM,
         },
-        logger: logger.getChild('WebSocketServer'),
+        logger: logger.getChild(WebSocketServer.name),
       });
       await server.start({ host: '::' });
 
@@ -285,7 +285,7 @@ describe(WebSocketServer.name, () => {
         key: keyPairEd25519PEM.privateKey,
         cert: certEd25519PEM,
       },
-      logger: logger.getChild('WebSocketServer'),
+      logger: logger.getChild(WebSocketServer.name),
     });
     await server.start({ host: '::' });
 
@@ -298,7 +298,7 @@ describe(WebSocketServer.name, () => {
       const client = await WebSocketClient.createWebSocketClient({
         host: server.host,
         port: server.port,
-        logger: logger.getChild('WebSocketClient'),
+        logger: logger.getChild(WebSocketClient.name),
         config: {
           verifyPeer: false,
         },
