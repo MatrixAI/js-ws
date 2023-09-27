@@ -329,38 +329,50 @@ describe(WebSocketServer.name, () => {
 
     expectPending(server.closedP);
 
-    const preInitialStartClosedP = server.closedP;
-
     await server.start({ host: '::' });
 
-    // closedP should not be reset after first start
+    const preInitialStopClosedP = server.closedP;
 
-    expect(server.closedP).toBe(preInitialStartClosedP);
+    // closedP should be pending after start
 
-    // closedP should be pending after constructor
+    expectPending(preInitialStopClosedP);
 
-    expectPending(server.closedP);
+    expect(server.closed).toBe(false);
 
-    await server.stop();
+    // calling stop should resolve the current closedP
 
-    await expect(server.closedP).toResolve();
+    await expect(Promise.all([server.stop(), preInitialStopClosedP])).toResolve();
+
+    // after stop, a new closedP should be set
+
+    expect(server.closedP).not.toBe(preInitialStopClosedP);
 
     expect(server[startStop.status]).toBe(null);
 
-    await server.start({ host: '::' });
-
-    // closedP should not be reset after first start
-
-    expect(server.closedP).not.toBe(preInitialStartClosedP);
-
-    // closedP should be pending after server restart
+    expect(server.closed).toBe(true);
 
     expectPending(server.closedP);
 
-    await server.stop();
+    await server.start({ host: '::' });
 
-    await expect(server.closedP).toResolve();
+    const preSecondStopClosedP = server.closedP;
+
+    // closedP should be pending after start
+
+    expectPending(preSecondStopClosedP);
+
+    expect(server.closed).toBe(false);
+
+    // calling stop should resolve the current closedP
+
+    await expect(Promise.all([server.stop(), preSecondStopClosedP])).toResolve();
+
+    // after stop, a new closedP should be set
+
+    expect(server.closedP).not.toBe(preSecondStopClosedP);
 
     expect(server[startStop.status]).toBe(null);
+
+    expect(server.closed).toBe(true);
   });
 });

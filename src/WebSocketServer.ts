@@ -297,7 +297,6 @@ class WebSocketServer {
     this.reasonToCode = reasonToCode;
     this.codeToReason = codeToReason;
 
-    // needs to be reset on each start
     const { p: closedP, resolveP: resolveClosedP } = utils.promise();
     this._closedP = closedP;
     this.resolveClosedP = resolveClosedP;
@@ -428,15 +427,8 @@ class WebSocketServer {
     this._port = serverAddress.port;
     this._host = serverAddress.address ?? '127.0.0.1';
 
-    // if this._closed is true, then we are restarting the server.
-    if (this._closedP == null || this._closed) {
-      const { p: closedP, resolveP: resolveClosedP } = utils.promise();
-      this._closedP = closedP;
-      this.resolveClosedP = resolveClosedP;
-    }
     this.webSocketServerClosed = false;
     this._closed = false;
-
 
     this.logger.info(`Started ${this.constructor.name}`);
   }
@@ -478,6 +470,10 @@ class WebSocketServer {
       this.dispatchEvent(new events.EventWebSocketServerClose());
     }
     await this.closedP;
+
+    const { p: closedP, resolveP: resolveClosedP } = utils.promise();
+    this._closedP = closedP;
+    this.resolveClosedP = resolveClosedP;
 
     this.removeEventListener(
       events.EventWebSocketServerError.name,
