@@ -1,5 +1,6 @@
 import type { X509Certificate } from '@peculiar/x509';
 import type { Host } from '@/types';
+import * as nodeUtil from 'util';
 import Logger, { LogLevel, StreamHandler, formatting } from '@matrixai/logger';
 import { startStop } from '@matrixai/async-init';
 import WebSocketServer from '@/WebSocketServer';
@@ -7,7 +8,6 @@ import * as utils from '@/utils';
 import * as events from '@/events';
 import WebSocketClient from '@/WebSocketClient';
 import * as testsUtils from './utils';
-import * as nodeUtil from 'util';
 
 describe(WebSocketServer.name, () => {
   const logger = new Logger(`${WebSocketServer.name} Test`, LogLevel.WARN, [
@@ -322,10 +322,10 @@ describe(WebSocketServer.name, () => {
     });
 
     const expectPending = (prom: Promise<any>) => {
-      expect(nodeUtil.inspect(prom).includes("pending")).toBe(true);
-    }
+      expect(nodeUtil.inspect(prom).includes('pending')).toBe(true);
+    };
 
-    // closedP should be pending after constructor
+    // ClosedP should be pending after constructor
 
     expectPending(server.closedP);
 
@@ -333,17 +333,19 @@ describe(WebSocketServer.name, () => {
 
     const preInitialStopClosedP = server.closedP;
 
-    // closedP should be pending after start
+    // ClosedP should be pending after start
 
     expectPending(preInitialStopClosedP);
 
     expect(server.closed).toBe(false);
 
-    // calling stop should resolve the current closedP
+    // Calling stop should resolve the current closedP
 
-    await expect(Promise.all([server.stop(), preInitialStopClosedP])).toResolve();
+    await expect(
+      Promise.all([server.stop(), preInitialStopClosedP]),
+    ).toResolve();
 
-    // after stop, a new closedP should be set
+    // After stop, a new closedP should be set
 
     expect(server.closedP).not.toBe(preInitialStopClosedP);
 
@@ -357,17 +359,19 @@ describe(WebSocketServer.name, () => {
 
     const preSecondStopClosedP = server.closedP;
 
-    // closedP should be pending after start
+    // ClosedP should be pending after start
 
     expectPending(preSecondStopClosedP);
 
     expect(server.closed).toBe(false);
 
-    // calling stop should resolve the current closedP
+    // Calling stop should resolve the current closedP
 
-    await expect(Promise.all([server.stop(), preSecondStopClosedP])).toResolve();
+    await expect(
+      Promise.all([server.stop(), preSecondStopClosedP]),
+    ).toResolve();
 
-    // after stop, a new closedP should be set
+    // After stop, a new closedP should be set
 
     expect(server.closedP).not.toBe(preSecondStopClosedP);
 
