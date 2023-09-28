@@ -547,11 +547,13 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     try {
       parsedMessage = parseStreamMessage(message);
     } catch (err) {
-      const e = new errors.ErrorWebSocketStreamInternal("Peer sent a malformed stream message");
+      const e = new errors.ErrorWebSocketStreamInternal(
+        'Peer sent a malformed stream message',
+      );
       this.dispatchEvent(
         new events.EventWebSocketStreamError({
-          detail: e
-        })
+          detail: e,
+        }),
       );
       return;
     }
@@ -564,11 +566,13 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       );
     } else if (parsedMessage.type === StreamMessageType.Data) {
       if (this._readClosed) {
-        const e = new errors.ErrorWebSocketStreamInternal("Peer has overflowed the buffer of the ReadableStream");
+        const e = new errors.ErrorWebSocketStreamInternal(
+          'Peer has overflowed the buffer of the ReadableStream',
+        );
         this.dispatchEvent(
           new events.EventWebSocketStreamError({
-            detail: e
-          })
+            detail: e,
+          }),
         );
         return;
       }
@@ -582,7 +586,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       this.resolveReadableP?.();
     } else if (parsedMessage.type === StreamMessageType.Error) {
       const { shutdown, code } = parsedMessage.payload;
-      let reason = this.codeToReason('read', Number(code));
+      const reason = this.codeToReason('read', Number(code));
       if (shutdown === StreamShutdown.Read) {
         if (this._readClosed) return;
         const e = new errors.ErrorWebSocketStreamLocalRead(

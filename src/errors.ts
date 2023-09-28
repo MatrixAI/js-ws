@@ -125,7 +125,6 @@ class ErrorWebSocketStreamDestroyed<T> extends ErrorWebSocketStream<T> {
   static description = 'WebSocket Stream is destroyed';
 }
 
-
 class ErrorWebSocketStreamLocalRead<T> extends ErrorWebSocketStream<T> {
   static description = 'WebSocket Stream locally closed readable side';
   declare data: POJO & { code: number };

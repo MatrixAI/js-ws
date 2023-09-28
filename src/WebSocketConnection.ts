@@ -117,7 +117,9 @@ class WebSocketConnection {
    * This is true if we are responsible for sending pings, and false when the peer is responsible.
    */
   public readonly keepAliveResponsibilityEstablishedP: Promise<boolean>;
-  protected resolveKeepAliveResponsibilityEstablishedP: (isResponsible: boolean) => void;
+  protected resolveKeepAliveResponsibilityEstablishedP: (
+    isResponsible: boolean,
+  ) => void;
   protected pingsReceived: number = 0;
   protected pongsReceived: number = 0;
 
@@ -210,7 +212,9 @@ class WebSocketConnection {
     }
   };
 
-  protected handleEventWebSocketStreamError = (evt: events.EventWebSocketStreamError) => {
+  protected handleEventWebSocketStreamError = (
+    evt: events.EventWebSocketStreamError,
+  ) => {
     const error = evt.detail;
     if (error instanceof errors.ErrorWebSocketStreamInternal) {
       const errorCode = utils.ConnectionErrorCode.ProtocolError;
@@ -257,7 +261,7 @@ class WebSocketConnection {
     data: ws.RawData,
     isBinary: boolean,
   ) => {
-    // if the timer is running, refresh it.
+    // If the timer is running, refresh it.
     // this will only happen if the timer has not been cancelled
     if (
       this.keepAliveIntervalTimer != null &&
@@ -265,7 +269,7 @@ class WebSocketConnection {
     ) {
       this.keepAliveIntervalTimer.refresh();
     }
-    // reset the keepAliveTimeoutTimer, as we've received proof that the peer is still alive
+    // Reset the keepAliveTimeoutTimer, as we've received proof that the peer is still alive
     this.setKeepAliveTimeoutTimer();
     if (!isBinary || data instanceof Array) {
       const reason = "WebSocket received data received that wasn't binary";
@@ -352,16 +356,16 @@ class WebSocketConnection {
   };
 
   protected handleSocketPing = () => {
-    // bound pingsReceived to max of 2 to prevent overflow
+    // Bound pingsReceived to max of 2 to prevent overflow
     if (this.pingsReceived < 2) {
       this.pingsReceived++;
     }
-    // if the client receives a pings, stop pinging
-    if (this.type === "client" && this.pingsReceived >= 1) {
+    // If the client receives a pings, stop pinging
+    if (this.type === 'client' && this.pingsReceived >= 1) {
       this.resolveKeepAliveResponsibilityEstablishedP(false);
       this.stopKeepAliveIntervalTimer();
     }
-    // if the server receives two pings, stop pinging
+    // If the server receives two pings, stop pinging
     else if (this.type === 'server' && this.pingsReceived >= 2) {
       this.resolveKeepAliveResponsibilityEstablishedP(false);
       this.stopKeepAliveIntervalTimer();
@@ -372,21 +376,21 @@ class WebSocketConnection {
     ) {
       this.keepAliveIntervalTimer.refresh();
     }
-    // if either a client or a server receives a ping or data, their next scheduled ping is rescheduled to be now + keepAliveIntervalTime
+    // If either a client or a server receives a ping or data, their next scheduled ping is rescheduled to be now + keepAliveIntervalTime
     this.setKeepAliveTimeoutTimer();
-    // no need to call this.socket.pong(), this is automatically done  by ws
+    // No need to call this.socket.pong(), this is automatically done  by ws
   };
 
   protected handleSocketPong = () => {
-    // bound pongsReceived to max of 2 to prevent overflow
+    // Bound pongsReceived to max of 2 to prevent overflow
     if (this.pongsReceived < 2) {
       this.pongsReceived++;
     }
-    // if the client sends 2 pings, and the server responds with 2 pongs, the client is responsible for keep-alive
-    if (this.type === "client" && this.pongsReceived >= 2) {
+    // If the client sends 2 pings, and the server responds with 2 pongs, the client is responsible for keep-alive
+    if (this.type === 'client' && this.pongsReceived >= 2) {
       this.resolveKeepAliveResponsibilityEstablishedP(true);
     }
-    // if the server sends a ping, and the client responds with a pong, the server is responsible for keep-alive
+    // If the server sends a ping, and the client responds with a pong, the server is responsible for keep-alive
     else if (this.type === 'server' && this.pongsReceived >= 1) {
       this.resolveKeepAliveResponsibilityEstablishedP(true);
     }
@@ -551,9 +555,14 @@ class WebSocketConnection {
     this.closedP = closedP;
     this.resolveClosedP = resolveClosedP;
 
-    const { p: keepAliveResponsibilityEstablishedP, resolveP: resolveKeepAliveResponsibilityEstablishedP } = utils.promise<boolean>();
-    this.keepAliveResponsibilityEstablishedP = keepAliveResponsibilityEstablishedP;
-    this.resolveKeepAliveResponsibilityEstablishedP = resolveKeepAliveResponsibilityEstablishedP;
+    const {
+      p: keepAliveResponsibilityEstablishedP,
+      resolveP: resolveKeepAliveResponsibilityEstablishedP,
+    } = utils.promise<boolean>();
+    this.keepAliveResponsibilityEstablishedP =
+      keepAliveResponsibilityEstablishedP;
+    this.resolveKeepAliveResponsibilityEstablishedP =
+      resolveKeepAliveResponsibilityEstablishedP;
 
     this.closeSocket = (errorCode, reason) => {
       this.socketLocallyClosed = true;
@@ -667,7 +676,7 @@ class WebSocketConnection {
           break;
         default:
           reason = 'WebSocket could not open due to internal error';
-          errorCode = utils.ConnectionErrorCode.InternalServerError
+          errorCode = utils.ConnectionErrorCode.InternalServerError;
           e_ = new errors.ErrorWebSocketConnectionLocal(reason, {
             cause: e,
             data: {

@@ -394,8 +394,12 @@ describe(WebSocketConnection.name, () => {
         },
       });
       const serverConnection = await connectionEventProm.p;
-      await expect(serverConnection.keepAliveResponsibilityEstablishedP).resolves.toBe(false);
-      await expect(client.connection.keepAliveResponsibilityEstablishedP).resolves.toBe(true);
+      await expect(
+        serverConnection.keepAliveResponsibilityEstablishedP,
+      ).resolves.toBe(false);
+      await expect(
+        client.connection.keepAliveResponsibilityEstablishedP,
+      ).resolves.toBe(true);
       await client.destroy();
       await server.stop();
     });
@@ -430,8 +434,12 @@ describe(WebSocketConnection.name, () => {
         },
       });
       const serverConnection = await connectionEventProm.p;
-      await expect(serverConnection.keepAliveResponsibilityEstablishedP).resolves.toBe(true);
-      await expect(client.connection.keepAliveResponsibilityEstablishedP).resolves.toBe(false);
+      await expect(
+        serverConnection.keepAliveResponsibilityEstablishedP,
+      ).resolves.toBe(true);
+      await expect(
+        client.connection.keepAliveResponsibilityEstablishedP,
+      ).resolves.toBe(false);
       await client.destroy();
       await server.stop();
     });
