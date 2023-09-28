@@ -769,8 +769,8 @@ async function generateTLSConfig(type: 'RSA' | 'ECDSA' | 'Ed25519'): Promise<{
  * server to share the same instance of `reasonToCode` and `codeToReason`.
  */
 function createReasonConverters() {
-  const reasonMap = new Map<bigint, any>();
-  let code = 0n;
+  const reasonMap = new Map<number, any>();
+  let code = 0;
 
   const reasonToCode: StreamReasonToCode = (_type, reason) => {
     code++;

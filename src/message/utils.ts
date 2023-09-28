@@ -22,12 +22,6 @@ const enum StreamShutdown {
   Write = 1,
 }
 
-const StreamErrorCode = {
-  Unknown: 0n as VarInt,
-  ErrorReadableStreamParse: 1n as VarInt,
-  ErrorReadableStreamBufferOverflow: 2n as VarInt,
-} as const;
-
 // Misc
 
 function bufferAllocUnsafe(size: number): Uint8Array {
@@ -347,7 +341,6 @@ function generateConnectionMessage(input: ConnectionMessage): Uint8Array {
 export {
   StreamMessageType,
   StreamShutdown,
-  StreamErrorCode,
   bufferAllocUnsafe,
   concatUInt8Array,
   parseVarInt,

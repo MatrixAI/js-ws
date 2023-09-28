@@ -29,7 +29,6 @@ import * as events from './events';
 import {
   generateStreamMessage,
   parseStreamMessage,
-  StreamErrorCode,
   StreamMessageType,
   StreamShutdown,
 } from './message';
@@ -193,7 +192,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     streamId,
     connection,
     bufferSize,
-    reasonToCode = () => 0n,
+    reasonToCode = () => 0,
     codeToReason = (type, code) =>
       new Error(`${type.toString()} ${code.toString()}`),
     logger,
@@ -461,7 +460,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     // This is only needed if this function is called from `this.cancel`.
     // Because the web stream already ensures `cancel` is idempotent.
     if (this._readClosed) return;
-    const code = this.reasonToCode('read', reason) as VarInt;
+    const code = this.reasonToCode('read', reason);
     const e = new errors.ErrorWebSocketStreamLocalRead(
       'Closing readable stream locally',
       {
@@ -487,7 +486,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       type: StreamMessageType.Error,
       payload: {
         shutdown: StreamShutdown.Write,
-        code,
+        code: BigInt(code) as VarInt,
       },
     });
     return;
@@ -501,7 +500,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     // This is only needed if this function is called from `this.cancel`.
     // Because the web stream already ensures `cancel` is idempotent.
     if (this._writeClosed) return;
-    const code = this.reasonToCode('write', reason) as VarInt;
+    const code = this.reasonToCode('write', reason);
     const e = new errors.ErrorWebSocketStreamLocalWrite(
       'Closing writable stream locally',
       {
@@ -523,7 +522,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       type: StreamMessageType.Error,
       payload: {
         shutdown: StreamShutdown.Read,
-        code,
+        code: BigInt(code) as VarInt,
       },
     });
     return;
@@ -544,24 +543,15 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
    * @internal
    */
   public async streamRecv(message: Uint8Array) {
-    if (message.length === 0) {
-      this.logger.debug(`received empty message, closing stream`);
-      this.readableCancel(
-        new errors.ErrorWebSocketStreamReadableParse('empty message', {
-          cause: new RangeError(),
-        }),
-      );
-      return;
-    }
-
     let parsedMessage: StreamMessage;
     try {
       parsedMessage = parseStreamMessage(message);
     } catch (err) {
-      this.readableCancel(
-        new errors.ErrorWebSocketStreamReadableParse(err.message, {
-          cause: err,
-        }),
+      const e = new errors.ErrorWebSocketStreamInternal("Peer sent a malformed stream message");
+      this.dispatchEvent(
+        new events.EventWebSocketStreamError({
+          detail: e
+        })
       );
       return;
     }
@@ -574,48 +564,31 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       );
     } else if (parsedMessage.type === StreamMessageType.Data) {
       if (this._readClosed) {
+        const e = new errors.ErrorWebSocketStreamInternal("Peer has overflowed the buffer of the ReadableStream");
+        this.dispatchEvent(
+          new events.EventWebSocketStreamError({
+            detail: e
+          })
+        );
         return;
       }
       if (
         parsedMessage.payload.length >
         this.readableQueueBufferSize - this.readableQueue.length
       ) {
-        this.readableCancel(
-          new errors.ErrorWebSocketStreamReadableBufferOverload(),
-        );
         return;
       }
       this.readableQueue.queue(parsedMessage.payload);
       this.resolveReadableP?.();
     } else if (parsedMessage.type === StreamMessageType.Error) {
       const { shutdown, code } = parsedMessage.payload;
-      let reason: any;
-      switch (code) {
-        case StreamErrorCode.Unknown:
-          reason = new errors.ErrorWebSocketStreamUnknown(
-            'receiver encountered an unknown error',
-          );
-          break;
-        case StreamErrorCode.ErrorReadableStreamParse:
-          reason = new errors.ErrorWebSocketStreamReadableParse(
-            'receiver was unable to parse a sent message',
-          );
-          break;
-        case StreamErrorCode.ErrorReadableStreamBufferOverflow:
-          reason = new errors.ErrorWebSocketStreamReadableBufferOverload(
-            'receiver was unable to accept a sent message',
-          );
-          break;
-        default:
-          reason = await this.codeToReason('read', code);
-      }
+      let reason = this.codeToReason('read', Number(code));
       if (shutdown === StreamShutdown.Read) {
         if (this._readClosed) return;
-        const code = this.reasonToCode('read', reason) as VarInt;
         const e = new errors.ErrorWebSocketStreamLocalRead(
           'Closing readable stream due to Error message from peer',
           {
-            data: { code },
+            data: { code: Number(code) },
             cause: reason,
           },
         );
@@ -635,11 +608,10 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
         });
       } else if (shutdown === StreamShutdown.Write) {
         if (this._writeClosed) return;
-        const code = this.reasonToCode('write', reason) as VarInt;
         const e = new errors.ErrorWebSocketStreamLocalWrite(
           'Closing writable stream due to Error message from peer',
           {
-            data: { code },
+            data: { code: Number(code) },
             cause: reason,
           },
         );
@@ -673,8 +645,8 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       } else if (shutdown === StreamShutdown.Write) {
         if (this._writeClosed) return;
         // Realistically this should never happen due to Readable stream not being able to be closed
-        const code = StreamErrorCode.Unknown;
-        const reason = new errors.ErrorWebSocketStreamUnknown();
+        const code = 0;
+        const reason = new errors.ErrorWebSocketStreamInternal();
         const e = new errors.ErrorWebSocketStreamLocalWrite(
           'Closing writable stream due to Close message from peer',
           {
@@ -693,7 +665,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
           type: StreamMessageType.Error,
           payload: {
             shutdown: StreamShutdown.Read,
-            code,
+            code: BigInt(code) as VarInt,
           },
         });
       }

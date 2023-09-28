@@ -210,6 +210,27 @@ class WebSocketConnection {
     }
   };
 
+  protected handleEventWebSocketStreamError = (evt: events.EventWebSocketStreamError) => {
+    const error = evt.detail;
+    if (error instanceof errors.ErrorWebSocketStreamInternal) {
+      const errorCode = utils.ConnectionErrorCode.ProtocolError;
+      const reason = error.message;
+      this.closeSocket(errorCode, reason);
+      const e_ = new errors.ErrorWebSocketConnectionLocal(reason, {
+        cause: error,
+        data: {
+          errorCode,
+          reason,
+        },
+      });
+      this.dispatchEvent(
+        new events.EventWebSocketConnectionError({
+          detail: e_,
+        }),
+      );
+    }
+  };
+
   protected handleEventWebSocketStreamSend = async (
     evt: events.EventWebSocketStreamSend,
   ) => {
@@ -223,6 +244,10 @@ class WebSocketConnection {
     stream.removeEventListener(
       events.EventWebSocketStreamSend.name,
       this.handleEventWebSocketStreamSend,
+    );
+    stream.removeEventListener(
+      events.EventWebSocketStreamError.name,
+      this.handleEventWebSocketConnectionError,
     );
     stream.removeEventListener(EventAll.name, this.handleEventWebSocketStream);
     this.streamMap.delete(stream.streamId);
@@ -247,9 +272,8 @@ class WebSocketConnection {
       this.dispatchEvent(
         new events.EventWebSocketConnectionError({
           detail: new errors.ErrorWebSocketConnectionLocal(reason, {
-            cause: new errors.ErrorWebSocketUndefinedBehaviour(),
             data: {
-              errorCode: utils.ConnectionErrorCode.InternalServerError,
+              errorCode: utils.ConnectionErrorCode.ProtocolError,
               reason,
             },
           }),
@@ -274,7 +298,7 @@ class WebSocketConnection {
           detail: new errors.ErrorWebSocketConnectionLocal(reason, {
             cause: e,
             data: {
-              errorCode: utils.ConnectionErrorCode.InternalServerError,
+              errorCode: utils.ConnectionErrorCode.ProtocolError,
               reason,
             },
           }),
@@ -310,6 +334,10 @@ class WebSocketConnection {
         events.EventWebSocketStreamStopped.name,
         this.handleEventWebSocketStreamStopped,
         { once: true },
+      );
+      stream.addEventListener(
+        events.EventWebSocketStreamError.name,
+        this.handleEventWebSocketConnectionError,
       );
       stream.addEventListener(EventAll.name, this.handleEventWebSocketStream);
       await stream.start();
@@ -464,7 +492,7 @@ class WebSocketConnection {
     meta,
     config,
     socket,
-    reasonToCode = () => 0n,
+    reasonToCode = () => 0,
     codeToReason = (type, code) => new Error(`${type} ${code}`),
     logger,
   }:
@@ -639,14 +667,14 @@ class WebSocketConnection {
           break;
         default:
           reason = 'WebSocket could not open due to internal error';
-          (errorCode = utils.ConnectionErrorCode.InternalServerError),
-            (e_ = new errors.ErrorWebSocketConnectionLocal(reason, {
-              cause: e,
-              data: {
-                errorCode,
-                reason,
-              },
-            }));
+          errorCode = utils.ConnectionErrorCode.InternalServerError
+          e_ = new errors.ErrorWebSocketConnectionLocal(reason, {
+            cause: e,
+            data: {
+              errorCode,
+              reason,
+            },
+          });
           break;
       }
       this.closeSocket(errorCode, reason);
@@ -716,7 +744,7 @@ class WebSocketConnection {
     } catch (e) {
       // This happens if a timeout occurs.
       if (ctx.signal.aborted) {
-        const errorCode = utils.ConnectionErrorCode.ProtocolError;
+        const errorCode = utils.ConnectionErrorCode.Normal;
         const reason =
           'Failed to start WebSocket connection due to start timeout';
         this.closeSocket(errorCode, reason);
@@ -792,6 +820,10 @@ class WebSocketConnection {
         events.EventWebSocketStreamStopped.name,
         this.handleEventWebSocketStreamStopped,
         { once: true },
+      );
+      stream.removeEventListener(
+        events.EventWebSocketStreamError.name,
+        this.handleEventWebSocketConnectionError,
       );
       stream.addEventListener(EventAll.name, this.handleEventWebSocketStream);
       await stream.start();

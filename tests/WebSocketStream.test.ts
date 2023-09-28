@@ -215,17 +215,17 @@ describe(WebSocketStream.name, () => {
   });
   test('should propagate errors over stream for writable', async () => {
     const testReason = Symbol('TestReason');
-    const codeToReason = (type, code: bigint) => {
+    const codeToReason = (type, code: number) => {
       switch (code) {
-        case 4002n:
+        case 4002:
           return testReason;
         default:
           return new Error(`${type.toString()} ${code.toString()}`);
       }
     };
-    const reasonToCode = (type, reason) => {
-      if (reason === testReason) return 4002n;
-      return 0n;
+    const reasonToCode = (_type, reason) => {
+      if (reason === testReason) return 4002;
+      return 0;
     };
     const [stream1, stream2] = await createStreamPair({
       codeToReason,
@@ -498,17 +498,17 @@ describe(WebSocketStream.name, () => {
   );
   test('streams can be cancelled after data sent', async () => {
     const cancelReason = Symbol('CancelReason');
-    const codeToReason = (type, code: bigint) => {
+    const codeToReason = (type, code: number) => {
       switch (code) {
-        case 4001n:
+        case 4001:
           return cancelReason;
         default:
           return new Error(`${type.toString()} ${code.toString()}`);
       }
     };
     const reasonToCode = (_type, reason) => {
-      if (reason === cancelReason) return 4001n;
-      return 0n;
+      if (reason === cancelReason) return 4001;
+      return 0;
     };
     const [_stream1, stream2] = await createStreamPair({
       codeToReason,
@@ -529,17 +529,17 @@ describe(WebSocketStream.name, () => {
   });
   test('streams can be cancelled with no data sent', async () => {
     const cancelReason = Symbol('CancelReason');
-    const codeToReason = (type, code: bigint) => {
+    const codeToReason = (type, code: number) => {
       switch (code) {
-        case 4001n:
+        case 4001:
           return cancelReason;
         default:
           return new Error(`${type.toString()} ${code.toString()}`);
       }
     };
     const reasonToCode = (_type, reason) => {
-      if (reason === cancelReason) return 4001n;
-      return 0n;
+      if (reason === cancelReason) return 4001;
+      return 0;
     };
     const [_stream1, stream2] = await createStreamPair({
       codeToReason,
@@ -557,17 +557,17 @@ describe(WebSocketStream.name, () => {
   });
   test('streams can be cancelled concurrently after data sent', async () => {
     const cancelReason = Symbol('CancelReason');
-    const codeToReason = (type, code: bigint) => {
+    const codeToReason = (type, code: number) => {
       switch (code) {
-        case 4001n:
+        case 4001:
           return cancelReason;
         default:
           return new Error(`${type.toString()} ${code.toString()}`);
       }
     };
     const reasonToCode = (_type, reason) => {
-      if (reason === cancelReason) return 4001n;
-      return 0n;
+      if (reason === cancelReason) return 4001;
+      return 0;
     };
     const [stream1, stream2] = await createStreamPair({
       codeToReason,

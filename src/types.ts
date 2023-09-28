@@ -59,12 +59,12 @@ type ResolveHostname = (hostname: string) => string | PromiseLike<string>;
  * Maps reason (most likely an exception) to a stream code.
  * Use `0` to indicate unknown/default reason.
  */
-type StreamReasonToCode = (type: 'read' | 'write', reason?: any) => bigint;
+type StreamReasonToCode = (type: 'read' | 'write', reason?: any) => number;
 
 /**
  * Maps code to a reason. 0 usually indicates unknown/default reason.
  */
-type StreamCodeToReason = (type: 'read' | 'write', code: bigint) => any;
+type StreamCodeToReason = (type: 'read' | 'write', code: number) => any;
 
 type ConnectionMetadata = {
   localHost?: string;

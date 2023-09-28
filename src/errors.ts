@@ -125,40 +125,77 @@ class ErrorWebSocketStreamDestroyed<T> extends ErrorWebSocketStream<T> {
   static description = 'WebSocket Stream is destroyed';
 }
 
+
 class ErrorWebSocketStreamLocalRead<T> extends ErrorWebSocketStream<T> {
   static description = 'WebSocket Stream locally closed readable side';
+  declare data: POJO & { code: number };
+  constructor(
+    message: string = '',
+    options: {
+      timestamp?: Date;
+      data: POJO & {
+        code: number;
+      };
+      cause?: T;
+    },
+  ) {
+    super(message, options);
+  }
 }
 
 class ErrorWebSocketStreamLocalWrite<T> extends ErrorWebSocketStream<T> {
   static description = 'WebSocket Stream locally closed writable side';
+  declare data: POJO & { code: number };
+  constructor(
+    message: string = '',
+    options: {
+      timestamp?: Date;
+      data: POJO & {
+        code: number;
+      };
+      cause?: T;
+    },
+  ) {
+    super(message, options);
+  }
 }
 
 class ErrorWebSocketStreamPeerRead<T> extends ErrorWebSocketStream<T> {
   static description = 'WebSocket Stream peer closed readable side';
+  declare data: POJO & { code: number };
+  constructor(
+    message: string = '',
+    options: {
+      timestamp?: Date;
+      data: POJO & {
+        code: number;
+      };
+      cause?: T;
+    },
+  ) {
+    super(message, options);
+  }
 }
 
 class ErrorWebSocketStreamPeerWrite<T> extends ErrorWebSocketStream<T> {
   static description = 'WebSocket Stream peer closed writable side';
+  declare data: POJO & { code: number };
+  constructor(
+    message: string = '',
+    options: {
+      timestamp?: Date;
+      data: POJO & {
+        code: number;
+      };
+      cause?: T;
+    },
+  ) {
+    super(message, options);
+  }
 }
 
 class ErrorWebSocketStreamInternal<T> extends ErrorWebSocketStream<T> {
   static description = 'WebSocket Stream internal error';
-}
-
-// Stream Protocol Errors
-
-class ErrorWebSocketStreamUnknown<T> extends ErrorWebSocketStream<T> {
-  static description = 'WebSocket Stream readable buffer has overloaded';
-}
-
-class ErrorWebSocketStreamReadableParse<T> extends ErrorWebSocketStream<T> {
-  static description = 'WebSocket Stream readable buffer has overloaded';
-}
-
-class ErrorWebSocketStreamReadableBufferOverload<
-  T,
-> extends ErrorWebSocketStream<T> {
-  static description = 'WebSocket Stream readable buffer has overloaded';
 }
 
 // Misc
@@ -193,8 +230,5 @@ export {
   ErrorWebSocketStreamPeerRead,
   ErrorWebSocketStreamPeerWrite,
   ErrorWebSocketStreamInternal,
-  ErrorWebSocketStreamUnknown,
-  ErrorWebSocketStreamReadableParse,
-  ErrorWebSocketStreamReadableBufferOverload,
   ErrorWebSocketUndefinedBehaviour,
 };
