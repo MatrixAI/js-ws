@@ -10,7 +10,7 @@ import type {
 } from './types';
 import type { TLSSocket } from 'tls';
 import type { StreamId } from './message';
-import { startStop } from '@matrixai/async-init';
+import { running, startStop } from '@matrixai/async-init';
 import { Lock } from '@matrixai/async-locks';
 import { context, timedCancellable } from '@matrixai/contexts/dist/decorators';
 import Logger from '@matrixai/logger';
@@ -925,6 +925,9 @@ class WebSocketConnection {
   protected setKeepAliveTimeoutTimer(): void {
     const logger = this.logger.getChild('timer');
     const timeout = this.config.keepAliveTimeoutTime;
+    if (!this[running] || this[startStop.status] === 'stopping') {
+      return;
+    }
     const keepAliveTimeOutHandler = async (signal: AbortSignal) => {
       if (signal.aborted) return;
       if (this.socket.readyState === ws.CLOSED) {
@@ -965,7 +968,7 @@ class WebSocketConnection {
     const keepAliveHandler = async (signal: AbortSignal) => {
       if (signal.aborted) return;
       const pingP = utils.promise<void>();
-      // we don't care whether the ping succeeded or not, we just need to wait until it has been done
+      // we don't care whether the ping succeeded or not, we just need to wait until it has been done before scheduling the next ping
       this.socket.ping(() => pingP.resolveP);
       await pingP.p;
       if (signal.aborted) return;
