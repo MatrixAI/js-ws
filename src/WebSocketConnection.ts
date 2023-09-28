@@ -16,7 +16,7 @@ import { context, timedCancellable } from '@matrixai/contexts/dist/decorators';
 import Logger from '@matrixai/logger';
 import * as ws from 'ws';
 import { Timer } from '@matrixai/timer';
-import { AbstractEvent, EventAll } from '@matrixai/events';
+import { AbstractEvent, EventAll, EventError } from '@matrixai/events';
 import { concatUInt8Array } from './message';
 import WebSocketStream from './WebSocketStream';
 import * as errors from './errors';
@@ -212,27 +212,25 @@ class WebSocketConnection {
     }
   };
 
-  protected handleEventWebSocketStreamError = (
-    evt: events.EventWebSocketStreamError,
+  protected handleWebSocketStreamEventError = (
+    evt: EventError,
   ) => {
     const error = evt.detail;
-    if (error instanceof errors.ErrorWebSocketStreamInternal) {
-      const errorCode = utils.ConnectionErrorCode.ProtocolError;
-      const reason = error.message;
-      this.closeSocket(errorCode, reason);
-      const e_ = new errors.ErrorWebSocketConnectionLocal(reason, {
-        cause: error,
-        data: {
-          errorCode,
-          reason,
-        },
-      });
-      this.dispatchEvent(
-        new events.EventWebSocketConnectionError({
-          detail: e_,
-        }),
-      );
-    }
+    const errorCode = utils.ConnectionErrorCode.ProtocolError;
+    const reason = error.message;
+    this.closeSocket(errorCode, reason);
+    const e_ = new errors.ErrorWebSocketConnectionLocal(reason, {
+      cause: error,
+      data: {
+        errorCode,
+        reason,
+      },
+    });
+    this.dispatchEvent(
+      new events.EventWebSocketConnectionError({
+        detail: e_,
+      }),
+    );
   };
 
   protected handleEventWebSocketStreamSend = async (
@@ -250,8 +248,8 @@ class WebSocketConnection {
       this.handleEventWebSocketStreamSend,
     );
     stream.removeEventListener(
-      events.EventWebSocketStreamError.name,
-      this.handleEventWebSocketConnectionError,
+      EventError.name,
+      this.handleWebSocketStreamEventError,
     );
     stream.removeEventListener(EventAll.name, this.handleEventWebSocketStream);
     this.streamMap.delete(stream.streamId);
@@ -340,8 +338,8 @@ class WebSocketConnection {
         { once: true },
       );
       stream.addEventListener(
-        events.EventWebSocketStreamError.name,
-        this.handleEventWebSocketConnectionError,
+        EventError.name,
+        this.handleWebSocketStreamEventError,
       );
       stream.addEventListener(EventAll.name, this.handleEventWebSocketStream);
       await stream.start();
@@ -831,8 +829,8 @@ class WebSocketConnection {
         { once: true },
       );
       stream.removeEventListener(
-        events.EventWebSocketStreamError.name,
-        this.handleEventWebSocketConnectionError,
+        EventError.name,
+        this.handleWebSocketStreamEventError,
       );
       stream.addEventListener(EventAll.name, this.handleEventWebSocketStream);
       await stream.start();

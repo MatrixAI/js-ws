@@ -87,6 +87,51 @@ describe(WebSocketConnection.name, () => {
 
       await server.stop();
     });
+
+    test('connection closed by stream internal error', async () => {
+      const connectionProm = utils.promise();
+
+      const server = new WebSocketServer({
+        config: tlsConfig,
+        logger,
+      });
+      await server.start({ host: localhost });
+
+      server.addEventListener(
+        events.EventWebSocketServerConnection.name,
+        () => {
+          connectionProm.resolveP();
+        },
+      );
+
+      const client = await WebSocketClient.createWebSocketClient({
+        host: server.host,
+        port: server.port,
+        logger,
+        config: {
+          verifyPeer: false,
+        },
+      });
+
+      const closeProm = utils.promise<events.EventWebSocketConnectionClose>();
+
+      client.connection.addEventListener(
+        events.EventWebSocketConnectionClose.name,
+        closeProm.resolveP as any,
+      );
+
+      const clientStream = await client.connection.newStream();
+
+      // this will cause the parser to error
+      // @ts-ignore: protected property
+      client.connection.send(clientStream.encodedStreamId);
+
+      const closeDetail = (await closeProm.p).detail;
+
+      expect(closeDetail.data.errorCode).toBe(utils.ConnectionErrorCode.ProtocolError);
+
+      await server.stop();
+    });
   });
 
   describe('keepalive', () => {
