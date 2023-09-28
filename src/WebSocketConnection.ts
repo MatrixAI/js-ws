@@ -234,7 +234,10 @@ class WebSocketConnection {
   ) => {
     // if the timer is running, refresh it.
     // this will only happen if the timer has not been cancelled
-    if (this.keepAliveIntervalTimer?.status === null) {
+    if (
+      this.keepAliveIntervalTimer != null &&
+      this.keepAliveIntervalTimer.status === null
+    ) {
       this.keepAliveIntervalTimer.refresh();
     }
     // reset the keepAliveTimeoutTimer, as we've received proof that the peer is still alive
@@ -335,10 +338,13 @@ class WebSocketConnection {
       this.resolveKeepAliveResponsibilityEstablishedP(false);
       this.stopKeepAliveIntervalTimer();
     }
-    // if either a client or a server receives a ping or data, their next scheduled ping is rescheduled to be now + keepAliveIntervalTime
-    else if (this.keepAliveIntervalTimer?.status === null) {
+    if (
+      this.keepAliveIntervalTimer != null &&
+      this.keepAliveIntervalTimer.status === null
+    ) {
       this.keepAliveIntervalTimer.refresh();
     }
+    // if either a client or a server receives a ping or data, their next scheduled ping is rescheduled to be now + keepAliveIntervalTime
     this.setKeepAliveTimeoutTimer();
     this.socket.pong();
   };
@@ -956,8 +962,13 @@ class WebSocketConnection {
   }
 
   protected startKeepAliveIntervalTimer(ms: number): void {
-    const keepAliveHandler = async () => {
-      this.socket.ping();
+    const keepAliveHandler = async (signal: AbortSignal) => {
+      if (signal.aborted) return;
+      const pingP = utils.promise<void>();
+      // we don't care whether the ping succeeded or not, we just need to wait until it has been done
+      this.socket.ping(() => pingP.resolveP);
+      await pingP.p;
+      if (signal.aborted) return;
       this.keepAliveIntervalTimer = new Timer({
         delay: ms,
         handler: keepAliveHandler,
