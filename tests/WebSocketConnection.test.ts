@@ -363,5 +363,77 @@ describe(WebSocketConnection.name, () => {
       await client.destroy();
       await server.stop();
     });
+    test('client takes keepalive responsibility', async () => {
+      const connectionEventProm = utils.promise<WebSocketConnection>();
+      const server = new WebSocketServer({
+        logger: logger.getChild(WebSocketServer.name),
+        config: {
+          key: tlsConfig.key,
+          cert: tlsConfig.cert,
+          verifyPeer: false,
+          keepAliveTimeoutTime: Infinity,
+          keepAliveIntervalTime: 1000,
+        },
+      });
+      server.addEventListener(
+        events.EventWebSocketServerConnection.name,
+        (e: events.EventWebSocketServerConnection) =>
+          connectionEventProm.resolveP(e.detail),
+      );
+      await server.start({
+        host: localhost,
+      });
+      const client = await WebSocketClient.createWebSocketClient({
+        host: '::ffff:127.0.0.1',
+        port: server.port,
+        logger: logger.getChild(WebSocketClient.name),
+        config: {
+          verifyPeer: false,
+          keepAliveTimeoutTime: Infinity,
+          keepAliveIntervalTime: 500,
+        },
+      });
+      const serverConnection = await connectionEventProm.p;
+      await expect(serverConnection.keepAliveResponsibilityEstablishedP).resolves.toBe(false);
+      await expect(client.connection.keepAliveResponsibilityEstablishedP).resolves.toBe(true);
+      await client.destroy();
+      await server.stop();
+    });
+    test('server takes keepalive responsibility', async () => {
+      const connectionEventProm = utils.promise<WebSocketConnection>();
+      const server = new WebSocketServer({
+        logger: logger.getChild(WebSocketServer.name),
+        config: {
+          key: tlsConfig.key,
+          cert: tlsConfig.cert,
+          verifyPeer: false,
+          keepAliveTimeoutTime: Infinity,
+          keepAliveIntervalTime: 500,
+        },
+      });
+      server.addEventListener(
+        events.EventWebSocketServerConnection.name,
+        (e: events.EventWebSocketServerConnection) =>
+          connectionEventProm.resolveP(e.detail),
+      );
+      await server.start({
+        host: localhost,
+      });
+      const client = await WebSocketClient.createWebSocketClient({
+        host: '::ffff:127.0.0.1',
+        port: server.port,
+        logger: logger.getChild(WebSocketClient.name),
+        config: {
+          verifyPeer: false,
+          keepAliveTimeoutTime: Infinity,
+          keepAliveIntervalTime: 1000,
+        },
+      });
+      const serverConnection = await connectionEventProm.p;
+      await expect(serverConnection.keepAliveResponsibilityEstablishedP).resolves.toBe(true);
+      await expect(client.connection.keepAliveResponsibilityEstablishedP).resolves.toBe(false);
+      await client.destroy();
+      await server.stop();
+    });
   });
 });

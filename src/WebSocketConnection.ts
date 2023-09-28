@@ -374,7 +374,7 @@ class WebSocketConnection {
     }
     // if either a client or a server receives a ping or data, their next scheduled ping is rescheduled to be now + keepAliveIntervalTime
     this.setKeepAliveTimeoutTimer();
-    this.socket.pong();
+    // no need to call this.socket.pong(), this is automatically done  by ws
   };
 
   protected handleSocketPong = () => {
@@ -999,11 +999,7 @@ class WebSocketConnection {
   protected startKeepAliveIntervalTimer(ms: number): void {
     const keepAliveHandler = async (signal: AbortSignal) => {
       if (signal.aborted) return;
-      const pingP = utils.promise<void>();
-      // we don't care whether the ping succeeded or not, we just need to wait until it has been done before scheduling the next ping
-      this.socket.ping(() => pingP.resolveP);
-      await pingP.p;
-      if (signal.aborted) return;
+      this.socket.ping();
       this.keepAliveIntervalTimer = new Timer({
         delay: ms,
         handler: keepAliveHandler,
