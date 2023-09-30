@@ -30,6 +30,29 @@ class WebSocketStreamQueue {
     return this._count;
   }
 
+  public [Symbol.iterator](): IterableIterator<Uint8Array> {
+    let current = this.head;
+    return {
+      [Symbol.iterator]() {
+        return this;
+      },
+      next() {
+        const current_ = current;
+        if (current_ == null) {
+          return {
+            value: undefined,
+            done: true,
+          };
+        }
+        current = current_.next;
+        return {
+          value: current_.data,
+          done: false,
+        };
+      },
+    };
+  }
+
   constructor() {
     this._byteLength = 0;
     this._length = 0;

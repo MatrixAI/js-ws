@@ -29,4 +29,15 @@ describe(WebSocketStreamQueue.name, () => {
     expect(queue.byteLength).toBe(0);
     expect(queue.length).toBe(0);
   });
+  testProp('should iterate', [fc.array(fc.uint8Array())], (array) => {
+    const queue = new WebSocketStreamQueue();
+    for (const buffer of array) {
+      queue.queue(buffer);
+    }
+    const outputArray: Array<Uint8Array> = [];
+    for (const item of queue) {
+      outputArray.push(item);
+    }
+    expect(outputArray).toEqual(array);
+  });
 });
