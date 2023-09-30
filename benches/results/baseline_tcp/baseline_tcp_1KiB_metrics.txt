@@ -1,8 +1,8 @@
 # TYPE baseline_tcp.baseline_tcp_1KiB_ops gauge
-baseline_tcp.baseline_tcp_1KiB_ops{name="send 1KiB of data over tcp"} 209397
+baseline_tcp.baseline_tcp_1KiB_ops{name="send 1KiB of data over tcp"} 1181126
 
 # TYPE baseline_tcp.baseline_tcp_1KiB_margin gauge
-baseline_tcp.baseline_tcp_1KiB_margin{name="send 1KiB of data over tcp"} 34.63
+baseline_tcp.baseline_tcp_1KiB_margin{name="send 1KiB of data over tcp"} 1.61
 
 # TYPE baseline_tcp.baseline_tcp_1KiB_samples counter
-baseline_tcp.baseline_tcp_1KiB_samples{name="send 1KiB of data over tcp"} 66
+baseline_tcp.baseline_tcp_1KiB_samples{name="send 1KiB of data over tcp"} 88
