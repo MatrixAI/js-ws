@@ -93,8 +93,6 @@ class WebSocketConnection {
    */
   protected codeToReason: StreamCodeToReason;
 
-  protected sendLock: Lock = new Lock();
-
   /**
    * Stream ID increment lock.
    */
@@ -152,6 +150,11 @@ class WebSocketConnection {
    */
   public readonly closedP: Promise<void>;
   protected resolveClosedP: () => void;
+
+  /**
+   * This should never reject.
+   */
+  protected sendReadyP: Promise<void> | undefined;
 
   /**
    * This stores the last dispatched error.
@@ -848,6 +851,8 @@ class WebSocketConnection {
    * Send data on the WebSocket
    */
   private async send(data: Uint8Array | Array<Uint8Array>) {
+    // Join array of buffers if it is an array.
+    // This is done before waiting for the last send to complete for the sake of performance.
     let array: Uint8Array;
     if (ArrayBuffer.isView(data)) {
       array = data;
@@ -855,42 +860,60 @@ class WebSocketConnection {
       array = concatUInt8Array(...data);
     }
 
-    await this.sendLock.withF(async () => {
-      // Is the lock resolves, and the socket is already closed, no-op
-      if (this.socket.readyState !== ws.OPEN) {
-        return;
-      }
+    // Set sendReadyP to pointer of the current send promise
+    const { p: sendReadyP, resolveP: resolveSendReadyP } = utils.promise();
 
+    // Get pointer to last promise of the last send ready
+    const lastSendReadyP = this.sendReadyP;
+
+    this.sendReadyP = sendReadyP;
+
+    // If there was a send before this, we wait until it has finished, lastSendReadyP should never reject
+    if (lastSendReadyP != null) {
+      await lastSendReadyP;
+    }
+
+    // After the last send, if the socket has already closed, we resolve the promise of the current send,
+    // causing all pending send promises to get to the same point and return
+    if (this.socket.readyState !== ws.OPEN) {
+      resolveSendReadyP();
+      return;
+    }
+
+    try {
       const sendProm = utils.promise<void>();
-      try {
-        this.socket.send(array, { binary: true }, (err) => {
-          if (err == null) sendProm.resolveP();
-          else sendProm.rejectP(err);
-        });
-        // Await our own send
-        await sendProm.p;
-      } catch (err) {
-        const errorCode = utils.ConnectionErrorCode.InternalServerError;
-        const reason =
-          'Connection was unable to send data due to internal WebSocket error';
-        this.closeSocket(errorCode, reason);
-        const e_ = new errors.ErrorWebSocketConnectionLocal(reason, {
-          cause: new errors.ErrorWebSocketServerInternal(reason, {
-            cause: err,
-          }),
-          data: {
-            errorCode,
-            reason,
-          },
-        });
-        this.dispatchEvent(
-          new events.EventWebSocketConnectionError({
-            detail: e_,
-          }),
-        );
-        // Will not wait for close, happens asynchronously
-      }
-    });
+      this.socket.send(array, { binary: true }, (err) => {
+        if (err == null) sendProm.resolveP();
+        else sendProm.rejectP(err);
+      });
+      // Await our own send
+      await sendProm.p;
+    } catch (err) {
+      const errorCode = utils.ConnectionErrorCode.InternalServerError;
+      const reason =
+        'Connection was unable to send data due to internal WebSocket error';
+      this.closeSocket(errorCode, reason);
+      const e_ = new errors.ErrorWebSocketConnectionLocal(reason, {
+        cause: new errors.ErrorWebSocketServerInternal(reason, {
+          cause: err,
+        }),
+        data: {
+          errorCode,
+          reason,
+        },
+      });
+      this.dispatchEvent(
+        new events.EventWebSocketConnectionError({
+          detail: e_,
+        }),
+      );
+      // Will not wait for close, happens asynchronously
+    } finally {
+      // Resolve send regardless
+      // if an error has occured on the send
+      // the socket should be closed by the time resolveSendReadyP is called
+      resolveSendReadyP();
+    }
   }
 
   /**
