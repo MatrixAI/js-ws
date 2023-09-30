@@ -212,9 +212,7 @@ class WebSocketConnection {
     }
   };
 
-  protected handleWebSocketStreamEventError = (
-    evt: EventError,
-  ) => {
+  protected handleWebSocketStreamEventError = (evt: EventError) => {
     const error = evt.detail;
     const errorCode = utils.ConnectionErrorCode.ProtocolError;
     const reason = error.message;

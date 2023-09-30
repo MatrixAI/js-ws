@@ -122,13 +122,15 @@ describe(WebSocketConnection.name, () => {
 
       const clientStream = await client.connection.newStream();
 
-      // this will cause the parser to error
+      // This will cause the parser to error
       // @ts-ignore: protected property
-      client.connection.send(clientStream.encodedStreamId);
+      await client.connection.send(clientStream.encodedStreamId);
 
       const closeDetail = (await closeProm.p).detail;
 
-      expect(closeDetail.data.errorCode).toBe(utils.ConnectionErrorCode.ProtocolError);
+      expect(closeDetail.data.errorCode).toBe(
+        utils.ConnectionErrorCode.ProtocolError,
+      );
 
       await server.stop();
     });

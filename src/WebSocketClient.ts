@@ -1,4 +1,9 @@
-import type { ResolveHostname, StreamCodeToReason, StreamReasonToCode, WebSocketClientConfigInput } from './types';
+import type {
+  ResolveHostname,
+  StreamCodeToReason,
+  StreamReasonToCode,
+  WebSocketClientConfigInput,
+} from './types';
 import type { ContextTimed, ContextTimedInput } from '@matrixai/contexts';
 import { AbstractEvent } from '@matrixai/events';
 import { createDestroy } from '@matrixai/async-init';
