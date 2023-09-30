@@ -152,6 +152,11 @@ class WebSocketConnection {
   protected resolveClosedP: () => void;
 
   /**
+   * Can reject when if a send fails
+   */
+  protected sendReadyP: Promise<void> | undefined;
+
+  /**
    * This stores the last dispatched error.
    * If no error has occurred, it will be `null`.
    */
@@ -846,23 +851,47 @@ class WebSocketConnection {
    * Send data on the WebSocket
    */
   private async send(data: Uint8Array | Array<Uint8Array>) {
-    if (this.socket.readyState !== ws.OPEN) {
-      this.logger.debug('a message was dropped because the socket is not open');
-      return;
-    }
-
     let array: Uint8Array;
     if (ArrayBuffer.isView(data)) {
       array = data;
     } else {
       array = concatUInt8Array(...data);
     }
+
+    // Create new promise that resolves after the current socket.send
+    const sendProm = utils.promise<void>();
+
+    // Get pointer to last promise of the last send
+    const lastSendReadyP = this.sendReadyP;
+
+    // Set sendReadyP to pointer of the current send promise
+    this.sendReadyP = sendProm.p;
+
+    // If there was a send before this, we wait until it has finished
+    if (lastSendReadyP != null) {
+      try {
+        await lastSendReadyP;
+      } catch (reason) {
+        // Propagate rejection if the last send failed
+        sendProm.rejectP(reason);
+        return;
+      }
+    }
+
+    // After the last send, if the socket has already closed, we resolve the promise of the current send,
+    // causing all pending send promises to get to the same point and return
+    if (this.socket.readyState !== ws.OPEN) {
+      sendProm.resolveP();
+      return;
+    }
+
     try {
-      const sendProm = utils.promise<void>();
       this.socket.send(array, { binary: true }, (err) => {
         if (err == null) sendProm.resolveP();
         else sendProm.rejectP(err);
       });
+
+      // Await our own send
       await sendProm.p;
     } catch (err) {
       const errorCode = utils.ConnectionErrorCode.InternalServerError;
