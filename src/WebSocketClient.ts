@@ -1,4 +1,4 @@
-import type { ResolveHostname, WebSocketClientConfigInput } from './types';
+import type { ResolveHostname, StreamCodeToReason, StreamReasonToCode, WebSocketClientConfigInput } from './types';
 import type { ContextTimed, ContextTimedInput } from '@matrixai/contexts';
 import { AbstractEvent } from '@matrixai/events';
 import { createDestroy } from '@matrixai/async-init';
@@ -29,7 +29,7 @@ interface WebSocketClient extends createDestroy.CreateDestroy {}
   eventDestroy: events.EventWebSocketClientDestroy,
   eventDestroyed: events.EventWebSocketClientDestroyed,
 })
-class WebSocketClient extends EventTarget {
+class WebSocketClient {
   /**
    * Creates a WebSocketClient
    *
@@ -68,12 +68,16 @@ class WebSocketClient extends EventTarget {
       port,
       config,
       resolveHostname = utils.resolveHostname,
+      reasonToCode,
+      codeToReason,
       logger = new Logger(`${this.name}`),
     }: {
       host: string;
       port: number;
       config?: WebSocketClientConfigInput;
       resolveHostname?: ResolveHostname;
+      reasonToCode?: StreamReasonToCode;
+      codeToReason?: StreamCodeToReason;
       logger?: Logger;
     },
     @context ctx: ContextTimed,
@@ -110,6 +114,8 @@ class WebSocketClient extends EventTarget {
       connectionId,
       config: wsConfig,
       socket: webSocket,
+      reasonToCode,
+      codeToReason,
       logger: logger.getChild(`${WebSocketConnection.name} ${connectionId}`),
     });
     const client = new this({
@@ -176,6 +182,7 @@ class WebSocketClient extends EventTarget {
    * The connection of the client.
    */
   public readonly connection: WebSocketConnection;
+
   /**
    * Resolved when the underlying server is closed.
    */
@@ -282,7 +289,6 @@ class WebSocketClient extends EventTarget {
     logger: Logger;
     connection: WebSocketConnection;
   }) {
-    super();
     this.address = address;
     this.logger = logger;
     this.connection = connection;
