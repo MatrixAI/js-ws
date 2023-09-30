@@ -634,4 +634,41 @@ describe(WebSocketStream.name, () => {
 
     await Promise.all([stream1.closedP, stream2.closedP]);
   });
+  testProp(
+    'stream will flush queue into readable buffer after close',
+    [
+      messageTestUtils.fcBuffer({ maxLength: STREAM_BUFFER_SIZE / 2 - 1 }),
+      messageTestUtils.fcBuffer({ maxLength: STREAM_BUFFER_SIZE / 2 - 1 }),
+    ],
+    async (message1, message2) => {
+      const [stream1, stream2] = await createStreamPair();
+
+      const stream1Readable = stream1.readable;
+      const stream2Writable = stream2.writable;
+      await stream1.writable.close();
+
+      const writer = stream2Writable.getWriter();
+      const reader = stream1Readable.getReader();
+
+      await writer.write(message1);
+      await writer.write(message2);
+      await writer.close();
+
+      expect(stream1.readClosed).toBe(true);
+
+      const readChunks: Array<Uint8Array> = [];
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        readChunks.push(value);
+      }
+
+      expect(messageUtils.concatUInt8Array(...readChunks)).toEqual(
+        messageUtils.concatUInt8Array(message1, message2),
+      );
+
+      await stream1.stop();
+      await stream2.stop();
+    },
+  );
 });

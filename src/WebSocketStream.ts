@@ -489,6 +489,9 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
         code: BigInt(code) as VarInt,
       },
     });
+    // No need to flush the queue into the readable here,
+    // cancel flushes the internal readable buffer anyways
+    this.readableQueue.clear();
     return;
   }
 
@@ -639,7 +642,13 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
       const shutdown = parsedMessage.payload;
       if (shutdown === StreamShutdown.Read) {
         if (this._readClosed) return;
+        // Flush the readable queue,
+        // in the case where this.readableController.close is called, we're expecting the buffer to not be flushed
+        for (const data of this.readableQueue) {
+          this.readableController.enqueue(data);
+        }
         this.readableController.close();
+        this.readableQueue.clear();
         this.resolveReadableP?.();
         this.dispatchEvent(new events.EventWebSocketStreamCloseRead());
         this.streamSend({
