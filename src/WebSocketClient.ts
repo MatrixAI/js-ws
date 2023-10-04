@@ -58,6 +58,9 @@ class WebSocketClient {
       host: string;
       port: number;
       config?: WebSocketClientConfigInput;
+      resolveHostname?: ResolveHostname;
+      reasonToCode?: StreamReasonToCode;
+      codeToReason?: StreamCodeToReason;
       logger?: Logger;
     },
     ctx?: Partial<ContextTimedInput>,
