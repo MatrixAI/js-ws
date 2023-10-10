@@ -75,9 +75,9 @@ describe(WebSocketServer.name, () => {
     certEd25519PEM = testsUtils.certToPEM(certEd25519);
   });
   // This has to be setup asynchronously due to key generation
-  let key: ArrayBuffer;
+  let _key: ArrayBuffer;
   beforeEach(async () => {
-    key = await testsUtils.generateKeyHMAC();
+    _key = await testsUtils.generateKeyHMAC();
   });
 
   describe('start and stop', () => {

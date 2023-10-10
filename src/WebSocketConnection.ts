@@ -71,6 +71,11 @@ class WebSocketConnection {
    */
   protected streamMap: Map<StreamId, WebSocketStream> = new Map();
 
+  /**
+   * Used to track streamIds that have already been used.
+   */
+  protected usedIdSet: Set<StreamId> = new Set();
+
   protected logger: Logger;
 
   /**
@@ -314,6 +319,13 @@ class WebSocketConnection {
 
     let stream = this.streamMap.get(streamId);
     if (stream == null) {
+      // FIXME: tempfix for preventing dead stream re-creation
+      if (this.usedIdSet.has(streamId)) {
+        // Silently ignore the message
+        return;
+      } else {
+        this.usedIdSet.add(streamId);
+      }
       // Because the stream code is 16 bits, and Ack is only the right-most bit set when encoded by big-endian,
       // we can assume that the second byte of the StreamMessageType.Ack will look the same as if it were encoded in a u8
       if (
