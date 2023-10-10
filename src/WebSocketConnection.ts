@@ -244,7 +244,7 @@ class WebSocketConnection {
   protected handleEventWebSocketStreamSend = async (
     evt: events.EventWebSocketStreamSend,
   ) => {
-    await this.send(evt.msg, evt.streamId);
+    await this.send(evt.msg, evt);
   };
 
   protected handleEventWebSocketStreamStopped = (
@@ -862,11 +862,14 @@ class WebSocketConnection {
   /**
    * Send data on the WebSocket
    * @param data - the data to send
-   * @param streamId - can be provided to make sure that the sending of pending messages depend on the existance of a related stream
+   * @param metadata - can be provided to make sure that the sending of pending messages depend on the existance of a related stream
    */
   private async send(
     data: Uint8Array | Array<Uint8Array>,
-    streamId?: StreamId,
+    metadata?: {
+      streamId: StreamId;
+      messageType: StreamMessageType;
+    },
   ) {
     // Join array of buffers if it is an array.
     // This is done before waiting for the last send to complete for the sake of performance.
@@ -894,7 +897,9 @@ class WebSocketConnection {
     // causing all pending send promises to get to the same point and return.
     if (
       this.socket.readyState !== ws.OPEN ||
-      (streamId != null && !this.streamMap.has(streamId))
+      (metadata != null &&
+        metadata.messageType === StreamMessageType.Ack &&
+        !this.streamMap.has(metadata.streamId))
     ) {
       resolveSendReadyP();
       return;

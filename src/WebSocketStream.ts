@@ -537,6 +537,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     const evt = new events.EventWebSocketStreamSend({
       msg: array,
       streamId: this.streamId,
+      messageType: message.type,
     });
     this.dispatchEvent(evt);
   }

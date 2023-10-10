@@ -11,7 +11,7 @@ import type {
   ErrorWebSocketStreamPeerRead,
   ErrorWebSocketStreamPeerWrite,
 } from './errors';
-import type { StreamId } from './message';
+import type { StreamId, StreamMessageType } from './message';
 import { AbstractEvent } from '@matrixai/events';
 
 abstract class EventWebSocket<T = null> extends AbstractEvent<T> {}
@@ -131,15 +131,18 @@ class EventWebSocketStreamCloseWrite extends EventWebSocketStream<
 class EventWebSocketStreamSend extends EventWebSocketStream {
   msg: Uint8Array | Array<Uint8Array>;
   streamId: StreamId;
+  messageType: StreamMessageType;
   constructor(
     options: EventInit & {
       msg: Uint8Array | Array<Uint8Array>;
       streamId: StreamId;
+      messageType: StreamMessageType;
     },
   ) {
     super(EventWebSocketStreamSend.name, options, arguments);
     this.msg = options.msg;
     this.streamId = options.streamId;
+    this.messageType = options.messageType;
   }
 }
 
