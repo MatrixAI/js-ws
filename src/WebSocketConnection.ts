@@ -244,7 +244,7 @@ class WebSocketConnection {
   protected handleEventWebSocketStreamSend = async (
     evt: events.EventWebSocketStreamSend,
   ) => {
-    await this.send(evt.msg);
+    await this.send(evt.msg, evt.streamId);
   };
 
   protected handleEventWebSocketStreamStopped = (
@@ -861,8 +861,13 @@ class WebSocketConnection {
 
   /**
    * Send data on the WebSocket
+   * @param data - the data to send
+   * @param streamId - can be provided to make sure that the sending of pending messages depend on the existance of a related stream
    */
-  private async send(data: Uint8Array | Array<Uint8Array>) {
+  private async send(
+    data: Uint8Array | Array<Uint8Array>,
+    streamId?: StreamId,
+  ) {
     // Join array of buffers if it is an array.
     // This is done before waiting for the last send to complete for the sake of performance.
     let array: Uint8Array;
@@ -885,9 +890,12 @@ class WebSocketConnection {
       await lastSendReadyP;
     }
 
-    // After the last send, if the socket has already closed, we resolve the promise of the current send,
-    // causing all pending send promises to get to the same point and return
-    if (this.socket.readyState !== ws.OPEN) {
+    // After the last send, if the socket or stream has already closed, we resolve the promise of the current send,
+    // causing all pending send promises to get to the same point and return.
+    if (
+      this.socket.readyState !== ws.OPEN ||
+      (streamId != null && !this.streamMap.has(streamId))
+    ) {
       resolveSendReadyP();
       return;
     }

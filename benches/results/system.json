@@ -8,7 +8,7 @@
     "stepping": "3",
     "revision": "",
     "voltage": "",
-    "speed": 3.19,
+    "speed": 2.65,
     "speedMin": 0.4,
     "speedMax": 4.8,
     "governor": "powersave",
