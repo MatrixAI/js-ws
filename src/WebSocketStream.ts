@@ -534,8 +534,10 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   protected streamSend(message: StreamMessage) {
     const array = [this.encodedStreamId];
     array.push(...generateStreamMessage(message, false));
-    const evt = new events.EventWebSocketStreamSend();
-    evt.msg = array;
+    const evt = new events.EventWebSocketStreamSend({
+      msg: array,
+      streamId: this.streamId,
+    });
     this.dispatchEvent(evt);
   }
 
