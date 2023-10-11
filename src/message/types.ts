@@ -1,4 +1,4 @@
-import type { Opaque } from '@/types';
+import type { Opaque } from '../types';
 import type { StreamMessageType, StreamShutdown } from './utils';
 
 interface Parsed<T> {

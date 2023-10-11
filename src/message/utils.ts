@@ -5,8 +5,8 @@ import type {
   StreamMessage,
   VarInt,
 } from './types';
-import { never } from '@/utils';
 import * as errors from './errors';
+import * as utils from '../utils';
 
 // Enums
 
@@ -251,7 +251,7 @@ function parseStreamMessage(input: Uint8Array): StreamMessage {
     remainder = postErrorPayloadRemainder;
     payload = errorPayload;
   } else {
-    never();
+    utils.never();
   }
 
   return {
@@ -313,7 +313,7 @@ function generateStreamMessage(input: StreamMessage, concat = true) {
   } else if (input.type === StreamMessageType.Error) {
     generatedPayload = generateStreamMessageErrorPayload(input.payload);
   } else {
-    never();
+    utils.never();
   }
   if (!concat) {
     return [generatedType, generatedPayload];
