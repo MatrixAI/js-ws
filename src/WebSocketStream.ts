@@ -138,8 +138,8 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     evt: events.EventWebSocketStreamError,
   ) => {
     const error = evt.detail;
-    this.logger.error(utils.formatError(error));
     if (error instanceof errors.ErrorWebSocketStreamInternal) {
+      this.logger.error(utils.formatError(error));
       throw error;
     }
     if (
