@@ -4,7 +4,7 @@ export { default as WebSocketConnection } from './WebSocketConnection';
 export { default as WebSocketStream } from './WebSocketStream';
 export { default as WebSocketStreamQueue } from './WebSocketStreamQueue';
 
-export * as types from './types';
+export * from './types';
 export * as utils from './utils';
 export * as events from './events';
 export * as errors from './errors';
