@@ -379,7 +379,7 @@ class WebSocketServer {
           const peerCertChain = utils.toPeerCertChain(peerCert);
           const ca = utils.collectPEMs(this.config.ca).map(utils.pemToDER);
           try {
-            await this.config.verifyCallback(peerCertChain, ca);
+            await this.config.verifyCallback(peerCertChain, ca, info.req.headers);
             return done(true);
           } catch (e) {
             info.req.destroy(e);

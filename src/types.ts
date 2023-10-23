@@ -1,3 +1,5 @@
+import type { IncomingHttpHeaders } from "http";
+
 // Async
 
 /**
@@ -79,6 +81,7 @@ type ConnectionMetadata = {
 type TLSVerifyCallback = (
   certs: Array<Uint8Array>,
   ca: Array<Uint8Array>,
+  headers: IncomingHttpHeaders
 ) => PromiseLike<void>;
 
 type WebSocketConfig = {
