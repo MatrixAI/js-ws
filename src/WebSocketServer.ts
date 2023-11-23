@@ -312,6 +312,14 @@ class WebSocketServer {
       ...serverDefault,
       ...config,
     };
+    // Config header names need to be set to lowercase
+    if (this.config.headers != null) {
+      const originalHeaders = this.config.headers;
+      this.config.headers = {};
+      for (const [headerName, value] of Object.entries(originalHeaders)) {
+        this.config.headers[headerName.toLowerCase()] = value;
+      }
+    }
     this.resolveHostname = resolveHostname;
 
     this.connectTimeoutTime = connectTimeoutTime;
