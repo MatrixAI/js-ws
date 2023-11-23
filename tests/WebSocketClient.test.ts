@@ -463,6 +463,195 @@ describe(WebSocketClient.name, () => {
       await server.stop();
     });
   });
+  describe('custom TLS verification with headers', () => {
+    test('server succeeds custom verification', async () => {
+      const tlsConfigs = await testsUtils.generateConfig('RSA');
+      const authorization = 'password';
+      const server = new WebSocketServer({
+        logger: logger.getChild(WebSocketServer.name),
+        config: {
+          key: tlsConfigs.key,
+          cert: tlsConfigs.cert,
+          verifyPeer: false,
+          headers: {
+            authorization,
+          },
+        },
+      });
+      const handleConnectionEventProm = promise<any>();
+      server.addEventListener(
+        events.EventWebSocketServerConnection.name,
+        handleConnectionEventProm.resolveP,
+      );
+      await server.start({
+        host: localhost,
+      });
+      // Connection should succeed
+      const verifyProm = promise<string | undefined>();
+      const client = await WebSocketClient.createWebSocketClient({
+        host: localhost,
+        port: server.port,
+        logger: logger.getChild(WebSocketClient.name),
+        config: {
+          verifyPeer: true,
+          verifyCallback: async (_certs, _ca, headers) => {
+            verifyProm.resolveP(headers.authorization);
+          },
+        },
+      });
+      await handleConnectionEventProm.p;
+      await expect(verifyProm.p).resolves.toBe(authorization);
+      await client.destroy();
+      await server.stop();
+    });
+    test('server fails custom verification', async () => {
+      const tlsConfigs = await testsUtils.generateConfig('RSA');
+      const authorization = 'password';
+      const server = new WebSocketServer({
+        logger: logger.getChild(WebSocketServer.name),
+        config: {
+          key: tlsConfigs.key,
+          cert: tlsConfigs.cert,
+          verifyPeer: false,
+          headers: {
+            authorization,
+          },
+        },
+      });
+      const handleConnectionEventProm = promise<WebSocketConnection>();
+      server.addEventListener(
+        events.EventWebSocketServerConnection.name,
+        (event: events.EventWebSocketServerConnection) =>
+          handleConnectionEventProm.resolveP(event.detail),
+      );
+      await server.start({
+        host: localhost,
+      });
+      // Connection should fail
+      const clientProm = WebSocketClient.createWebSocketClient({
+        host: localhost,
+        port: server.port,
+        logger: logger.getChild(WebSocketClient.name),
+        config: {
+          verifyPeer: true,
+          verifyCallback: () => {
+            throw Error('SOME ERROR');
+          },
+        },
+      });
+      clientProm.catch(() => {});
+
+      // Verification by peer happens after connection is securely established and started
+      const serverConn = await handleConnectionEventProm.p;
+      const serverErrorProm = promise<never>();
+      serverConn.addEventListener(
+        events.EventWebSocketConnectionError.name,
+        (evt: events.EventWebSocketConnectionError) =>
+          serverErrorProm.rejectP(evt.detail),
+      );
+      await expect(serverErrorProm.p).rejects.toThrow(
+        errors.ErrorWebSocketConnectionPeer,
+      );
+      await expect(clientProm).rejects.toThrow(
+        errors.ErrorWebSocketConnectionLocal,
+      );
+
+      await server.stop();
+    });
+    test('client succeeds custom verification', async () => {
+      const tlsConfigs = await testsUtils.generateConfig('RSA');
+      const authorization = 'password';
+      const verifyProm = promise<string | undefined>();
+      const server = new WebSocketServer({
+        logger: logger.getChild(WebSocketServer.name),
+        config: {
+          key: tlsConfigs.key,
+          cert: tlsConfigs.cert,
+          verifyPeer: true,
+          verifyCallback: async (_certs, _ca, headers) => {
+            verifyProm.resolveP(headers.authorization);
+          },
+        },
+      });
+      const handleConnectionEventProm = promise<any>();
+      server.addEventListener(
+        events.EventWebSocketServerConnection.name,
+        handleConnectionEventProm.resolveP,
+      );
+      await server.start({
+        host: localhost,
+      });
+      // Connection should succeed
+      const client = await WebSocketClient.createWebSocketClient({
+        host: localhost,
+        port: server.port,
+        logger: logger.getChild(WebSocketClient.name),
+        config: {
+          verifyPeer: false,
+          key: tlsConfigs.key,
+          cert: tlsConfigs.cert,
+          headers: {
+            authorization,
+          },
+        },
+      });
+      await handleConnectionEventProm.p;
+      await expect(verifyProm.p).resolves.toBe(authorization);
+      await client.destroy();
+      await server.stop();
+    });
+    test('client fails custom verification', async () => {
+      const tlsConfigs = await testsUtils.generateConfig('RSA');
+      const authorization = 'password';
+      const server = new WebSocketServer({
+        logger: logger.getChild(WebSocketServer.name),
+        config: {
+          key: tlsConfigs.key,
+          cert: tlsConfigs.cert,
+          verifyPeer: true,
+          verifyCallback: () => {
+            throw Error('SOME ERROR');
+          },
+        },
+      });
+      const handleConnectionEventProm = promise<WebSocketConnection>();
+      server.addEventListener(
+        events.EventWebSocketServerConnection.name,
+        (event: events.EventWebSocketServerConnection) =>
+          handleConnectionEventProm.resolveP(event.detail),
+      );
+      await server.start({
+        host: localhost,
+      });
+      // Connection should fail
+      await expect(
+        WebSocketClient.createWebSocketClient({
+          host: localhost,
+          port: server.port,
+          logger: logger.getChild(WebSocketClient.name),
+          config: {
+            key: tlsConfigs.key,
+            cert: tlsConfigs.cert,
+            verifyPeer: false,
+            headers: {
+              authorization,
+            },
+          },
+        }),
+      ).rejects.toHaveProperty('name', 'ErrorWebSocketConnectionPeer');
+
+      // // Server connection is never emitted
+      await Promise.race([
+        handleConnectionEventProm.p.then(() => {
+          throw Error('Server connection should not be emitted');
+        }),
+        // Allow some time
+        testsUtils.sleep(200),
+      ]);
+
+      await server.stop();
+    });
+  });
   describe.each(types)('custom TLS verification with %s', (type) => {
     test('server succeeds custom verification', async () => {
       const tlsConfigs = await testsUtils.generateConfig(type);

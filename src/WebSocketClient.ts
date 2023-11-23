@@ -114,6 +114,7 @@ class WebSocketClient {
       key: wsConfig.key as any,
       cert: wsConfig.cert as any,
       ca: wsConfig.ca as any,
+      headers: wsConfig.headers,
     });
 
     const connectionId = 0;

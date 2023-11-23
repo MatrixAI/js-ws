@@ -1,3 +1,5 @@
+import type { IncomingHttpHeaders } from 'http';
+
 // Async
 
 /**
@@ -79,6 +81,7 @@ type ConnectionMetadata = {
 type TLSVerifyCallback = (
   certs: Array<Uint8Array>,
   ca: Array<Uint8Array>,
+  headers: IncomingHttpHeaders,
 ) => PromiseLike<void>;
 
 type WebSocketConfig = {
@@ -115,6 +118,12 @@ type WebSocketConfig = {
    * Currently multiple key and certificate chains is not supported.
    */
   cert?: string | Array<string> | Uint8Array | Array<Uint8Array>;
+
+  /**
+   * Headers that will be attached to the HTTP Upgrade Request/Response.
+   * This can be used for authentication purposes, or to provide metadata regarding the connection.
+   */
+  headers?: IncomingHttpHeaders;
 
   /**
    * Verify the other peer.

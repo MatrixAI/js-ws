@@ -243,6 +243,28 @@ class WebSocketServer {
     );
   };
 
+  protected handleServerHeaders = (headers: Array<string>) => {
+    if (this.config.headers == null) {
+      return;
+    }
+    const configHeaders = { ...this.config.headers };
+    for (let i = 0; i < headers.length; i++) {
+      const headerKV = headers[i].split(': ', 2);
+      if (headerKV.length !== 2) {
+        continue;
+      }
+      const [headerName] = headerKV;
+      const lowercaseHeaderName = headerName.toLowerCase();
+      if (lowercaseHeaderName in configHeaders) {
+        headers[i] = `${headerName}: ${configHeaders[lowercaseHeaderName]}`;
+        delete configHeaders[lowercaseHeaderName];
+      }
+    }
+    for (const [header, value] of Object.entries(configHeaders)) {
+      headers.push(`${header}: ${value}`);
+    }
+  };
+
   /**
    * WebSocketServer.constructor
    *
@@ -290,6 +312,14 @@ class WebSocketServer {
       ...serverDefault,
       ...config,
     };
+    // Config header names need to be set to lowercase
+    if (this.config.headers != null) {
+      const originalHeaders = this.config.headers;
+      this.config.headers = {};
+      for (const [headerName, value] of Object.entries(originalHeaders)) {
+        this.config.headers[headerName.toLowerCase()] = value;
+      }
+    }
     this.resolveHostname = resolveHostname;
 
     this.connectTimeoutTime = connectTimeoutTime;
@@ -379,7 +409,11 @@ class WebSocketServer {
           const peerCertChain = utils.toPeerCertChain(peerCert);
           const ca = utils.collectPEMs(this.config.ca).map(utils.pemToDER);
           try {
-            await this.config.verifyCallback(peerCertChain, ca);
+            await this.config.verifyCallback(
+              peerCertChain,
+              ca,
+              info.req.headers,
+            );
             return done(true);
           } catch (e) {
             info.req.destroy(e);
@@ -391,6 +425,7 @@ class WebSocketServer {
     });
 
     this.webSocketServer.on('connection', this.handleServerConnection);
+    this.webSocketServer.on('headers', this.handleServerHeaders);
     this.webSocketServer.on('close', this.handleWebSocketServerClosed);
     this.server.on('close', this.handleServerClosed);
     this.webSocketServer.on('error', this.handleServerError);
@@ -485,6 +520,7 @@ class WebSocketServer {
     );
 
     this.webSocketServer.off('connection', this.handleServerConnection);
+    this.webSocketServer.off('headers', this.handleServerHeaders);
     this.webSocketServer.off('close', this.handleServerClosed);
     this.server.off('close', this.handleServerClosed);
     this.webSocketServer.off('error', this.handleServerError);

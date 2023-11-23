@@ -725,7 +725,11 @@ class WebSocketConnection {
         const ca = utils.collectPEMs(this.config.ca).map(utils.pemToDER);
         try {
           if (this.config.verifyPeer && this.config.verifyCallback != null) {
-            await this.config.verifyCallback?.(peerCertChain, ca);
+            await this.config.verifyCallback?.(
+              peerCertChain,
+              ca,
+              request.headers,
+            );
           }
           this._localHost = request.connection.localAddress as Host;
           this._localPort = request.connection.localPort as Port;
