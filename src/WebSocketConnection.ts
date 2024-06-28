@@ -82,7 +82,7 @@ class WebSocketConnection {
    * Internal native WebSocket object.
    * @internal
    */
-  protected socket: ws.WebSocket;
+  protected socket: ws.WebSocket | typeof globalThis.WebSocket.prototype;
 
   protected config: WebSocketConfig;
 
@@ -263,6 +263,12 @@ class WebSocketConnection {
     this.streamMap.delete(stream.streamId);
   };
 
+  protected handleBrowserSocketMessage = async (
+    event: MessageEvent<ArrayBuffer>,
+  ) => {
+    return this.handleSocketMessage(event.data, true);
+  };
+
   protected handleSocketMessage = async (
     data: ws.RawData,
     isBinary: boolean,
@@ -433,7 +439,7 @@ class WebSocketConnection {
     );
   };
 
-  protected handleSocketError = (err: Error) => {
+  protected handleSocketError = (err: any) => {
     const errorCode = utils.ConnectionErrorCode.InternalServerError;
     const reason = 'An error occurred on the underlying WebSocket instance';
     this.closeSocket(errorCode, reason);
@@ -518,7 +524,7 @@ class WebSocketConnection {
         connectionId: number;
         meta?: undefined;
         config: WebSocketConfig;
-        socket: ws.WebSocket;
+        socket: ws.WebSocket | typeof globalThis.WebSocket.prototype;
         reasonToCode?: StreamReasonToCode;
         codeToReason?: StreamCodeToReason;
         logger?: Logger;
@@ -528,13 +534,14 @@ class WebSocketConnection {
         connectionId: number;
         meta: ConnectionMetadata;
         config: WebSocketConfig;
-        socket: ws.WebSocket;
+        socket: ws.WebSocket | typeof globalThis.WebSocket.prototype;
         reasonToCode?: StreamReasonToCode;
         codeToReason?: StreamCodeToReason;
         logger?: Logger;
       }) {
     this.logger = logger ?? new Logger(`${this.constructor.name}`);
     this.connectionId = connectionId;
+    socket.binaryType = 'arraybuffer';
     this.socket = socket;
     this.config = config;
     this.type = type;
@@ -706,15 +713,27 @@ class WebSocketConnection {
         }),
       );
     };
-    this.socket.once('error', openErrorHandler);
     const openHandler = () => {
       this.resolveSecureEstablishedP();
     };
-    this.socket.once('open', openHandler);
-    // This will always happen, no need to remove the handler
-    this.socket.once('close', this.handleSocketClose);
+    if (utils.isNodeWebsocket(this.socket)) {
+      this.socket.once('error', openErrorHandler);
+      this.socket.once('open', openHandler);
+      // This will always happen, no need to remove the handler
+      this.socket.once('close', this.handleSocketClose);
+    } else {
+      this.socket.addEventListener('error', openErrorHandler, { once: true });
+      this.socket.addEventListener('open', openHandler, { once: true });
+      // This will always happen, no need to remove the handler
+      this.socket.addEventListener(
+        'close',
+        (event) =>
+          this.handleSocketClose(event.code, Buffer.from(event.reason)),
+        { once: true },
+      );
+    }
 
-    if (this.type === 'client') {
+    if (this.type === 'client' && utils.isNodeWebsocket(this.socket)) {
       this.socket.once('upgrade', async (request) => {
         const tlsSocket = request.socket as TLSSocket;
         const peerCert = tlsSocket.getPeerCertificate(true);
@@ -788,23 +807,39 @@ class WebSocketConnection {
         );
       }
 
-      this.socket.off('open', openHandler);
-      // Upgrade only exists on the ws library, we can use removeAllListeners without worrying
-      this.socket.removeAllListeners('upgrade');
+      if (utils.isNodeWebsocket(this.socket)) {
+        this.socket.off('open', openHandler);
+        // Upgrade only exists on the ws library, we can use removeAllListeners without worrying
+        this.socket.removeAllListeners('upgrade');
+      } else {
+        this.socket.removeEventListener('open', openHandler);
+      }
+
       // Close the ws if it's open at this stage
       await this.closedP;
       throw e;
     } finally {
       ctx.signal.removeEventListener('abort', abortHandler);
-      // Upgrade has already been removed by being called once or by the catch
-      this.socket.off('error', openErrorHandler);
+      if (utils.isNodeWebsocket(this.socket)) {
+        // Upgrade has already been removed by being called once or by the catch
+        this.socket.off('error', openErrorHandler);
+      } else {
+        this.socket.removeEventListener('error', openErrorHandler);
+      }
     }
 
     // Set the connection up
-    this.socket.on('message', this.handleSocketMessage);
-    this.socket.on('ping', this.handleSocketPing);
-    this.socket.on('pong', this.handleSocketPong);
-    this.socket.once('error', this.handleSocketError);
+    if (utils.isNodeWebsocket(this.socket)) {
+      this.socket.on('message', this.handleSocketMessage);
+      this.socket.on('ping', this.handleSocketPing);
+      this.socket.on('pong', this.handleSocketPong);
+      this.socket.once('error', this.handleSocketError);
+    } else {
+      this.socket.addEventListener('message', this.handleBrowserSocketMessage);
+      this.socket.addEventListener('error', this.handleSocketError, {
+        once: true,
+      });
+    }
 
     if (this.config.keepAliveIntervalTime != null) {
       this.startKeepAliveIntervalTimer(this.config.keepAliveIntervalTime);
@@ -996,10 +1031,18 @@ class WebSocketConnection {
       events.EventWebSocketConnectionClose.name,
       this.handleEventWebSocketConnectionClose,
     );
-    this.socket.off('message', this.handleSocketMessage);
-    this.socket.off('ping', this.handleSocketPing);
-    this.socket.off('pong', this.handleSocketPong);
-    this.socket.off('error', this.handleSocketError);
+    if (utils.isNodeWebsocket(this.socket)) {
+      this.socket.off('message', this.handleSocketMessage);
+      this.socket.off('ping', this.handleSocketPing);
+      this.socket.off('pong', this.handleSocketPong);
+      this.socket.off('error', this.handleSocketError);
+    } else {
+      this.socket.removeEventListener(
+        'message',
+        this.handleBrowserSocketMessage,
+      );
+      this.socket.removeEventListener('error', this.handleSocketError);
+    }
 
     this.logger.info(`Stopped ${this.constructor.name}`);
   }
@@ -1049,7 +1092,9 @@ class WebSocketConnection {
   protected startKeepAliveIntervalTimer(ms: number): void {
     const keepAliveHandler = async (signal: AbortSignal) => {
       if (signal.aborted) return;
-      this.socket.ping();
+      if (utils.isNodeWebsocket(this.socket)) {
+        this.socket.ping();
+      }
       this.keepAliveIntervalTimer = new Timer({
         delay: ms,
         handler: keepAliveHandler,

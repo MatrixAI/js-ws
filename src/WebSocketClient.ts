@@ -8,7 +8,7 @@ import type { ContextTimed, ContextTimedInput } from '@matrixai/contexts';
 import { AbstractEvent } from '@matrixai/events';
 import { createDestroy } from '@matrixai/async-init';
 import Logger from '@matrixai/logger';
-import WebSocket from 'ws';
+import * as ws from 'ws';
 import { EventAll } from '@matrixai/events';
 import { context, timedCancellable } from '@matrixai/contexts/dist/decorators';
 import * as errors from './errors';
@@ -62,6 +62,7 @@ class WebSocketClient {
       reasonToCode?: StreamReasonToCode;
       codeToReason?: StreamCodeToReason;
       logger?: Logger;
+      _webSocketClass?: typeof globalThis.WebSocket | typeof ws.WebSocket;
     },
     ctx?: Partial<ContextTimedInput>,
   ): Promise<WebSocketClient>;
@@ -79,6 +80,9 @@ class WebSocketClient {
       reasonToCode,
       codeToReason,
       logger = new Logger(`${this.name}`),
+      _webSocketClass = globalThis.WebSocket == null
+        ? ws.WebSocket
+        : globalThis.WebSocket,
     }: {
       host: string;
       port: number;
@@ -87,6 +91,7 @@ class WebSocketClient {
       reasonToCode?: StreamReasonToCode;
       codeToReason?: StreamCodeToReason;
       logger?: Logger;
+      _webSocketClass?: typeof globalThis.WebSocket | typeof ws.WebSocket;
     },
     @context ctx: ContextTimed,
   ): Promise<WebSocketClient> {
@@ -106,16 +111,19 @@ class WebSocketClient {
 
     const address = `wss://${utils.buildAddress(host_, port_)}`;
 
-    // RejectUnauthorized must be false when TLSVerifyCallback exists,
-    // This is so that verification can be deferred to the callback rather than the system installed Certs
-    const webSocket = new WebSocket(address, {
-      rejectUnauthorized:
-        wsConfig.verifyPeer && wsConfig.verifyCallback == null,
-      key: wsConfig.key as any,
-      cert: wsConfig.cert as any,
-      ca: wsConfig.ca as any,
-      headers: wsConfig.headers,
-    });
+    let webSocket: ws.WebSocket | typeof globalThis.WebSocket.prototype;
+    if (_webSocketClass === ws.WebSocket) {
+      webSocket = new ws.WebSocket(address, {
+        rejectUnauthorized:
+          wsConfig.verifyPeer && wsConfig.verifyCallback == null,
+        key: wsConfig.key as any,
+        cert: wsConfig.cert as any,
+        ca: wsConfig.ca as any,
+        headers: wsConfig.headers,
+      });
+    } else {
+      webSocket = new _webSocketClass(address);
+    }
 
     const connectionId = 0;
     const connection = new WebSocketConnection({
