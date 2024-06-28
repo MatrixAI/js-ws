@@ -2,6 +2,7 @@ import type { Callback, Host, Port, PromiseDeconstructed } from './types';
 import type { DetailedPeerCertificate } from 'tls';
 import * as dns from 'dns';
 import { IPv4, IPv6, Validator } from 'ip-num';
+import * as ws from 'ws';
 import * as errors from './errors';
 
 const textEncoder = new TextEncoder();
@@ -9,6 +10,10 @@ const textDecoder = new TextDecoder('utf-8');
 
 function never(message?: string): never {
   throw new errors.ErrorWebSocketUndefinedBehaviour(message);
+}
+
+function isNodeWebsocket(websocket: any): websocket is ws.WebSocket {
+  return websocket.constructor === ws.WebSocket;
 }
 
 /**
@@ -467,6 +472,7 @@ export {
   textEncoder,
   textDecoder,
   never,
+  isNodeWebsocket,
   isIPv4,
   isIPv6,
   isIPv4MappedIPv6,
