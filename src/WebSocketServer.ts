@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http';
+import type { Duplex } from 'stream';
 import type {
   ConnectionMetadata,
   Host,
