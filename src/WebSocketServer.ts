@@ -1,8 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import type tls from 'tls';
 import type {
+  ConnectionMetadata,
   Host,
   Port,
+  RawServer,
   ResolveHostname,
   StreamCodeToReason,
   StreamReasonToCode,
@@ -11,7 +12,7 @@ import type {
   WebSocketServerConfigInputWithInjectedServer,
 } from './types';
 import type { EventAll } from '@matrixai/events';
-import type { TLSSocket } from 'tls';
+import { TLSSocket, Server as TLSServer } from 'tls';
 import https from 'https';
 import { AbstractEvent } from '@matrixai/events';
 import { StartStop, running, ready } from '@matrixai/async-init/dist/StartStop';
@@ -45,9 +46,9 @@ interface WebSocketServer extends StartStop {}
 })
 class WebSocketServer {
   /**
-   * Determines whether the socket is injected or not
+   * If the server is not injected, determines if we create a server or not.
    */
-  public readonly isServerShared: boolean;
+  public readonly isNoServer: boolean;
 
   /**
    * Custom reason to code converter for new connections.
@@ -74,7 +75,9 @@ class WebSocketServer {
    */
   public readonly connectionMap: WebSocketConnectionMap =
     new WebSocketConnectionMap();
-  protected server: https.Server;
+
+  protected server: RawServer | undefined;
+
   protected webSocketServer: ws.WebSocketServer;
   protected webSocketServerClosed: boolean = false;
 
@@ -104,9 +107,9 @@ class WebSocketServer {
     // That's different from socket close event which means "fully" closed
     // We would call that `Closed` event, not `Close` event
     this.webSocketServer.off('close', this.handleWebSocketServerClosed);
-    this.server.off('close', this.handleServerClosed);
+    this.server?.off('close', this.handleServerClosed);
 
-    if (this.isServerShared) {
+    if (this.server == null) {
       if (this.webSocketServerClosed) {
         this.resolveClosedP();
       }
@@ -187,26 +190,31 @@ class WebSocketServer {
   ) => {
     const httpSocket = request.connection;
     const connectionId = this.connectionMap.allocateId();
-    const peerCert = (httpSocket as TLSSocket).getPeerCertificate(true);
-    const peerCertChain = utils.toPeerCertChain(peerCert);
-    const localCACertsChain = utils
-      .collectPEMs(this.config.ca)
-      .map(utils.pemToDER);
-    const localCertsChain = utils
-      .collectPEMs(this.config.cert)
-      .map(utils.pemToDER);
+    const meta: ConnectionMetadata = {
+      remoteHost: httpSocket.remoteAddress ?? '',
+      remotePort: httpSocket.remotePort ?? 0,
+      localHost: httpSocket.localAddress ?? '',
+      localPort: httpSocket.localPort ?? 0,
+      localCACertsChain: [],
+      localCertsChain: [],
+      remoteCertsChain: [],
+    };
+    // Only perform certificate verification if is TLS Socket
+    if (httpSocket instanceof TLSSocket) {
+      const peerCert = httpSocket.getPeerCertificate(true);
+      const peerCertChain = utils.toPeerCertChain(peerCert);
+      meta.remoteCertsChain = peerCertChain;
+      meta.localCACertsChain = utils
+        .collectPEMs(this.config.ca)
+        .map(utils.pemToDER);
+      meta.localCertsChain = utils
+        .collectPEMs(this.config.cert)
+        .map(utils.pemToDER);
+    }
     const connection = new WebSocketConnection({
       type: 'server',
       connectionId: connectionId,
-      meta: {
-        remoteHost: httpSocket.remoteAddress ?? '',
-        remotePort: httpSocket.remotePort ?? 0,
-        localHost: httpSocket.localAddress ?? '',
-        localPort: httpSocket.localPort ?? 0,
-        localCACertsChain,
-        localCertsChain,
-        remoteCertsChain: peerCertChain,
-      },
+      meta: meta,
       socket: webSocket,
       config: { ...this.config },
       reasonToCode: this.reasonToCode,
@@ -275,7 +283,8 @@ class WebSocketServer {
    *
    * @param opts
    * @param opts.config - configuration for new connections.
-   * @param opts.server - if not provided, a new server will be created.
+   * @param opts.server - if provided, WebSocketServer will use an existing http.
+   * @param opts.noServer - if true, a new .
    * @param opts.reasonToCode - reasonToCode for stream errors
    * @param opts.codeToReason - codeToReason for stream errors
    * @param opts.logger - default logger is used if not provided
@@ -284,6 +293,7 @@ class WebSocketServer {
     config,
     resolveHostname = utils.resolveHostname,
     server,
+    noServer = false,
     reasonToCode,
     codeToReason,
     connectTimeoutTime,
@@ -293,6 +303,7 @@ class WebSocketServer {
         config: WebSocketServerConfigInput;
         resolveHostname?: ResolveHostname;
         server?: undefined;
+        noServer?: boolean;
         reasonToCode?: StreamReasonToCode;
         codeToReason?: StreamCodeToReason;
         connectTimeoutTime?: number;
@@ -302,6 +313,7 @@ class WebSocketServer {
         config?: WebSocketServerConfigInputWithInjectedServer;
         resolveHostname?: ResolveHostname;
         server: https.Server;
+        noServer: false;
         reasonToCode?: StreamReasonToCode;
         codeToReason?: StreamCodeToReason;
         connectTimeoutTime?: number;
@@ -331,22 +343,24 @@ class WebSocketServer {
     this._closedP = closedP;
     this.resolveClosedP = resolveClosedP;
 
-    if (server != null) {
-      this.isServerShared = true;
-      this.server = server;
-    } else {
-      this.isServerShared = false;
-    }
+    this.isNoServer = noServer;
+    this.server = server;
   }
 
+  /**
+   * Returns the port of the server. This will be 127.0.0.1 if `noServer` was true during construction.
+   */
   @ready(new errors.ErrorWebSocketServerNotRunning())
   public get host(): Host {
-    return (this.server.address() as any)?.address ?? ('' as Host);
+    return (this.server?.address() as any)?.address ?? ('127.0.0.1' as Host);
   }
 
+  /**
+   * Returns the port of the server. This will be 0 if `noServer` was true during construction.
+   */
   @ready(new errors.ErrorWebSocketServerNotRunning())
   public get port(): Port {
-    return (this.server.address() as any)?.port ?? (0 as Port);
+    return (this.server?.address() as any)?.port ?? (0 as Port);
   }
 
   /**
@@ -387,7 +401,7 @@ class WebSocketServer {
     this.logger.info(`Starting ${this.constructor.name}`);
     const [host_] = await utils.resolveHost(host, this.resolveHostname);
     const port_ = utils.toPort(port);
-    if (!this.isServerShared) {
+    if (this.server == null && !this.isNoServer) {
       this.server = https.createServer({
         rejectUnauthorized:
           this.config.verifyPeer && this.config.verifyCallback == null,
@@ -399,6 +413,7 @@ class WebSocketServer {
     }
     this.webSocketServer = new ws.WebSocketServer({
       server: this.server,
+      noServer: this.isNoServer,
       path,
       verifyClient: async (info, done) => {
         // Since this will only be done before the opening of a WebSocketConnection, there is no need to worry about the CA deviating from the WebSocketConnection's config.
@@ -427,12 +442,12 @@ class WebSocketServer {
     this.webSocketServer.on('connection', this.handleServerConnection);
     this.webSocketServer.on('headers', this.handleServerHeaders);
     this.webSocketServer.on('close', this.handleWebSocketServerClosed);
-    this.server.on('close', this.handleServerClosed);
+    this.server?.on('close', this.handleServerClosed);
     this.webSocketServer.on('error', this.handleServerError);
-    this.server.on('error', this.handleServerError);
-    this.server.on('request', this.handleServerRequest);
+    this.server?.on('error', this.handleServerError);
+    this.server?.on('request', this.handleServerRequest);
 
-    if (!this.server.listening) {
+    if (this.server != null && !this.server.listening) {
       const listenProm = utils.promise<void>();
       this.server.listen(
         {
@@ -455,12 +470,12 @@ class WebSocketServer {
       { once: true },
     );
 
-    const serverAddress = this.server.address();
-    if (serverAddress == null || typeof serverAddress === 'string') {
+    const serverAddress = this.server?.address();
+    if (typeof serverAddress === 'string') {
       utils.never();
     }
-    this._port = serverAddress.port;
-    this._host = serverAddress.address ?? '127.0.0.1';
+    this._port = serverAddress?.port ?? 0;
+    this._host = serverAddress?.address ?? '127.0.0.1';
 
     this.webSocketServerClosed = false;
     this._closed = false;
@@ -522,10 +537,10 @@ class WebSocketServer {
     this.webSocketServer.off('connection', this.handleServerConnection);
     this.webSocketServer.off('headers', this.handleServerHeaders);
     this.webSocketServer.off('close', this.handleServerClosed);
-    this.server.off('close', this.handleServerClosed);
+    this.server?.off('close', this.handleServerClosed);
     this.webSocketServer.off('error', this.handleServerError);
-    this.server.off('error', this.handleServerError);
-    this.server.on('request', this.handleServerRequest);
+    this.server?.off('error', this.handleServerError);
+    this.server?.on('request', this.handleServerRequest);
     this.logger.info(`Stopped ${this.constructor.name}`);
   }
 
@@ -535,17 +550,40 @@ class WebSocketServer {
    */
   @ready(new errors.ErrorWebSocketServerNotRunning())
   public updateConfig(config: WebSocketServerConfigInput): void {
-    const tlsServer = this.server as tls.Server;
     const wsConfig = {
       ...this.config,
       ...config,
     };
-    tlsServer.setSecureContext({
-      key: wsConfig.key as any,
-      cert: wsConfig.cert as any,
-      ca: wsConfig.ca as any,
-    });
+    if (this.server instanceof TLSServer) {
+      this.server.setSecureContext({
+        key: wsConfig.key as any,
+        cert: wsConfig.cert as any,
+        ca: wsConfig.ca as any,
+      });
+    }
     this.config = wsConfig;
+  }
+
+  /**
+   * Tells the WebSocketServer to manually handle an upgrade request.
+   * This is useful for when `noServer` is set to `true` during construction.
+   */
+  @ready(new errors.ErrorWebSocketServerNotRunning())
+  public handleUpgrade(
+    ...args: Parameters<typeof this.webSocketServer.handleUpgrade>
+  ): ReturnType<typeof this.webSocketServer.handleUpgrade> {
+    return this.webSocketServer.handleUpgrade(...args);
+  }
+
+  /**
+   * Checks if the WebSocketServer should handle the request.
+   * This is useful for when `noServer` is set to `true` during construction.
+   */
+  @ready(new errors.ErrorWebSocketServerNotRunning())
+  public shouldHandle(
+    ...args: Parameters<typeof this.webSocketServer.shouldHandle>
+  ): ReturnType<typeof this.webSocketServer.shouldHandle> {
+    return this.webSocketServer.shouldHandle(...args);
   }
 
   /**

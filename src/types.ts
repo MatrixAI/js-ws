@@ -1,4 +1,5 @@
-import type { IncomingHttpHeaders } from 'http';
+import type { IncomingHttpHeaders, Server as HttpServer } from 'http';
+import type { Server as HttpsServer } from 'https';
 
 // Async
 
@@ -174,6 +175,8 @@ type WebSocketServerConfigInputWithInjectedServer = Partial<
   }
 >;
 
+type RawServer = HttpServer | HttpsServer;
+
 type ConnectionError = {
   errorCode: number;
   reason: string;
@@ -197,5 +200,6 @@ export type {
   WebSocketClientConfigInput,
   WebSocketServerConfigInput,
   WebSocketServerConfigInputWithInjectedServer,
+  RawServer,
   ConnectionError,
 };
