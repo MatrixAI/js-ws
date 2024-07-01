@@ -1,13 +1,13 @@
 import type { X509Certificate } from '@peculiar/x509';
-import type { Host } from '@/types';
+import type { Host } from '#types.js';
 import * as nodeUtil from 'util';
 import Logger, { LogLevel, StreamHandler, formatting } from '@matrixai/logger';
 import { startStop } from '@matrixai/async-init';
-import WebSocketServer from '@/WebSocketServer';
-import * as utils from '@/utils';
-import * as events from '@/events';
-import WebSocketClient from '@/WebSocketClient';
-import * as testsUtils from './utils';
+import * as testsUtils from './utils.js';
+import WebSocketServer from '#WebSocketServer.js';
+import * as utils from '#utils.js';
+import * as events from '#events.js';
+import WebSocketClient from '#WebSocketClient.js';
 
 describe(WebSocketServer.name, () => {
   const logger = new Logger(`${WebSocketServer.name} Test`, LogLevel.WARN, [

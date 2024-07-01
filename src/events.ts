@@ -1,5 +1,5 @@
-import type WebSocketStream from './WebSocketStream';
-import type WebSocketConnection from './WebSocketConnection';
+import type WebSocketStream from './WebSocketStream.js';
+import type WebSocketConnection from './WebSocketConnection.js';
 import type {
   ErrorWebSocketConnectionInternal,
   ErrorWebSocketConnectionKeepAliveTimeOut,
@@ -10,7 +10,7 @@ import type {
   ErrorWebSocketStreamLocalWrite,
   ErrorWebSocketStreamPeerRead,
   ErrorWebSocketStreamPeerWrite,
-} from './errors';
+} from './errors.js';
 import { AbstractEvent } from '@matrixai/events';
 
 abstract class EventWebSocket<T = null> extends AbstractEvent<T> {}

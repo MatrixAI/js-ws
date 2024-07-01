@@ -6,20 +6,20 @@ import type {
   StreamReasonToCode,
   WebSocketClientConfigInput,
   WebSocketClientConfigInputWithoutTLS,
-} from './types';
+} from './types.js';
 import type { ContextTimed, ContextTimedInput } from '@matrixai/contexts';
 import { AbstractEvent } from '@matrixai/events';
 import { createDestroy } from '@matrixai/async-init';
-import Logger from '@matrixai/logger';
-import * as ws from 'ws';
 import { EventAll } from '@matrixai/events';
-import { context, timedCancellable } from '@matrixai/contexts/dist/decorators';
-import * as errors from './errors';
-import WebSocketConnection from './WebSocketConnection';
-import WebSocketConnectionMap from './WebSocketConnectionMap';
-import { clientDefault, connectTimeoutTime } from './config';
-import * as events from './events';
-import * as utils from './utils';
+import { default as contexts } from '@matrixai/contexts';
+import { WebSocket as WSWebSocket } from 'ws';
+import Logger from '@matrixai/logger';
+import * as errors from './errors.js';
+import WebSocketConnection from './WebSocketConnection.js';
+import WebSocketConnectionMap from './WebSocketConnectionMap.js';
+import { clientDefault, connectTimeoutTime } from './config.js';
+import * as events from './events.js';
+import * as utils from './utils.js';
 
 interface WebSocketClient extends createDestroy.CreateDestroy {}
 /**
@@ -76,11 +76,11 @@ class WebSocketClient {
       reasonToCode?: StreamReasonToCode;
       codeToReason?: StreamCodeToReason;
       logger?: Logger;
-      _webSocketClass?: typeof globalThis.WebSocket | typeof ws.WebSocket;
+      _webSocketClass?: typeof globalThis.WebSocket | typeof WSWebSocket;
     },
     ctx?: Partial<ContextTimedInput>,
   ): Promise<WebSocketClient>;
-  @timedCancellable(
+  @contexts.decorators.timedCancellable(
     true,
     connectTimeoutTime,
     errors.ErrorWebSocketClientCreateTimeOut,
@@ -97,7 +97,7 @@ class WebSocketClient {
       codeToReason,
       logger = new Logger(`${this.name}`),
       _webSocketClass = globalThis.WebSocket == null
-        ? ws.WebSocket
+        ? WSWebSocket
         : globalThis.WebSocket,
     }: (
       | {
@@ -116,9 +116,9 @@ class WebSocketClient {
       reasonToCode?: StreamReasonToCode;
       codeToReason?: StreamCodeToReason;
       logger?: Logger;
-      _webSocketClass?: typeof globalThis.WebSocket | typeof ws.WebSocket;
+      _webSocketClass?: typeof globalThis.WebSocket | typeof WSWebSocket;
     },
-    @context ctx: ContextTimed,
+    @contexts.decorators.context ctx: ContextTimed,
   ): Promise<WebSocketClient> {
     logger.info(`Create ${this.name} to ${host}:${port}`);
     const wsConfig = {
@@ -130,7 +130,7 @@ class WebSocketClient {
     // We only resolve the host when working in Node,
     // As `browser.dns.resolve` API is still canary-only on Chrome
     // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/dns/resolve
-    if (_webSocketClass === ws.WebSocket) {
+    if (_webSocketClass === WSWebSocket) {
       const [host_] = await utils.resolveHost(host, resolveHostname);
       // If the target host is in fact a zero IP, it cannot be used
       // as a target host, so we need to resolve it to a non-zero IP
@@ -150,9 +150,9 @@ class WebSocketClient {
       port_,
     )}${path_}`;
 
-    let webSocket: ws.WebSocket | typeof globalThis.WebSocket.prototype;
-    if (_webSocketClass === ws.WebSocket) {
-      webSocket = new ws.WebSocket(address, {
+    let webSocket: WSWebSocket | typeof globalThis.WebSocket.prototype;
+    if (_webSocketClass === WSWebSocket) {
+      webSocket = new WSWebSocket(address, {
         rejectUnauthorized:
           wsConfig.verifyPeer && wsConfig.verifyCallback == null,
         key: wsConfig.key as any,

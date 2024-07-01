@@ -1,4 +1,4 @@
-import type { WebSocketConfig } from './types';
+import type { WebSocketConfig } from './types.js';
 
 const connectTimeoutTime = Infinity;
 

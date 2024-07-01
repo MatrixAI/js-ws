@@ -1,8 +1,8 @@
-import { fc, testProp } from '@fast-check/jest';
-import WebSocketStreamQueue from '@/WebSocketStreamQueue';
+import { fc, test } from '@fast-check/jest';
+import WebSocketStreamQueue from '#WebSocketStreamQueue.js';
 
 describe(WebSocketStreamQueue.name, () => {
-  testProp('should queue items', [fc.array(fc.uint8Array())], (array) => {
+  test.prop([fc.array(fc.uint8Array())])('should queue items', (array) => {
     const queue = new WebSocketStreamQueue();
     let totalLength = 0;
     let totalByteLength = 0;
@@ -15,7 +15,7 @@ describe(WebSocketStreamQueue.name, () => {
     expect(queue.byteLength).toBe(totalByteLength);
     expect(queue.length).toBe(totalLength);
   });
-  testProp('should dequeue items', [fc.array(fc.uint8Array())], (array) => {
+  test.prop([fc.array(fc.uint8Array())])('should dequeue items', (array) => {
     const queue = new WebSocketStreamQueue();
     for (const buffer of array) {
       queue.queue(buffer);
@@ -29,7 +29,7 @@ describe(WebSocketStreamQueue.name, () => {
     expect(queue.byteLength).toBe(0);
     expect(queue.length).toBe(0);
   });
-  testProp('should iterate', [fc.array(fc.uint8Array())], (array) => {
+  test.prop([fc.array(fc.uint8Array())])('should iterate', (array) => {
     const queue = new WebSocketStreamQueue();
     for (const buffer of array) {
       queue.queue(buffer);

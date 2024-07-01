@@ -1,13 +1,13 @@
-import type { StreamId } from '@/message';
+import type { StreamId } from '#message/index.js';
 import Logger, { formatting, LogLevel, StreamHandler } from '@matrixai/logger';
-import { fc, testProp } from '@fast-check/jest';
-import WebSocketStream from '@/WebSocketStream';
-import WebSocketConnection from '@/WebSocketConnection';
-import * as events from '@/events';
-import * as utils from '@/utils';
-import * as messageUtils from '@/message/utils';
-import { StreamMessageType } from '@/message';
-import * as messageTestUtils from './message/utils';
+import { fc, test } from '@fast-check/jest';
+import * as messageTestUtils from './message/utils.js';
+import WebSocketStream from '#WebSocketStream.js';
+import WebSocketConnection from '#WebSocketConnection.js';
+import * as events from '#events.js';
+import * as utils from '#utils.js';
+import * as messageUtils from '#message/utils.js';
+import { StreamMessageType } from '#message/index.js';
 
 type StreamOptions = Partial<ConstructorParameters<typeof WebSocketStream>[0]>;
 
@@ -28,7 +28,7 @@ const logger2 = new Logger('stream 2', LogLevel.WARN, [
 
 let streamIdCounter = 0n;
 
-jest.mock('@/WebSocketConnection', () => {
+jest.mock('#WebSocketConnection.js', () => {
   return jest.fn().mockImplementation((streamOptions: StreamOptions = {}) => {
     const instance = new EventTarget() as EventTarget & {
       peerConnection: WebSocketConnection | undefined;
@@ -124,7 +124,7 @@ jest.mock('@/WebSocketConnection', () => {
   });
 });
 
-const connectionMock = jest.mocked(WebSocketConnection, true);
+const connectionMock = jest.mocked(WebSocketConnection, { shallow: true });
 
 describe(WebSocketStream.name, () => {
   beforeEach(async () => {
@@ -158,9 +158,8 @@ describe(WebSocketStream.name, () => {
   }
 
   async function createStreamPair(streamOptions: StreamOptions = {}) {
-    const [connection1, connection2] = await createConnectionPair(
-      streamOptions,
-    );
+    const [connection1, connection2] =
+      await createConnectionPair(streamOptions);
     return createStreamPairFrom(connection1, connection2);
   }
 
@@ -238,9 +237,8 @@ describe(WebSocketStream.name, () => {
     await expect(stream1Readable.getReader().read()).rejects.toBe(testReason);
     await expect(stream2Writable.getWriter().write()).rejects.toBe(testReason);
   });
-  testProp(
+  test.prop([messageTestUtils.fcBuffer({ maxLength: STREAM_BUFFER_SIZE })])(
     'should send data over stream - single write within buffer size',
-    [messageTestUtils.fcBuffer({ maxLength: STREAM_BUFFER_SIZE })],
     async (data) => {
       const [stream1, stream2] = await createStreamPair();
 
@@ -275,9 +273,8 @@ describe(WebSocketStream.name, () => {
       await stream2.stop();
     },
   );
-  testProp(
+  test.prop([messageTestUtils.fcBuffer({ minLength: STREAM_BUFFER_SIZE + 1 })])(
     'should send data over stream - single write outside buffer size',
-    [messageTestUtils.fcBuffer({ minLength: STREAM_BUFFER_SIZE + 1 })],
     async (data) => {
       const [stream1, stream2] = await createStreamPair();
 
@@ -310,9 +307,10 @@ describe(WebSocketStream.name, () => {
       await stream2.stop();
     },
   );
-  testProp(
+  test.prop([
+    fc.array(messageTestUtils.fcBuffer({ maxLength: STREAM_BUFFER_SIZE })),
+  ])(
     'should send data over stream - multiple writes within buffer size',
-    [fc.array(messageTestUtils.fcBuffer({ maxLength: STREAM_BUFFER_SIZE }))],
     async (data) => {
       const [stream1, stream2] = await createStreamPair();
 
@@ -349,59 +347,57 @@ describe(WebSocketStream.name, () => {
       await stream2.stop();
     },
   );
-  testProp(
+  test.prop([
+    fc.array(messageTestUtils.fcBuffer({ minLength: STREAM_BUFFER_SIZE + 1 })),
+  ])(
     'should send data over stream - multiple writes outside buffer size',
-    [
-      fc.array(
+
+    async (data) => {
+      const [stream1, stream2] = await createStreamPair();
+
+      const stream1Readable = stream1.readable;
+      const stream2Writable = stream2.writable;
+      await stream1.writable.close();
+
+      const writer = stream2Writable.getWriter();
+      const reader = stream1Readable.getReader();
+
+      const writeF = async () => {
+        for (const chunk of data) {
+          await writer.write(chunk);
+        }
+        await writer.close();
+      };
+
+      const readChunks: Array<Uint8Array> = [];
+      const readF = async () => {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          readChunks.push(value);
+        }
+      };
+
+      await Promise.all([writeF(), readF()]);
+
+      expect(messageUtils.concatUInt8Array(...readChunks)).toEqual(
+        messageUtils.concatUInt8Array(...data),
+      );
+
+      await stream1.stop();
+      await stream2.stop();
+    },
+  );
+  test.prop([
+    fc.array(
+      fc.oneof(
         messageTestUtils.fcBuffer({ minLength: STREAM_BUFFER_SIZE + 1 }),
+        messageTestUtils.fcBuffer({ maxLength: STREAM_BUFFER_SIZE }),
       ),
-    ],
-    async (data) => {
-      const [stream1, stream2] = await createStreamPair();
-
-      const stream1Readable = stream1.readable;
-      const stream2Writable = stream2.writable;
-      await stream1.writable.close();
-
-      const writer = stream2Writable.getWriter();
-      const reader = stream1Readable.getReader();
-
-      const writeF = async () => {
-        for (const chunk of data) {
-          await writer.write(chunk);
-        }
-        await writer.close();
-      };
-
-      const readChunks: Array<Uint8Array> = [];
-      const readF = async () => {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          readChunks.push(value);
-        }
-      };
-
-      await Promise.all([writeF(), readF()]);
-
-      expect(messageUtils.concatUInt8Array(...readChunks)).toEqual(
-        messageUtils.concatUInt8Array(...data),
-      );
-
-      await stream1.stop();
-      await stream2.stop();
-    },
-  );
-  testProp(
+    ),
+  ])(
     'should send data over stream - multiple writes within and outside buffer size',
-    [
-      fc.array(
-        fc.oneof(
-          messageTestUtils.fcBuffer({ minLength: STREAM_BUFFER_SIZE + 1 }),
-          messageTestUtils.fcBuffer({ maxLength: STREAM_BUFFER_SIZE }),
-        ),
-      ),
-    ],
+
     async (data) => {
       const [stream1, stream2] = await createStreamPair();
 
@@ -438,22 +434,22 @@ describe(WebSocketStream.name, () => {
       await stream2.stop();
     },
   );
-  testProp(
+  test.prop([
+    fc.array(
+      fc.oneof(
+        messageTestUtils.fcBuffer({ minLength: STREAM_BUFFER_SIZE + 1 }),
+        messageTestUtils.fcBuffer({ maxLength: STREAM_BUFFER_SIZE }),
+      ),
+    ),
+    fc.array(
+      fc.oneof(
+        messageTestUtils.fcBuffer({ minLength: STREAM_BUFFER_SIZE + 1 }),
+        messageTestUtils.fcBuffer({ maxLength: STREAM_BUFFER_SIZE }),
+      ),
+    ),
+  ])(
     'should send data over stream - simultaneous multiple writes within and outside buffer size',
-    [
-      fc.array(
-        fc.oneof(
-          messageTestUtils.fcBuffer({ minLength: STREAM_BUFFER_SIZE + 1 }),
-          messageTestUtils.fcBuffer({ maxLength: STREAM_BUFFER_SIZE }),
-        ),
-      ),
-      fc.array(
-        fc.oneof(
-          messageTestUtils.fcBuffer({ minLength: STREAM_BUFFER_SIZE + 1 }),
-          messageTestUtils.fcBuffer({ maxLength: STREAM_BUFFER_SIZE }),
-        ),
-      ),
-    ],
+
     async (...data) => {
       const streams = await createStreamPair();
 
@@ -634,12 +630,12 @@ describe(WebSocketStream.name, () => {
 
     await Promise.all([stream1.closedP, stream2.closedP]);
   });
-  testProp(
+  test.prop([
+    messageTestUtils.fcBuffer({ maxLength: STREAM_BUFFER_SIZE / 2 - 1 }),
+    messageTestUtils.fcBuffer({ maxLength: STREAM_BUFFER_SIZE / 2 - 1 }),
+  ])(
     'stream will flush queue into readable buffer after close',
-    [
-      messageTestUtils.fcBuffer({ maxLength: STREAM_BUFFER_SIZE / 2 - 1 }),
-      messageTestUtils.fcBuffer({ maxLength: STREAM_BUFFER_SIZE / 2 - 1 }),
-    ],
+
     async (message1, message2) => {
       const [stream1, stream2] = await createStreamPair();
 

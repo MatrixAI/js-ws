@@ -2,37 +2,37 @@ import type {
   ConnectionMetadata,
   StreamCodeToReason,
   StreamReasonToCode,
-} from './types';
-import type WebSocketConnection from './WebSocketConnection';
-import type { StreamId, StreamMessage, VarInt } from './message';
+} from './types.js';
+import type WebSocketConnection from './WebSocketConnection.js';
+import type { StreamId, StreamMessage, VarInt } from './message/index.js';
 import type {
   ReadableWritablePair,
   WritableStreamDefaultController,
   ReadableStreamDefaultController,
-} from 'stream/web';
+} from 'node:stream/web';
 import {
   ReadableStream,
   WritableStream,
   CountQueuingStrategy,
-} from 'stream/web';
+} from 'node:stream/web';
 import {
   StartStop,
   ready,
   running,
   status,
-} from '@matrixai/async-init/dist/StartStop';
+} from '@matrixai/async-init/StartStop.js';
 import Logger from '@matrixai/logger';
-import { generateStreamId } from './message';
-import * as utils from './utils';
-import * as errors from './errors';
-import * as events from './events';
+import { generateStreamId } from './message/index.js';
+import * as utils from './utils.js';
+import * as errors from './errors.js';
+import * as events from './events.js';
 import {
   generateStreamMessage,
   parseStreamMessage,
   StreamMessageType,
   StreamShutdown,
-} from './message';
-import WebSocketStreamQueue from './WebSocketStreamQueue';
+} from './message/index.js';
+import WebSocketStreamQueue from './WebSocketStreamQueue.js';
 
 interface WebSocketStream extends StartStop {}
 /**

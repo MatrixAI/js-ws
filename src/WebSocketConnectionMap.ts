@@ -1,8 +1,14 @@
-import type WebSocketConnection from './WebSocketConnection';
-import Counter from 'resource-counter';
+import type WebSocketConnection from './WebSocketConnection.js';
+import { default as resourceCounter } from 'resource-counter';
+
+// This is a workaround for when Vite will recognise `resourceCounter` as the module itself.
+const Counter =
+  typeof resourceCounter === 'function'
+    ? resourceCounter
+    : resourceCounter.default;
 
 class WebSocketConnectionMap extends Map<number, WebSocketConnection> {
-  protected counter: Counter<number>;
+  protected counter: typeof Counter;
   public constructor() {
     super();
     this.counter = new Counter(0);

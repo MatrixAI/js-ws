@@ -1,5 +1,15 @@
-import type { ConnectionMessage, StreamMessage } from '@/message';
-import { testProp } from '@fast-check/jest';
+import type { ConnectionMessage, StreamMessage } from '#message/index.js';
+import { test } from '@fast-check/jest';
+import {
+  connectionMessageArb,
+  streamIdArb,
+  streamMessageAckPayloadArb,
+  streamMessageArb,
+  streamMessageClosePayloadArb,
+  streamMessageErrorPayloadArb,
+  streamMessageTypeArb,
+  varIntArb,
+} from './utils.js';
 import {
   generateConnectionMessage,
   generateStreamId,
@@ -17,32 +27,21 @@ import {
   parseStreamMessageErrorPayload,
   parseStreamMessageType,
   parseVarInt,
-} from '@/message';
-import {
-  connectionMessageArb,
-  streamIdArb,
-  streamMessageAckPayloadArb,
-  streamMessageArb,
-  streamMessageClosePayloadArb,
-  streamMessageErrorPayloadArb,
-  streamMessageTypeArb,
-  varIntArb,
-} from './utils';
+} from '#message/index.js';
 
 describe('StreamMessage', () => {
-  testProp('should parse/generate VarInt', [varIntArb], (varInt) => {
+  test.prop([varIntArb])(`should parse/generate VarInt`, (varInt) => {
     const parsedVarInt = parseVarInt(generateVarInt(varInt));
     expect(parsedVarInt.data).toBe(varInt);
     expect(parsedVarInt.remainder).toHaveLength(0);
   });
-  testProp('should parse/generate StreamId', [streamIdArb], (streamId) => {
+  test.prop([streamIdArb])('should parse/generate StreamId', (streamId) => {
     const parsedStreamId = parseStreamId(generateStreamId(streamId));
     expect(parsedStreamId.data).toBe(streamId);
     expect(parsedStreamId.remainder).toHaveLength(0);
   });
-  testProp(
+  test.prop([streamMessageTypeArb])(
     'should parse/generate StreamMessageType',
-    [streamMessageTypeArb],
     (streamMessageType) => {
       const parsedStreamMessageType = parseStreamMessageType(
         generateStreamMessageType(streamMessageType),
@@ -51,9 +50,8 @@ describe('StreamMessage', () => {
       expect(parsedStreamMessageType.remainder).toHaveLength(0);
     },
   );
-  testProp(
+  test.prop([streamMessageAckPayloadArb])(
     'should parse/generate StreamMessageAckPayload',
-    [streamMessageAckPayloadArb],
     (ackPayload) => {
       const parsedAckPayload = parseStreamMessageAckPayload(
         generateStreamMessageAckPayload(ackPayload),
@@ -62,9 +60,8 @@ describe('StreamMessage', () => {
       expect(parsedAckPayload.remainder).toHaveLength(0);
     },
   );
-  testProp(
+  test.prop([streamMessageClosePayloadArb])(
     'should parse/generate StreamMessageClosePayload',
-    [streamMessageClosePayloadArb],
     (closePayload) => {
       const parsedClosePayload = parseStreamMessageClosePayload(
         generateStreamMessageClosePayload(closePayload),
@@ -73,9 +70,8 @@ describe('StreamMessage', () => {
       expect(parsedClosePayload.remainder).toHaveLength(0);
     },
   );
-  testProp(
+  test.prop([streamMessageErrorPayloadArb])(
     'should parse/generate StreamMessageErrorPayload',
-    [streamMessageErrorPayloadArb],
     (errorPayload) => {
       const parsedClosePayload = parseStreamMessageErrorPayload(
         generateStreamMessageErrorPayload(errorPayload),
@@ -84,9 +80,8 @@ describe('StreamMessage', () => {
       expect(parsedClosePayload.remainder).toHaveLength(0);
     },
   );
-  testProp(
+  test.prop([streamMessageArb])(
     'should parse/generate StreamMessage',
-    [streamMessageArb],
     (streamMessage) => {
       const generatedStreamMessage = generateStreamMessage(
         streamMessage as StreamMessage,
@@ -95,9 +90,8 @@ describe('StreamMessage', () => {
       expect(parsedStreamMessage.payload).toEqual(streamMessage.payload);
     },
   );
-  testProp(
+  test.prop([connectionMessageArb])(
     'should parse/generate ConnectionMessage',
-    [connectionMessageArb],
     (connectionMessage) => {
       const generatedConnectionMessage = generateConnectionMessage(
         connectionMessage as ConnectionMessage,

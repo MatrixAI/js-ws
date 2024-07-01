@@ -7,23 +7,23 @@ import type {
   StreamCodeToReason,
   StreamReasonToCode,
   WebSocketConfig,
-} from './types';
-import type { TLSSocket } from 'tls';
-import type { StreamId } from './message';
-import type * as ws from 'ws';
+} from './types.js';
+import type { WebSocket as WSWebSocket, RawData as WSRawData } from 'ws';
+import type { TLSSocket } from 'node:tls';
+import type { StreamId } from './message/index.js';
 import { running, startStop } from '@matrixai/async-init';
 import { Lock } from '@matrixai/async-locks';
-import { context, timedCancellable } from '@matrixai/contexts/dist/decorators';
+import { default as contexts } from '@matrixai/contexts';
 import Logger from '@matrixai/logger';
 import { Timer } from '@matrixai/timer';
 import { AbstractEvent, EventAll, EventError } from '@matrixai/events';
-import { concatUInt8Array } from './message';
-import WebSocketStream from './WebSocketStream';
-import * as errors from './errors';
-import * as events from './events';
-import { parseStreamId, StreamMessageType } from './message';
-import * as utils from './utils';
-import { connectTimeoutTime } from './config';
+import { concatUInt8Array } from './message/index.js';
+import WebSocketStream from './WebSocketStream.js';
+import * as errors from './errors.js';
+import * as events from './events.js';
+import { parseStreamId, StreamMessageType } from './message/index.js';
+import * as utils from './utils.js';
+import { connectTimeoutTime } from './config.js';
 
 interface WebSocketConnection extends startStop.StartStop {}
 /**
@@ -82,7 +82,7 @@ class WebSocketConnection {
    * Internal native WebSocket object.
    * @internal
    */
-  protected socket: ws.WebSocket | typeof globalThis.WebSocket.prototype;
+  protected socket: WSWebSocket | typeof globalThis.WebSocket.prototype;
 
   protected config: WebSocketConfig;
 
@@ -270,7 +270,7 @@ class WebSocketConnection {
   };
 
   protected handleSocketMessage = async (
-    data: ws.RawData,
+    data: WSRawData,
     isBinary: boolean,
   ) => {
     // If the timer is running, refresh it.
@@ -524,7 +524,7 @@ class WebSocketConnection {
         connectionId: number;
         meta?: undefined;
         config: WebSocketConfig;
-        socket: ws.WebSocket | typeof globalThis.WebSocket.prototype;
+        socket: WSWebSocket | typeof globalThis.WebSocket.prototype;
         reasonToCode?: StreamReasonToCode;
         codeToReason?: StreamCodeToReason;
         logger?: Logger;
@@ -534,7 +534,7 @@ class WebSocketConnection {
         connectionId: number;
         meta: ConnectionMetadata;
         config: WebSocketConfig;
-        socket: ws.WebSocket | typeof globalThis.WebSocket.prototype;
+        socket: WSWebSocket | typeof globalThis.WebSocket.prototype;
         reasonToCode?: StreamReasonToCode;
         codeToReason?: StreamCodeToReason;
         logger?: Logger;
@@ -636,12 +636,14 @@ class WebSocketConnection {
    * @internal
    */
   public start(ctx?: Partial<ContextTimedInput>): PromiseCancellable<void>;
-  @timedCancellable(
+  @contexts.decorators.timedCancellable(
     true,
     connectTimeoutTime,
     errors.ErrorWebSocketConnectionStartTimeOut,
   )
-  public async start(@context ctx: ContextTimed): Promise<void> {
+  public async start(
+    @contexts.decorators.context ctx: ContextTimed,
+  ): Promise<void> {
     this.logger.info(`Start ${this.constructor.name}`);
     if (this.socket.readyState === utils.WebSocketReadyState.Closed) {
       throw new errors.ErrorWebSocketConnectionClosed();

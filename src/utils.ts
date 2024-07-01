@@ -1,9 +1,9 @@
-import type { Callback, Host, Port, PromiseDeconstructed } from './types';
-import type { DetailedPeerCertificate } from 'tls';
-import * as dns from 'dns';
+import type { Callback, Host, Port, PromiseDeconstructed } from './types.js';
+import type { DetailedPeerCertificate } from 'node:tls';
+import * as dns from 'node:dns';
 import { IPv4, IPv6, Validator } from 'ip-num';
-import * as ws from 'ws';
-import * as errors from './errors';
+import { WebSocket as WSWebSocket } from 'ws';
+import * as errors from './errors.js';
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder('utf-8');
@@ -12,8 +12,8 @@ function never(message?: string): never {
   throw new errors.ErrorWebSocketUndefinedBehaviour(message);
 }
 
-function isNodeWebsocket(websocket: any): websocket is ws.WebSocket {
-  return websocket.constructor === ws.WebSocket;
+function isNodeWebsocket(websocket: any): websocket is WSWebSocket {
+  return websocket.constructor === WSWebSocket;
 }
 
 /**
@@ -461,7 +461,7 @@ enum WebSocketReadyState {
  * WebSocketConnection error/close codes
  * sourced from: https://www.iana.org/assignments/websocket/websocket.xml
  */
-const enum ConnectionErrorCode {
+enum ConnectionErrorCode {
   Normal = 1000,
   GoingAway = 1001,
   ProtocolError = 1002,

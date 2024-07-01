@@ -1,12 +1,12 @@
-import type { KeyTypes } from './utils';
+import type { KeyTypes } from './utils.js';
 import Logger, { formatting, LogLevel, StreamHandler } from '@matrixai/logger';
 import * as ws from 'ws';
-import { promise } from '@/utils';
-import * as events from '@/events';
-import * as errors from '@/errors';
-import WebSocketClient from '@/WebSocketClient';
-import WebSocketServer from '@/WebSocketServer';
-import * as testsUtils from './utils';
+import * as testsUtils from './utils.js';
+import { promise } from '#utils.js';
+import * as events from '#events.js';
+import * as errors from '#errors.js';
+import WebSocketClient from '#WebSocketClient.js';
+import WebSocketServer from '#WebSocketServer.js';
 
 describe(`${WebSocketClient.name} browser`, () => {
   const logger = new Logger(`${WebSocketClient.name} Test`, LogLevel.WARN, [
