@@ -13,6 +13,22 @@ This is built on top of the [ws](https://github.com/websockets/ws) library, prov
 npm install --save @matrixai/ws
 ```
 
+### Browser Usage
+
+To use `WebSocketClient` in a browser environment, you will need to polyfill:
+
+- [`buffer`](https://nodejs.org/api/buffer.html)
+- [`perf_hooks`](https://nodejs.org/api/perf_hooks.html)
+
+A good choice for a `buffer` polyfill is [`feross/buffer`](https://github.com/feross/buffer)
+
+To polyfill `perf_hooks`, you can alias the `perf_hooks` using your bundler of choice with a file containing the following code:
+
+```ts
+const { performance } = globalThis;
+export { performance };
+```
+
 ## Development
 
 Run `nix-shell`, and once you're inside, you can use:
