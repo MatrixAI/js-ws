@@ -589,6 +589,15 @@ class WebSocketServer {
   }
 
   /**
+   * Manually triggers a `WebSocket` connection with the underlying `ws` library.
+   * This is useful for when `noServer` is set to `true` during construction.
+   */
+  @ready(new errors.ErrorWebSocketServerNotRunning())
+  public handleWebSocket(webSocket: ws.WebSocket, request: IncomingMessage) {
+    this.webSocketServer.emit('connection', webSocket, request);
+  }
+
+  /**
    * Will tell any normal HTTP request to upgrade
    */
   protected handleServerRequest = (_req, res: ServerResponse) => {
