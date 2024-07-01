@@ -160,12 +160,17 @@ type WebSocketConfig = {
 
 type WebSocketClientConfigInput = Partial<WebSocketConfig>;
 
+type WebSocketClientConfigInputWithoutTLS = Omit<
+  Partial<WebSocketConfig>,
+  'key' | 'cert' | 'ca' | 'verifyCallback' | 'verifyPeer'
+>;
+
 type WebSocketServerConfigInput = Partial<WebSocketConfig> & {
   key: string | Array<string> | Uint8Array | Array<Uint8Array>;
   cert: string | Array<string> | Uint8Array | Array<Uint8Array>;
 };
 
-type WebSocketServerConfigInputWithInjectedServer = Omit<
+type WebSocketServerConfigInputWithoutTLS = Omit<
   Partial<WebSocketConfig>,
   'key' | 'cert' | 'ca' | 'verifyCallback' | 'verifyPeer'
 >;
@@ -193,8 +198,9 @@ export type {
   TLSVerifyCallback,
   WebSocketConfig,
   WebSocketClientConfigInput,
+  WebSocketClientConfigInputWithoutTLS,
   WebSocketServerConfigInput,
-  WebSocketServerConfigInputWithInjectedServer,
+  WebSocketServerConfigInputWithoutTLS,
   RawServer,
   ConnectionError,
 };

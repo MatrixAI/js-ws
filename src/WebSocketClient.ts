@@ -1,8 +1,11 @@
 import type {
+  Host,
+  Hostname,
   ResolveHostname,
   StreamCodeToReason,
   StreamReasonToCode,
   WebSocketClientConfigInput,
+  WebSocketClientConfigInputWithoutTLS,
 } from './types';
 import type { ContextTimed, ContextTimedInput } from '@matrixai/contexts';
 import { AbstractEvent } from '@matrixai/events';
@@ -52,12 +55,23 @@ class WebSocketClient {
     {
       host,
       port,
+      path = '',
+      protocol = 'wss',
       config,
       logger = new Logger(`${this.name}`),
-    }: {
+    }: (
+      | {
+          protocol?: 'wss';
+          config?: WebSocketClientConfigInput;
+        }
+      | {
+          protocol: 'ws';
+          config?: WebSocketClientConfigInputWithoutTLS;
+        }
+    ) & {
       host: string;
       port: number;
-      config?: WebSocketClientConfigInput;
+      path?: string;
       resolveHostname?: ResolveHostname;
       reasonToCode?: StreamReasonToCode;
       codeToReason?: StreamCodeToReason;
@@ -75,6 +89,8 @@ class WebSocketClient {
     {
       host,
       port,
+      protocol = 'wss',
+      path = '',
       config,
       resolveHostname = utils.resolveHostname,
       reasonToCode,
@@ -83,10 +99,19 @@ class WebSocketClient {
       _webSocketClass = globalThis.WebSocket == null
         ? ws.WebSocket
         : globalThis.WebSocket,
-    }: {
+    }: (
+      | {
+          protocol?: 'wss';
+          config?: WebSocketClientConfigInput;
+        }
+      | {
+          protocol: 'ws';
+          config?: WebSocketClientConfigInputWithoutTLS;
+        }
+    ) & {
       host: string;
       port: number;
-      config?: WebSocketClientConfigInput;
+      path?: string;
       resolveHostname?: ResolveHostname;
       reasonToCode?: StreamReasonToCode;
       codeToReason?: StreamCodeToReason;
@@ -101,15 +126,29 @@ class WebSocketClient {
       ...config,
     };
 
-    let [host_] = await utils.resolveHost(host, resolveHostname);
+    let hostOrHostname_ = host as Host | Hostname;
+    // We only resolve the host when working in Node,
+    // As `browser.dns.resolve` API is still canary-only on Chrome
+    // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/dns/resolve
+    if (_webSocketClass === ws.WebSocket) {
+      const [host_] = await utils.resolveHost(host, resolveHostname);
+      // If the target host is in fact a zero IP, it cannot be used
+      // as a target host, so we need to resolve it to a non-zero IP
+      // in this case, 0.0.0.0 is resolved to 127.0.0.1 and :: and ::0 is
+      // resolved to ::1
+      hostOrHostname_ = utils.resolvesZeroIP(host_);
+    }
     const port_ = utils.toPort(port);
-    // If the target host is in fact a zero IP, it cannot be used
-    // as a target host, so we need to resolve it to a non-zero IP
-    // in this case, 0.0.0.0 is resolved to 127.0.0.1 and :: and ::0 is
-    // resolved to ::1
-    host_ = utils.resolvesZeroIP(host_);
 
-    const address = `wss://${utils.buildAddress(host_, port_)}`;
+    let path_ = path;
+    if (path !== '' && path[0] !== '/') {
+      path_ = `/${path_}`;
+    }
+
+    const address = `${protocol}://${utils.buildAddress(
+      hostOrHostname_,
+      port_,
+    )}${path_}`;
 
     let webSocket: ws.WebSocket | typeof globalThis.WebSocket.prototype;
     if (_webSocketClass === ws.WebSocket) {

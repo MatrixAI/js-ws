@@ -9,7 +9,7 @@ import type {
   StreamReasonToCode,
   WebSocketConfig,
   WebSocketServerConfigInput,
-  WebSocketServerConfigInputWithInjectedServer,
+  WebSocketServerConfigInputWithoutTLS,
 } from './types';
 import type { EventAll } from '@matrixai/events';
 import { TLSSocket, Server as TLSServer } from 'tls';
@@ -300,7 +300,7 @@ class WebSocketServer {
     logger,
   }: (
     | {
-        config?: WebSocketServerConfigInputWithInjectedServer;
+        config?: WebSocketServerConfigInputWithoutTLS;
         server?: undefined;
         noServer: true;
       }
@@ -310,7 +310,7 @@ class WebSocketServer {
         noServer?: false;
       }
     | {
-        config?: WebSocketServerConfigInputWithInjectedServer;
+        config?: WebSocketServerConfigInputWithoutTLS;
         server: RawServer;
         noServer?: false;
       }
