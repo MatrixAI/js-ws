@@ -165,14 +165,9 @@ type WebSocketServerConfigInput = Partial<WebSocketConfig> & {
   cert: string | Array<string> | Uint8Array | Array<Uint8Array>;
 };
 
-type WebSocketServerConfigInputWithInjectedServer = Partial<
-  WebSocketConfig & {
-    key: undefined;
-    cert: undefined;
-    ca: undefined;
-    verifyCallback: undefined;
-    verifyPeer: undefined;
-  }
+type WebSocketServerConfigInputWithInjectedServer = Omit<
+  Partial<WebSocketConfig>,
+  'key' | 'cert' | 'ca' | 'verifyCallback' | 'verifyPeer'
 >;
 
 type RawServer = HttpServer | HttpsServer;

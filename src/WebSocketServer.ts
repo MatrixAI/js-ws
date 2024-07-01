@@ -298,27 +298,29 @@ class WebSocketServer {
     codeToReason,
     connectTimeoutTime,
     logger,
-  }:
+  }: (
+    | {
+        config?: WebSocketServerConfigInputWithInjectedServer;
+        server?: undefined;
+        noServer: true;
+      }
     | {
         config: WebSocketServerConfigInput;
-        resolveHostname?: ResolveHostname;
         server?: undefined;
-        noServer?: boolean;
-        reasonToCode?: StreamReasonToCode;
-        codeToReason?: StreamCodeToReason;
-        connectTimeoutTime?: number;
-        logger?: Logger;
+        noServer?: false;
       }
     | {
         config?: WebSocketServerConfigInputWithInjectedServer;
-        resolveHostname?: ResolveHostname;
-        server: https.Server;
-        noServer: false;
-        reasonToCode?: StreamReasonToCode;
-        codeToReason?: StreamCodeToReason;
-        connectTimeoutTime?: number;
-        logger?: Logger;
-      }) {
+        server: RawServer;
+        noServer?: false;
+      }
+  ) & {
+    resolveHostname?: ResolveHostname;
+    reasonToCode?: StreamReasonToCode;
+    codeToReason?: StreamCodeToReason;
+    connectTimeoutTime?: number;
+    logger?: Logger;
+  }) {
     this.logger = logger ?? new Logger(this.constructor.name);
     this.config = {
       ...serverDefault,
