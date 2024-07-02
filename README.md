@@ -1,8 +1,5 @@
 # js-ws
 
-staging:[![pipeline status](https://gitlab.com/MatrixAI/open-source/js-ws/badges/staging/pipeline.svg)](https://gitlab.com/MatrixAI/open-source/js-ws/commits/staging)
-master:[![pipeline status](https://gitlab.com/MatrixAI/open-source/js-ws/badges/master/pipeline.svg)](https://gitlab.com/MatrixAI/open-source/js-ws/commits/master)
-
 WebSocket library for TypeScript/JavaScript applications.
 
 This is built on top of the [ws](https://github.com/websockets/ws) library, providing a multiplexed WebStreams API on top of WebSocket.
