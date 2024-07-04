@@ -447,6 +447,17 @@ function formatError(error: Error): string {
 }
 
 /**
+ * WebSocket ready states
+ * sourced from: https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/readyState
+ */
+enum WebSocketReadyState {
+  Connecting = 0,
+  Open = 1,
+  Closing = 2,
+  Closed = 3,
+}
+
+/**
  * WebSocketConnection error/close codes
  * sourced from: https://www.iana.org/assignments/websocket/websocket.xml
  */
@@ -498,5 +509,6 @@ export {
   pemToDER,
   derToPEM,
   formatError,
+  WebSocketReadyState,
   ConnectionErrorCode,
 };

@@ -10,11 +10,11 @@ import type {
 } from './types';
 import type { TLSSocket } from 'tls';
 import type { StreamId } from './message';
+import type * as ws from 'ws';
 import { running, startStop } from '@matrixai/async-init';
 import { Lock } from '@matrixai/async-locks';
 import { context, timedCancellable } from '@matrixai/contexts/dist/decorators';
 import Logger from '@matrixai/logger';
-import * as ws from 'ws';
 import { Timer } from '@matrixai/timer';
 import { AbstractEvent, EventAll, EventError } from '@matrixai/events';
 import { concatUInt8Array } from './message';
@@ -622,7 +622,7 @@ class WebSocketConnection {
    * Whether the underlying WebSocket has been closed.
    */
   public get closed() {
-    return this.socket.readyState === ws.CLOSED;
+    return this.socket.readyState === utils.WebSocketReadyState.Closed;
   }
 
   /**
@@ -638,7 +638,7 @@ class WebSocketConnection {
   )
   public async start(@context ctx: ContextTimed): Promise<void> {
     this.logger.info(`Start ${this.constructor.name}`);
-    if (this.socket.readyState === ws.CLOSED) {
+    if (this.socket.readyState === utils.WebSocketReadyState.Closed) {
       throw new errors.ErrorWebSocketConnectionClosed();
     }
     // Are we supposed to throw?
@@ -662,7 +662,7 @@ class WebSocketConnection {
     );
 
     // If the socket is already open, then the it is already secure and established by the WebSocketServer
-    if (this.socket.readyState === ws.OPEN) {
+    if (this.socket.readyState === utils.WebSocketReadyState.Open) {
       this.resolveSecureEstablishedP();
     }
     // Handle connection failure - Dispatch ConnectionError -> ConnectionClose -> rejectSecureEstablishedP
@@ -926,7 +926,7 @@ class WebSocketConnection {
 
     // After the last send, if the socket has already closed, we resolve the promise of the current send,
     // causing all pending send promises to get to the same point and return
-    if (this.socket.readyState !== ws.OPEN) {
+    if (this.socket.readyState !== utils.WebSocketReadyState.Open) {
       resolveSendReadyP();
       return;
     }
@@ -987,8 +987,8 @@ class WebSocketConnection {
     this.stopKeepAliveIntervalTimer();
     this.stopKeepAliveTimeoutTimer();
     if (
-      this.socket.readyState !== ws.CLOSING &&
-      this.socket.readyState !== ws.CLOSED
+      this.socket.readyState !== utils.WebSocketReadyState.Closing &&
+      this.socket.readyState !== utils.WebSocketReadyState.Closed
     ) {
       this.closeSocket(errorCode, reason);
       const e = new errors.ErrorWebSocketConnectionLocal(
@@ -1014,8 +1014,8 @@ class WebSocketConnection {
           reason: this.errorLast,
           force:
             force ||
-            this.socket.readyState === ws.CLOSED ||
-            this.socket.readyState === ws.CLOSING,
+            this.socket.readyState === utils.WebSocketReadyState.Closed ||
+            this.socket.readyState === utils.WebSocketReadyState.Closing,
         }),
       );
     }
@@ -1055,7 +1055,7 @@ class WebSocketConnection {
     }
     const keepAliveTimeOutHandler = async (signal: AbortSignal) => {
       if (signal.aborted) return;
-      if (this.socket.readyState === ws.CLOSED) {
+      if (this.socket.readyState === utils.WebSocketReadyState.Closed) {
         this.resolveClosedP();
         return;
       }
