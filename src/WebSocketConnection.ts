@@ -932,13 +932,18 @@ class WebSocketConnection {
     }
 
     try {
-      const sendProm = utils.promise<void>();
-      this.socket.send(array, { binary: true }, (err) => {
-        if (err == null) sendProm.resolveP();
-        else sendProm.rejectP(err);
-      });
-      // Await our own send
-      await sendProm.p;
+      if (utils.isNodeWebsocket(this.socket)) {
+        const sendProm = utils.promise<void>();
+        this.socket.send(array, { binary: true }, (err) => {
+          if (err == null) sendProm.resolveP();
+          else sendProm.rejectP(err);
+        });
+        // Await our own send
+        await sendProm.p;
+      } else {
+        // The browser does not accept callbacks to socket.send()
+        this.socket.send(array);
+      }
     } catch (err) {
       const errorCode = utils.ConnectionErrorCode.InternalServerError;
       const reason =
