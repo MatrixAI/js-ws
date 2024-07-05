@@ -586,7 +586,12 @@ class WebSocketConnection {
 
     this.closeSocket = (errorCode, reason) => {
       this.socketLocallyClosed = true;
-      this.socket.close(errorCode, reason);
+      if (
+        this.socket.readyState !== utils.WebSocketReadyState.Closed &&
+        this.socket.readyState !== utils.WebSocketReadyState.Closing
+      ) {
+        this.socket.close(errorCode, reason);
+      }
     };
   }
 
