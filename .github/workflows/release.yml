@@ -1,0 +1,137 @@
+name: CI / Release
+
+on:
+  push:
+    tags:
+      - v**
+
+jobs:
+  check-lint:
+    name: "Check / Lint"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run linting
+        run: |
+          npm install
+          npm run lint
+          npm run lint-shell
+
+  check-build:
+    name: "Check / Build"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run build
+        run: |
+          npm install
+          npm run build --verbose
+
+  check-matrix:
+    name: "Check / Matrix"
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: set-matrix
+        run: |
+          files=$(find tests/* -maxdepth 0 -type d | sed 's/.*/"&"/' | paste -sd, -)
+          files=$files,$(find tests/* -maxdepth 0 -type f | grep -e "/*.test.ts" | sed 's/.*/"&"/' | paste -sd, -)
+          if [ -z "$files" ]; then
+            echo "matrix={\"shard\":[]}" >> $GITHUB_OUTPUT
+          else
+            echo "matrix={\"shard\":[$files]}" >> $GITHUB_OUTPUT
+          fi
+
+  check-test:
+    name: "Check / Test"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{fromJson(needs.check-matrix.outputs.matrix)}}
+    needs: check-matrix
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set artifact name
+        run: echo "SLUG=$(echo ${{ matrix.shard }} | sed 's/[/.]/-/g')" >> $GITHUB_ENV
+      - name: Run tests
+        run: |
+          npm install
+          npm run test -- \
+            --coverageReporters json \
+            --coverage \
+            "${{ matrix.shard }}"
+          mv tmp/coverage/coverage-final.json "tmp/coverage/${{ env.SLUG }}.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-artifacts-${{ env.SLUG }}
+          path: tmp/coverage/
+
+  check-coverage:
+    name: "Check / Coverage"
+    runs-on: ubuntu-latest
+    needs: check-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-artifacts-*
+          path: tmp/coverage/
+          merge-multiple: true
+      - run: rm .npmrc
+      - name: Merge coverage results
+        run: npx nyc merge tmp/coverage/ tmp/coverage/cobertura-coverage.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cobertura-coverage
+          path: tmp/coverage/cobertura-coverage.json
+
+  build-prerelease:
+    name: "Build / Pre-release"
+    runs-on: ubuntu-latest
+    concurrency:
+      group: build-prerelease
+      cancel-in-progress: false
+    needs:
+      - check-lint
+      - check-build
+      - check-test
+    if: contains(github.ref, '-')
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run deployment
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ./.npmrc
+          echo 'Publishing library prerelease'
+          npm install
+          npm publish --tag prerelease --access public
+          rm -f ./.npmrc
+
+  release-distribution:
+    name: "Release / Distribution"
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-distribution
+      cancel-in-progress: false
+    needs:
+      - check-lint
+      - check-build
+      - check-test
+    if: >
+      !contains(github.ref, '-')
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish release
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ./.npmrc
+          echo 'Publishing library'
+          npm install
+          npm publish --access public
+          rm -f ./.npmrc
+
+
