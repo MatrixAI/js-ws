@@ -3,8 +3,8 @@ import type {
   StreamCodeToReason,
   StreamReasonToCode,
 } from './types.js';
-import type WebSocketConnection from './WebSocketConnection.js';
 import type { StreamId, StreamMessage, VarInt } from './message/index.js';
+import type { Evented } from '@matrixai/events';
 import type {
   ReadableWritablePair,
   WritableStreamDefaultController,
@@ -102,7 +102,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   public readonly writable: WritableStream<Uint8Array>;
 
   protected logger: Logger;
-  protected connection: WebSocketConnection;
+  protected connection: Evented & { meta: () => ConnectionMetadata };
   protected reasonToCode: StreamReasonToCode;
   protected codeToReason: StreamCodeToReason;
   protected readableController: ReadableStreamDefaultController;
@@ -199,7 +199,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
   }: {
     initiated: 'local' | 'peer';
     streamId: StreamId;
-    connection: WebSocketConnection;
+    connection: Evented & { meta: () => ConnectionMetadata };
     bufferSize: number;
     reasonToCode?: StreamReasonToCode;
     codeToReason?: StreamCodeToReason;
