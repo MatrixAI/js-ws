@@ -25,8 +25,8 @@ async function main() {
   });
   const jestArgs = [];
   console.error('Running jest:');
-  console.error(['jest', ...jestArgs].join(' '));
-  childProcess.execFileSync('jest', jestArgs, {
+  console.error(['jest', ...jestArgs, ...process.argv.slice(2)].join(' '));
+  childProcess.execFileSync('jest', [...jestArgs, ...process.argv.slice(2)], {
     env: {
       ...process.env,
       NODE_OPTIONS: '--experimental-vm-modules',
