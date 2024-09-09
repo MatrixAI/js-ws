@@ -1,11 +1,14 @@
-import type { Host } from '../../../src/types';
+import type { Host } from '../../../src/types.js';
+import url from 'node:url';
 import b from 'benny';
 import Logger, { formatting, LogLevel, StreamHandler } from '@matrixai/logger';
-import { suiteCommon, summaryName } from '../../utils';
-import * as events from '../../../src/events';
-import * as testsUtils from '../../../tests/utils';
-import WebSocketServer from '../../../src/WebSocketServer';
-import WebSocketClient from '../../../src/WebSocketClient';
+import { suiteCommon, summaryName } from '../../utils.js';
+import * as events from '../../../src/events.js';
+import * as testsUtils from '../../../tests/utils.js';
+import WebSocketServer from '../../../src/WebSocketServer.js';
+import WebSocketClient from '../../../src/WebSocketClient.js';
+
+const filePath = url.fileURLToPath(import.meta.url);
 
 async function main() {
   const logger = new Logger(`Stream1KB Bench`, LogLevel.WARN, [
@@ -74,7 +77,7 @@ async function main() {
 
   // Running benchmark
   const summary = await b.suite(
-    summaryName(__filename),
+    summaryName(filePath),
     b.add('send 1KiB of data over stream', async () => {
       await writer.write(data1KiB);
     }),
@@ -86,8 +89,10 @@ async function main() {
   return summary;
 }
 
-if (require.main === module) {
-  void main();
+if (import.meta.url.startsWith('file:')) {
+  const modulePath = url.fileURLToPath(import.meta.url);
+  if (process.argv[1] === modulePath) {
+    void main();
+  }
 }
-
 export default main;

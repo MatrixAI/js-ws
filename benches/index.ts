@@ -1,13 +1,18 @@
 #!/usr/bin/env ts-node
 
-import type { Summary } from 'benny/lib/internal/common-types';
-import fs from 'fs';
-import path from 'path';
+import type { Summary } from 'benny/lib/internal/common-types.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import url from 'node:url';
 import si from 'systeminformation';
-import { fsWalk, resultsPath, suitesPath } from './utils';
+import { fsWalk, resultsPath, suitesPath } from './utils.js';
+
+const projectPath = path.dirname(url.fileURLToPath(import.meta.url));
 
 async function main(): Promise<void> {
-  await fs.promises.mkdir(path.join(__dirname, 'results'), { recursive: true });
+  await fs.promises.mkdir(path.join(projectPath, 'results'), {
+    recursive: true,
+  });
   // Running all suites
   for await (const suitePath of fsWalk(suitesPath)) {
     // Skip over non-ts and non-js files
@@ -39,13 +44,16 @@ async function main(): Promise<void> {
     system: 'model, manufacturer',
   });
   await fs.promises.writeFile(
-    path.join(__dirname, 'results', 'system.json'),
+    path.join(projectPath, 'results', 'system.json'),
     JSON.stringify(systemData, null, 2),
   );
 }
 
-if (require.main === module) {
-  void main();
+if (import.meta.url.startsWith('file:')) {
+  const modulePath = url.fileURLToPath(import.meta.url);
+  if (process.argv[1] === modulePath) {
+    void main();
+  }
 }
 
 export default main;

@@ -1,5 +1,5 @@
 import type { IncomingHttpHeaders, Server as HttpServer } from 'http';
-import type { Server as HttpsServer } from 'https';
+import type { Server as HttpsServer } from 'node:https';
 
 // Async
 

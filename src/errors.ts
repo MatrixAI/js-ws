@@ -1,5 +1,5 @@
 import type { POJO } from '@matrixai/errors';
-import type { ConnectionError } from './types';
+import type { ConnectionError } from './types.js';
 import { AbstractError } from '@matrixai/errors';
 
 class ErrorWebSocket<T> extends AbstractError<T> {

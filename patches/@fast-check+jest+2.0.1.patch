@@ -1,0 +1,11 @@
+diff --git a/node_modules/@fast-check/jest/lib/jest-fast-check.js b/node_modules/@fast-check/jest/lib/jest-fast-check.js
+index 9fe5a3d..8d2c980 100644
+--- a/node_modules/@fast-check/jest/lib/jest-fast-check.js
++++ b/node_modules/@fast-check/jest/lib/jest-fast-check.js
+@@ -1,5 +1,5 @@
+ import * as fc from 'fast-check';
+-import { it as itJest, test as testJest, jest } from '@jest/globals';
++const { it: itJest, test: testJest, jest } = globalThis;
+ import { buildTest } from './internals/TestBuilder.js';
+ export const test = buildTest(testJest, jest, fc);
+ export const it = buildTest(itJest, jest, fc);

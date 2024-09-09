@@ -1,9 +1,9 @@
 import type { X509Certificate } from '@peculiar/x509';
-import type WebSocketStream from '@/WebSocketStream';
-import type { StreamCodeToReason, StreamReasonToCode } from '@/types';
+import type WebSocketStream from '#WebSocketStream.js';
+import type { StreamCodeToReason, StreamReasonToCode } from '#types.js';
+import { default as ws } from 'ws';
 import * as peculiarWebcrypto from '@peculiar/webcrypto';
 import * as x509 from '@peculiar/x509';
-import * as ws from 'ws';
 import fc from 'fast-check';
 
 /**

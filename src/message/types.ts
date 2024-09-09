@@ -1,5 +1,5 @@
-import type { Opaque } from '../types';
-import type { StreamMessageType, StreamShutdown } from './utils';
+import type { Opaque } from '../types.js';
+import type { StreamMessageType, StreamShutdown } from './utils.js';
 
 interface Parsed<T> {
   data: T;

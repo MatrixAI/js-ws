@@ -7,14 +7,13 @@
     "jest": true
   },
   "parser": "@typescript-eslint/parser",
+  "plugins": [
+    "import"
+  ],
   "extends": [
     "eslint:recommended",
     "plugin:@typescript-eslint/recommended",
-    "plugin:prettier/recommended",
-    "prettier"
-  ],
-  "plugins": [
-    "import"
+    "plugin:prettier/recommended"
   ],
   "parserOptions": {
     "project": "tsconfig.json",

@@ -1,12 +1,12 @@
 import Logger, { formatting, LogLevel, StreamHandler } from '@matrixai/logger';
 import { startStop } from '@matrixai/async-init';
-import * as events from '@/events';
-import * as errors from '@/errors';
-import WebSocketClient from '@/WebSocketClient';
-import WebSocketServer from '@/WebSocketServer';
-import * as utils from '@/utils';
-import WebSocketConnection from '@/WebSocketConnection';
-import * as testsUtils from './utils';
+import * as testsUtils from './utils.js';
+import * as events from '#events.js';
+import * as errors from '#errors.js';
+import WebSocketClient from '#WebSocketClient.js';
+import WebSocketServer from '#WebSocketServer.js';
+import * as utils from '#utils.js';
+import WebSocketConnection from '#WebSocketConnection.js';
 
 describe(WebSocketConnection.name, () => {
   const logger = new Logger(WebSocketConnection.name, LogLevel.WARN, [

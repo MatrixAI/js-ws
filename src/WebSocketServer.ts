@@ -1,5 +1,4 @@
-import type { IncomingMessage, ServerResponse } from 'http';
-import type { Duplex } from 'stream';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import type {
   ConnectionMetadata,
   Host,
@@ -11,20 +10,21 @@ import type {
   WebSocketConfig,
   WebSocketServerConfigInput,
   WebSocketServerConfigInputWithoutTLS,
-} from './types';
+} from './types.js';
 import type { EventAll } from '@matrixai/events';
-import { TLSSocket, Server as TLSServer } from 'tls';
-import https from 'https';
+import type { WebSocket as WSWebSocket } from 'ws';
+import { TLSSocket, Server as TLSServer } from 'node:tls';
+import https from 'node:https';
 import { AbstractEvent } from '@matrixai/events';
-import { StartStop, running, ready } from '@matrixai/async-init/dist/StartStop';
+import { StartStop, running, ready } from '@matrixai/async-init/StartStop.js';
 import Logger from '@matrixai/logger';
-import * as ws from 'ws';
-import * as errors from './errors';
-import * as events from './events';
-import * as utils from './utils';
-import WebSocketConnection from './WebSocketConnection';
-import { serverDefault } from './config';
-import WebSocketConnectionMap from './WebSocketConnectionMap';
+import { WebSocketServer as WSWebSocketServer } from 'ws';
+import * as errors from './errors.js';
+import * as events from './events.js';
+import * as utils from './utils.js';
+import WebSocketConnection from './WebSocketConnection.js';
+import { serverDefault } from './config.js';
+import WebSocketConnectionMap from './WebSocketConnectionMap.js';
 
 interface WebSocketServer extends StartStop {}
 /**
@@ -76,10 +76,8 @@ class WebSocketServer {
    */
   public readonly connectionMap: WebSocketConnectionMap =
     new WebSocketConnectionMap();
-
   protected server: RawServer | undefined;
-
-  protected webSocketServer: ws.WebSocketServer;
+  protected webSocketServer: WSWebSocketServer;
   protected webSocketServerClosed: boolean = false;
 
   protected _closed: boolean = false;
@@ -186,7 +184,7 @@ class WebSocketServer {
    * StreamPair handler.
    */
   protected handleServerConnection = async (
-    webSocket: ws.WebSocket,
+    webSocket: WSWebSocket,
     request: IncomingMessage,
   ) => {
     const httpSocket = request.connection;
@@ -414,7 +412,7 @@ class WebSocketServer {
         ca: this.config.ca as any,
       });
     }
-    this.webSocketServer = new ws.WebSocketServer({
+    this.webSocketServer = new WSWebSocketServer({
       server: this.server,
       noServer: this.isNoServer,
       path,
@@ -594,7 +592,7 @@ class WebSocketServer {
    * This is useful for when `noServer` is set to `true` during construction.
    */
   @ready(new errors.ErrorWebSocketServerNotRunning())
-  public handleWebSocket(webSocket: ws.WebSocket, request: IncomingMessage) {
+  public handleWebSocket(webSocket: WSWebSocket, request: IncomingMessage) {
     this.webSocketServer.emit('connection', webSocket, request);
   }
 

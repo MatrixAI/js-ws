@@ -1,6 +1,6 @@
-import type { StreamId, VarInt } from '@/message';
+import type { StreamId, VarInt } from '#message/index.js';
 import { fc } from '@fast-check/jest';
-import { StreamMessageType, StreamShutdown } from '@/message';
+import { StreamMessageType, StreamShutdown } from '#message/index.js';
 
 function fcBuffer(contraints?: fc.IntArrayConstraints) {
   return fc.uint8Array(contraints).map((data) => {

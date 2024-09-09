@@ -4,20 +4,20 @@ import type {
   StreamId,
   StreamMessage,
   VarInt,
-} from './types';
-import * as errors from './errors';
-import * as utils from '../utils';
+} from './types.js';
+import * as errors from './errors.js';
+import * as utils from '../utils.js';
 
 // Enums
 
-const enum StreamMessageType {
+enum StreamMessageType {
   Data = 0,
   Ack = 1,
   Error = 2,
   Close = 3,
 }
 
-const enum StreamShutdown {
+enum StreamShutdown {
   Read = 0,
   Write = 1,
 }
