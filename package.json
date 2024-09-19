@@ -36,7 +36,7 @@
     "#*": "./dist/*"
   },
   "scripts": {
-    "prepare": "tsc -p ./tsconfig.build.json",
+    "prepare": "tsc -p ./tsconfig.build.json && patch-package",
     "build": "shx rm -rf ./dist && tsc -p ./tsconfig.build.json",
     "tsx": "tsx",
     "test": "node ./scripts/test.mjs",
@@ -44,8 +44,7 @@
     "lintfix": "eslint '{src,tests,scripts,benches}/**/*.{js,mjs,ts,mts,jsx,tsx}' --fix",
     "lint-shell": "find ./src ./tests ./scripts -type f -regextype posix-extended -regex '.*\\.(sh)' -exec shellcheck {} +",
     "docs": "shx rm -rf ./docs && typedoc --gitRevision master --tsconfig ./tsconfig.build.json --out ./docs src",
-    "bench": "rimraf ./benches/results && tsx ./benches/index.ts",
-    "pretest": "patch-package"
+    "bench": "rimraf ./benches/results && tsx ./benches/index.ts"
   },
   "dependencies": {
     "@matrixai/async-cancellable": "^2.0.0",
