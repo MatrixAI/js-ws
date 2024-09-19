@@ -37,7 +37,6 @@
             mkdir --parents "$(pwd)/tmp"
             export PATH="$(pwd)/dist/bin:$(npm root)/.bin:$PATH"
             npm install --ignore-scripts
-            npx patch-package
             set +v
           '';
         };
