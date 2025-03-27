@@ -1,8 +1,0 @@
-# TYPE connection.connection_1KiB_ops gauge
-connection.connection_1KiB_ops{name="send 1KiB of data over connection"} 64038
-
-# TYPE connection.connection_1KiB_margin gauge
-connection.connection_1KiB_margin{name="send 1KiB of data over connection"} 1.5
-
-# TYPE connection.connection_1KiB_samples counter
-connection.connection_1KiB_samples{name="send 1KiB of data over connection"} 85

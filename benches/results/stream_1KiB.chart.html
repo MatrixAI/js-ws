@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="X-UA-Compatible" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.5.1/dist/chart.min.js"></script>
-    <title>baseline_websocket.baseline_websocket_1KiB</title>
+    <title>stream_1KiB</title>
     <style>
       body {
         margin: 0;
@@ -28,7 +28,7 @@
   </head>
   <body>
     <div class="container">
-      <canvas id="chart1720073104226" width="16" height="9"></canvas>
+      <canvas id="chart1743117773450" width="16" height="9"></canvas>
     </div>
     <script>
       const format = (num) => {
@@ -51,16 +51,16 @@
           chunked.map((chunk) => chunk.join('')).join(' ') + fractionStr
         )
       }
-      const ctx1720073104226 = document
-        .getElementById('chart1720073104226')
+      const ctx1743117773450 = document
+        .getElementById('chart1743117773450')
         .getContext('2d')
-      const chart1720073104226 = new Chart(ctx1720073104226, {
+      const chart1743117773450 = new Chart(ctx1743117773450, {
         type: 'bar',
         data: {
-          labels: ["send 1KiB of data over ws"],
+          labels: ["send 1KiB of data over stream"],
           datasets: [
             {
-              data: [72202],
+              data: [12125],
               backgroundColor: ["hsl(120, 85%, 55%)"],
               borderColor: ["hsl(120, 85%, 55%)"],
               borderWidth: 2,
@@ -72,7 +72,7 @@
           plugins: {
             title: {
               display: true,
-              text: 'baseline_websocket.baseline_websocket_1KiB',
+              text: 'stream_1KiB',
               font: { size: 20 },
               padding: 20,
             },
