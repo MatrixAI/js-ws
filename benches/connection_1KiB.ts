@@ -1,12 +1,13 @@
-import type { Host } from '../../../src/types.js';
+import type { Host } from '#types.js';
+import path from 'node:path';
 import url from 'node:url';
 import b from 'benny';
 import Logger, { formatting, LogLevel, StreamHandler } from '@matrixai/logger';
-import { suiteCommon, summaryName } from '../../utils.js';
-import * as events from '../../../src/events.js';
-import * as testsUtils from '../../../tests/utils.js';
-import WebSocketServer from '../../../src/WebSocketServer.js';
-import WebSocketClient from '../../../src/WebSocketClient.js';
+import { suiteCommon } from './utils/utils.js';
+import * as testsUtils from '../tests/utils.js';
+import * as events from '#events.js';
+import WebSocketServer from '#WebSocketServer.js';
+import WebSocketClient from '#WebSocketClient.js';
 
 const filePath = url.fileURLToPath(import.meta.url);
 
@@ -33,24 +34,8 @@ async function main() {
     events.EventWebSocketServerConnection.name,
     async (e: events.EventWebSocketServerConnection) => {
       const conn = e.detail;
-      conn.addEventListener(
-        events.EventWebSocketConnectionStream.name,
-        (streamEvent: events.EventWebSocketConnectionStream) => {
-          const stream = streamEvent.detail;
-          void Promise.allSettled([
-            (async () => {
-              // Consume data
-              for await (const _ of stream.readable) {
-                // Do nothing, only consume
-              }
-            })(),
-            (async () => {
-              // End writable immediately
-              await stream.writable.close();
-            })(),
-          ]);
-        },
-      );
+      // @ts-ignore: protected property
+      conn.socket.removeAllListeners('message');
     },
   );
   await wsServer.start({
@@ -65,27 +50,17 @@ async function main() {
     },
   });
 
-  const stream = await client.connection.newStream();
-  const writer = stream.writable.getWriter();
-
-  const readProm = (async () => {
-    // Consume data
-    for await (const _ of stream.readable) {
-      // Do nothing, only consume
-    }
-  })();
-
   // Running benchmark
   const summary = await b.suite(
-    summaryName(filePath),
-    b.add('send 1KiB of data over stream', async () => {
-      await writer.write(data1KiB);
+    path.basename(filePath, path.extname(filePath)),
+    b.add('send 1KiB of data over connection', async () => {
+      // @ts-ignore: protected property
+      await client.connection.send(data1KiB);
     }),
     ...suiteCommon,
   );
   await wsServer.stop({ force: true });
   await client.destroy({ force: true });
-  await readProm;
   return summary;
 }
 
@@ -95,4 +70,5 @@ if (import.meta.url.startsWith('file:')) {
     void main();
   }
 }
+
 export default main;
