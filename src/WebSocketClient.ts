@@ -21,6 +21,8 @@ import { clientDefault, connectTimeoutTime } from './config.js';
 import * as events from './events.js';
 import * as utils from './utils.js';
 
+// placeholder change
+
 interface WebSocketClient extends createDestroy.CreateDestroy {}
 /**
  * You must provide an error handler `addEventListener('error')`.
