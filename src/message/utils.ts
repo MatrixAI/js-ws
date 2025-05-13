@@ -85,7 +85,7 @@ function parseVarInt(array: Uint8Array): Parsed<VarInt> {
         streamId = dv.getBigUint64(0, false);
         break;
     }
-  } catch (e) {
+  } catch {
     throw new errors.ErrorStreamParse('VarInt is too short');
   }
   return {

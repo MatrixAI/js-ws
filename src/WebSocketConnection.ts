@@ -692,14 +692,14 @@ class WebSocketConnection {
           break;
         case 'ECONNRESET':
           reason = 'WebSocket could not open due to socket closure by peer';
-          (errorCode = utils.ConnectionErrorCode.AbnormalClosure),
-            (e_ = new errors.ErrorWebSocketConnectionPeer(reason, {
-              cause: e,
-              data: {
-                errorCode,
-                reason,
-              },
-            }));
+          errorCode = utils.ConnectionErrorCode.AbnormalClosure;
+          e_ = new errors.ErrorWebSocketConnectionPeer(reason, {
+            cause: e,
+            data: {
+              errorCode,
+              reason,
+            },
+          });
           break;
         default:
           reason = 'WebSocket could not open due to internal error';
