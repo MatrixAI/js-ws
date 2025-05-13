@@ -14,8 +14,8 @@ npm install --save @matrixai/ws
 
 To use `WebSocketClient` in a browser environment, you will need to polyfill:
 
-* [`buffer`](https://nodejs.org/api/buffer.html)
-* [`perf_hooks`](https://nodejs.org/api/perf_hooks.html)
+- [`buffer`](https://nodejs.org/api/buffer.html)
+- [`perf_hooks`](https://nodejs.org/api/perf_hooks.html)
 
 A good choice for a `buffer` polyfill is [`feross/buffer`](https://github.com/feross/buffer)
 

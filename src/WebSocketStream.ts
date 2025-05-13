@@ -549,7 +549,7 @@ class WebSocketStream implements ReadableWritablePair<Uint8Array, Uint8Array> {
     let parsedMessage: StreamMessage;
     try {
       parsedMessage = parseStreamMessage(message);
-    } catch (err) {
+    } catch {
       const e = new errors.ErrorWebSocketStreamInternal(
         'Peer sent a malformed stream message',
       );
