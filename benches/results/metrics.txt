@@ -1,35 +1,35 @@
-# TYPE baseline_tcp.baseline_tcp_1KiB_ops gauge
-baseline_tcp.baseline_tcp_1KiB_ops{name="send 1KiB of data over tcp"} 1197455
+# TYPE baseline_tcp_1KiB_ops gauge
+baseline_tcp_1KiB_ops{name="send 1KiB of data over tcp"} 668083
 
-# TYPE baseline_tcp.baseline_tcp_1KiB_margin gauge
-baseline_tcp.baseline_tcp_1KiB_margin{name="send 1KiB of data over tcp"} 1.05
+# TYPE baseline_tcp_1KiB_margin gauge
+baseline_tcp_1KiB_margin{name="send 1KiB of data over tcp"} 2.02
 
-# TYPE baseline_tcp.baseline_tcp_1KiB_samples counter
-baseline_tcp.baseline_tcp_1KiB_samples{name="send 1KiB of data over tcp"} 86
+# TYPE baseline_tcp_1KiB_samples counter
+baseline_tcp_1KiB_samples{name="send 1KiB of data over tcp"} 81
 
-# TYPE baseline_websocket.baseline_websocket_1KiB_ops gauge
-baseline_websocket.baseline_websocket_1KiB_ops{name="send 1KiB of data over ws"} 72202
+# TYPE baseline_websocket_1KiB_ops gauge
+baseline_websocket_1KiB_ops{name="send 1KiB of data over ws"} 54244
 
-# TYPE baseline_websocket.baseline_websocket_1KiB_margin gauge
-baseline_websocket.baseline_websocket_1KiB_margin{name="send 1KiB of data over ws"} 1.77
+# TYPE baseline_websocket_1KiB_margin gauge
+baseline_websocket_1KiB_margin{name="send 1KiB of data over ws"} 2.98
 
-# TYPE baseline_websocket.baseline_websocket_1KiB_samples counter
-baseline_websocket.baseline_websocket_1KiB_samples{name="send 1KiB of data over ws"} 85
+# TYPE baseline_websocket_1KiB_samples counter
+baseline_websocket_1KiB_samples{name="send 1KiB of data over ws"} 77
 
-# TYPE connection.connection_1KiB_ops gauge
-connection.connection_1KiB_ops{name="send 1KiB of data over connection"} 64038
+# TYPE connection_1KiB_ops gauge
+connection_1KiB_ops{name="send 1KiB of data over connection"} 45844
 
-# TYPE connection.connection_1KiB_margin gauge
-connection.connection_1KiB_margin{name="send 1KiB of data over connection"} 1.5
+# TYPE connection_1KiB_margin gauge
+connection_1KiB_margin{name="send 1KiB of data over connection"} 4.2
 
-# TYPE connection.connection_1KiB_samples counter
-connection.connection_1KiB_samples{name="send 1KiB of data over connection"} 85
+# TYPE connection_1KiB_samples counter
+connection_1KiB_samples{name="send 1KiB of data over connection"} 74
 
-# TYPE stream.stream_1KiB_ops gauge
-stream.stream_1KiB_ops{name="send 1KiB of data over stream"} 17975
+# TYPE stream_1KiB_ops gauge
+stream_1KiB_ops{name="send 1KiB of data over stream"} 12125
 
-# TYPE stream.stream_1KiB_margin gauge
-stream.stream_1KiB_margin{name="send 1KiB of data over stream"} 2.3
+# TYPE stream_1KiB_margin gauge
+stream_1KiB_margin{name="send 1KiB of data over stream"} 5.88
 
-# TYPE stream.stream_1KiB_samples counter
-stream.stream_1KiB_samples{name="send 1KiB of data over stream"} 47
+# TYPE stream_1KiB_samples counter
+stream_1KiB_samples{name="send 1KiB of data over stream"} 47

@@ -11,7 +11,7 @@ import type { ContextTimed, ContextTimedInput } from '@matrixai/contexts';
 import { AbstractEvent } from '@matrixai/events';
 import { createDestroy } from '@matrixai/async-init';
 import { EventAll } from '@matrixai/events';
-import { default as contexts } from '@matrixai/contexts';
+import * as contexts from '@matrixai/contexts';
 import { WebSocket as WSWebSocket } from 'ws';
 import Logger from '@matrixai/logger';
 import * as errors from './errors.js';

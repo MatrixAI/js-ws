@@ -13,7 +13,7 @@ import type { TLSSocket } from 'node:tls';
 import type { StreamId } from './message/index.js';
 import { running, startStop } from '@matrixai/async-init';
 import { Lock } from '@matrixai/async-locks';
-import { default as contexts } from '@matrixai/contexts';
+import * as contexts from '@matrixai/contexts';
 import Logger from '@matrixai/logger';
 import { Timer } from '@matrixai/timer';
 import { AbstractEvent, EventAll, EventError } from '@matrixai/events';
@@ -692,14 +692,14 @@ class WebSocketConnection {
           break;
         case 'ECONNRESET':
           reason = 'WebSocket could not open due to socket closure by peer';
-          (errorCode = utils.ConnectionErrorCode.AbnormalClosure),
-            (e_ = new errors.ErrorWebSocketConnectionPeer(reason, {
-              cause: e,
-              data: {
-                errorCode,
-                reason,
-              },
-            }));
+          errorCode = utils.ConnectionErrorCode.AbnormalClosure;
+          e_ = new errors.ErrorWebSocketConnectionPeer(reason, {
+            cause: e,
+            data: {
+              errorCode,
+              reason,
+            },
+          });
           break;
         default:
           reason = 'WebSocket could not open due to internal error';

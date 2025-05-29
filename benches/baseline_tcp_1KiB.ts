@@ -1,8 +1,9 @@
-import type { Host } from '../../../src/types.js';
+import type { Host } from '#types.js';
 import * as net from 'net';
+import path from 'node:path';
 import url from 'node:url';
 import b from 'benny';
-import { suiteCommon, summaryName } from '../../utils.js';
+import { suiteCommon } from './utils/utils.js';
 import { promise } from '#utils.js';
 
 const filePath = url.fileURLToPath(import.meta.url);
@@ -38,7 +39,7 @@ async function main() {
 
   // Running benchmark
   const summary = await b.suite(
-    summaryName(filePath),
+    path.basename(filePath, path.extname(filePath)),
     b.add('send 1KiB of data over tcp', async () => {
       const prom = promise();
       client.write(data1KiB, () => {

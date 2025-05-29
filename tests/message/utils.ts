@@ -33,7 +33,10 @@ const streamMessageAckPayloadArb = fc.integer({ min: 0, max: 2 ** 32 - 1 });
 
 const streamMessageClosePayloadArb = streamShutdownArb;
 
-const streamMessageErrorPayloadArb = fc.record({
+const streamMessageErrorPayloadArb: fc.Arbitrary<{
+  shutdown: StreamShutdown;
+  code: VarInt;
+}> = fc.record({
   shutdown: streamShutdownArb,
   code: varIntArb,
 });

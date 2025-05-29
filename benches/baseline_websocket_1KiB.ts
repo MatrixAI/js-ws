@@ -1,11 +1,12 @@
-import type { Host } from '../../../src/types.js';
+import type { Host } from '#types.js';
 import type { AddressInfo } from 'net';
 import * as https from 'node:https';
+import path from 'node:path';
 import url from 'node:url';
 import b from 'benny';
 import * as ws from 'ws';
-import { suiteCommon, summaryName } from '../../utils.js';
-import * as testsUtils from '../../../tests/utils.js';
+import { suiteCommon } from './utils/utils.js';
+import * as testsUtils from '../tests/utils.js';
 import { promise } from '#utils.js';
 
 const filePath = url.fileURLToPath(import.meta.url);
@@ -42,7 +43,7 @@ async function main() {
 
   // Running benchmark
   const summary = await b.suite(
-    summaryName(filePath),
+    path.basename(filePath, path.extname(filePath)),
     b.add('send 1KiB of data over ws', async () => {
       const sendProm = promise();
       client.send(data1KiB, { binary: true }, () => {
