@@ -2,7 +2,8 @@
 
 WebSocket library for TypeScript/JavaScript applications.
 
-This is built on top of the [ws](https://github.com/websockets/ws) library, providing a multiplexed WebStreams API on top of WebSocket.
+This is built on top of the [ws](https://github.com/websockets/ws) library,
+providing a multiplexed WebStreams API on top of WebSocket.
 
 ## Installation
 
@@ -17,9 +18,11 @@ To use `WebSocketClient` in a browser environment, you will need to polyfill:
 - [`buffer`](https://nodejs.org/api/buffer.html)
 - [`perf_hooks`](https://nodejs.org/api/perf_hooks.html)
 
-A good choice for a `buffer` polyfill is [`feross/buffer`](https://github.com/feross/buffer)
+A good choice for a `buffer` polyfill is
+[`feross/buffer`](https://github.com/feross/buffer)
 
-To polyfill `perf_hooks`, you can alias the `perf_hooks` using your bundler of choice with a file containing the following code:
+To polyfill `perf_hooks`, you can alias the `perf_hooks` using your bundler of
+choice with a file containing the following code:
 
 ```ts
 const { performance } = globalThis;
@@ -66,4 +69,5 @@ git push --tags
 
 ## License
 
-js-ws is licensed under Apache-2.0, you may read the terms of the license [here](LICENSE).
+js-ws is licensed under Apache-2.0, you may read the terms of the license
+[here](LICENSE).

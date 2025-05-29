@@ -60,7 +60,7 @@
   },
   "devDependencies": {
     "@fast-check/jest": "^2.1.0",
-    "@matrixai/lint": "^0.2.6",
+    "@matrixai/lint": "^0.2.11",
     "@peculiar/asn1-pkcs8": "^2.3.0",
     "@peculiar/asn1-schema": "^2.3.0",
     "@peculiar/asn1-x509": "^2.3.0",
